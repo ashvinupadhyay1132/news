@@ -1,3 +1,4 @@
+
 import type { Article } from "@/lib/placeholder-data";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -5,6 +6,7 @@ import { CalendarDays, NewspaperIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
+import { slugify } from "@/lib/utils";
 
 interface ArticleCardProps {
   article: Article;
@@ -17,21 +19,27 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
     day: 'numeric',
   });
 
+  // Construct a hint for AI image generation if needed for placeholders
+  const imageHint = slugify(article.category) || "news";
+
+
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg bg-card">
       <Link href={article.link} className="block group">
         <div className="relative w-full h-48 overflow-hidden">
           <Image
-            src={article.imageUrl || 'https://placehold.co/600x400.png'}
+            src={article.imageUrl || `https://placehold.co/600x400.png`}
             alt={article.title}
             layout="fill"
             objectFit="cover"
             className="group-hover:scale-105 transition-transform duration-300 ease-in-out"
-            data-ai-hint={`${article.category} news`}
+            data-ai-hint={`${imageHint} article`}
             onError={(e) => {
               // Fallback if image fails to load or is invalid
               e.currentTarget.srcset = ''; // Clear srcset
-              e.currentTarget.src = 'https://placehold.co/600x400.png';
+              e.currentTarget.src = `https://placehold.co/600x400.png`;
+              // Add data-ai-hint to placeholder if it's being used due to an error
+              e.currentTarget.setAttribute('data-ai-hint', `${imageHint} placeholder`);
             }}
           />
         </div>

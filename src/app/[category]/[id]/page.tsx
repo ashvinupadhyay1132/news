@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { slugify } from '@/lib/utils';
 
 export default function ArticlePage() {
   const params = useParams();
@@ -35,8 +36,6 @@ export default function ArticlePage() {
           if (fetchedArticle) {
             setArticle(fetchedArticle);
           } else {
-            // This will be handled by the !article check below, potentially triggering notFound()
-            // or showing a "not found" message. For simplicity, we just log here.
             console.warn(`Article with ID ${articleIdParam} not found.`);
           }
         } catch (error) {
@@ -73,8 +72,6 @@ export default function ArticlePage() {
   }
 
   if (!article) {
-    // Optional: Trigger Next.js 404 page if article truly not found
-    // if (typeof window !== 'undefined') notFound(); // Only call on client-side after initial check
     return (
       <div className="text-center py-10">
         <h1 className="text-2xl font-semibold mb-4">Article not found</h1>
@@ -97,7 +94,7 @@ export default function ArticlePage() {
   }) : 'Date not available';
 
   const handleShare = (platform: 'twitter' | 'facebook' | 'linkedin' | 'whatsapp' | 'copy') => {
-    const url = article.sourceLink || window.location.href; // Prefer sharing the original source link
+    const url = article.sourceLink || window.location.href; 
     const text = `Check out this article: ${article.title}`;
     let shareUrl = '';
 
@@ -127,6 +124,8 @@ export default function ArticlePage() {
       window.open(shareUrl, '_blank', 'noopener,noreferrer');
     }
   };
+  
+  const imageHint = slugify(article.category) || "news";
 
   return (
     <div className="max-w-3xl mx-auto bg-card p-6 sm:p-8 rounded-lg shadow-xl">
@@ -154,33 +153,36 @@ export default function ArticlePage() {
 
         <div className="relative w-full h-64 sm:h-96 mb-8 rounded-md overflow-hidden shadow-md">
           <Image
-            src={article.imageUrl || 'https://placehold.co/600x400.png'}
+            src={article.imageUrl || `https://placehold.co/800x450.png`}
             alt={article.title}
             layout="fill"
             objectFit="cover"
-            priority // Prioritize loading for main article image
+            priority 
             className="transition-opacity duration-300"
-            data-ai-hint={`${article.category} article full image`}
+            data-ai-hint={`${imageHint} article full image`}
             onError={(e) => {
-              e.currentTarget.srcset = ''; // Clear srcset to prevent issues with failed sources
-              e.currentTarget.src = 'https://placehold.co/800x450.png'; // Slightly larger placeholder
+              e.currentTarget.srcset = ''; 
+              e.currentTarget.src = `https://placehold.co/800x450.png`;
+              e.currentTarget.setAttribute('data-ai-hint', `${imageHint} placeholder large`);
             }}
           />
         </div>
         
         <div className="prose dark:prose-invert max-w-none mb-8 text-foreground/90">
           <p className="text-lg leading-relaxed italic mb-6">{article.summary}</p>
-          {/* Render HTML content if available, otherwise show a message. 
-              NOTE: dangerouslySetInnerHTML is used here. For production, 
-              you MUST sanitize this HTML to prevent XSS attacks if the RSS content is not trusted.
-              Using a library like DOMPurify is recommended.
+          {/* 
+            SECURITY WARNING: Rendering HTML from RSS feeds (article.content) via dangerouslySetInnerHTML 
+            is a significant XSS (Cross-Site Scripting) risk if the content is not sanitized.
+            For a production application, you MUST use a library like DOMPurify to sanitize
+            this HTML before rendering it. Example:
+            import DOMPurify from 'dompurify';
+            const cleanHtml = DOMPurify.sanitize(article.content);
+            <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />
           */}
-          {article.content && article.content.trim() !== article.summary.trim() && article.content.trim() !== 'No summary available.' ? (
+          {article.content && article.content.trim() !== article.summary.trim() && !article.summary.includes('No summary available.') ? (
              <div dangerouslySetInnerHTML={{ __html: article.content }} />
           ) : (
-            article.summary.includes('No summary available.') && <p>Full content could not be loaded for this article.</p>
-            // If content is same as summary (and summary is not the default "No summary"), don't show "Full content not available".
-            // If summary is the default "No summary", then it means content is also likely unavailable.
+            article.summary.includes('No summary available.') && <p>Full content could not be loaded for this article from the RSS feed.</p>
           )}
         </div>
 

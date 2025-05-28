@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -16,63 +17,78 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // BBC News
       {
         protocol: 'https',
         hostname: 'ichef.bbci.co.uk',
         port: '',
         pathname: '/**',
       },
-      { // For CNN
+      // Google News & other Google services (covers lh3.googleusercontent.com, news.google.com images etc.)
+      {
         protocol: 'https',
-        hostname: '**.cnn.com', 
+        hostname: '**.googleusercontent.com',
         port: '',
         pathname: '/**',
       },
-      { // For Reuters
+       {
         protocol: 'https',
-        hostname: '**.reuters.com',
+        hostname: 'news.google.com', // For images directly hosted or linked by news.google.com
         port: '',
         pathname: '/**',
       },
-      { // For Google News (common pattern)
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
-        port: '',
-        pathname: '/**',
-      },
-      { // For The Guardian
-        protocol: 'https',
-        hostname: 'i.guim.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-      { // For CNBC (common pattern for images)
-        protocol: 'https',
-        hostname: '**.cnbcfm.com',
-        port: '',
-        pathname: '/**',
-      },
-       { // For CNBC (another common pattern for images)
-        protocol: 'https',
-        hostname: 'fm.cnbc.com',
-        port: '',
-        pathname: '/**',
-      },
-      { // For NDTV
-        protocol: 'https',
-        hostname: '**.ndtvimg.com',
-        port: '',
-        pathname: '/**',
-      },
-      { // For NDTV (another pattern)
+      // NDTV
+      {
         protocol: 'https',
         hostname: 'c.ndtvimg.com',
         port: '',
         pathname: '/**',
       },
-      // Add more specific patterns if general ones above are too broad or don't work
-      // e.g. for The Guardian if i.guim.co.uk isn't enough:
-      // { protocol: 'https', hostname: 'static.guim.co.uk', pathname: '/**' },
+      {
+        protocol: 'https',
+        hostname: '**.ndtvimg.com', // Broader pattern for ndtvimg.com subdomains
+        port: '',
+        pathname: '/**',
+      },
+      // General CDNs that might be used by various news outlets - add cautiously
+      // Example: Add Akamai if you notice many feeds use it.
+      // {
+      //   protocol: 'https',
+      //   hostname: '**.akamaihd.net',
+      //   port: '',
+      //   pathname: '/**',
+      // },
+      // Keeping some of the previously added ones if they are common patterns
+      { 
+        protocol: 'https',
+        hostname: '**.cnn.com', 
+        port: '',
+        pathname: '/**',
+      },
+      { 
+        protocol: 'https',
+        hostname: '**.reuters.com',
+        port: '',
+        pathname: '/**',
+      },
+      { 
+        protocol: 'https',
+        hostname: 'i.guim.co.uk',
+        port: '',
+        pathname: '/**',
+      },
+      { 
+        protocol: 'https',
+        hostname: '**.cnbcfm.com',
+        port: '',
+        pathname: '/**',
+      },
+       { 
+        protocol: 'https',
+        hostname: 'fm.cnbc.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
