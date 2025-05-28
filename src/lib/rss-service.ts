@@ -43,9 +43,6 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "BBC - Entertainment & Arts (RSSHub)", rssUrl: "https://rsshub.app/bbc/entertainment_and_arts", defaultCategory: "Entertainment" },
   { name: "BBC - Science & Environment (RSSHub)", rssUrl: "https://rsshub.app/bbc/science_and_environment", defaultCategory: "Science" },
   { name: "BBC - Technology (RSSHub)", rssUrl: "https://rsshub.app/bbc/technology", defaultCategory: "Technology" },
-  
-  // Reddit
-  { name: "Reddit - WorldNews", rssUrl: "https://www.reddit.com/r/worldnews/.rss", defaultCategory: "World News"},
 ];
 
 
@@ -242,7 +239,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (compatible; NewsFlashApp/1.0; +https://trendingnewsfeed.in/bot.html)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
       next: { revalidate: 300 } // 5 minutes
@@ -441,5 +438,3 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   return allArticles.slice(0, 150); // Limit to 150 articles after de-duplication
 }
-
-    

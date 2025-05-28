@@ -128,31 +128,6 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Reddit images
-      {
-        protocol: 'https',
-        hostname: 'i.redd.it',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'external-preview.redd.it',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'preview.redd.it',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'styles.redditmedia.com', 
-        port: '',
-        pathname: '/**',
-      },
       // Mint (livemint.com)
       {
         protocol: 'https',
