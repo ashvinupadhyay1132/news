@@ -17,16 +17,28 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // RSSHub (might proxy images or link to various sources)
+      // BBC
       {
         protocol: 'https',
-        hostname: 'rsshub.app', 
+        hostname: 'ichef.bbci.co.uk',
+        port: '',
+        pathname: '/**',
+      },
+      { // Also http for some older BBC images
+        protocol: 'http',
+        hostname: 'ichef.bbci.co.uk',
+        port: '',
+        pathname: '/**',
+      },
+      { // news.bbcimg.co.uk also used
+        protocol: 'https',
+        hostname: 'news.bbcimg.co.uk',
         port: '',
         pathname: '/**',
       },
       {
-        protocol: 'http', 
-        hostname: 'rsshub.app',
+        protocol: 'http',
+        hostname: 'news.bbcimg.co.uk',
         port: '',
         pathname: '/**',
       },
@@ -53,19 +65,6 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '**.imgix.net', // Imgix CDN
-        port: '',
-        pathname: '/**',
-      },
-      // Bing often uses these for images (via RSSHub)
-      {
-        protocol: 'https',
-        hostname: '**.bing.com', // Wildcard for bing.com and subdomains
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'th.bing.com', // Specifically for Bing image thumbnails
         port: '',
         pathname: '/**',
       },
@@ -210,3 +209,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

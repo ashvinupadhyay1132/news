@@ -15,15 +15,6 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
-  // RSSHub Bing News Feeds
-  { name: "RSSHub - Bing General News", rssUrl: "https://rsshub.app/bing/news", defaultCategory: "General News" },
-  { name: "RSSHub - Bing Tech", rssUrl: "https://rsshub.app/bing/news/technology", defaultCategory: "Technology" },
-  { name: "RSSHub - Bing Business", rssUrl: "https://rsshub.app/bing/news/business", defaultCategory: "Business" },
-  { name: "RSSHub - Bing World", rssUrl: "https://rsshub.app/bing/news/world", defaultCategory: "World News" },
-  { name: "RSSHub - Bing Entertainment", rssUrl: "https://rsshub.app/bing/news/entertainment", defaultCategory: "Entertainment" },
-  { name: "RSSHub - Bing Sports", rssUrl: "https://rsshub.app/bing/news/sports", defaultCategory: "Sports" },
-  { name: "RSSHub - Bing India News", rssUrl: "https://rsshub.app/bing/news/India", defaultCategory: "India News" },
-
   // Mint (India)
   { name: "Mint - Latest News", rssUrl: "https://www.livemint.com/rss/latestnews", defaultCategory: "India News" },
   { name: "Mint - Companies", rssUrl: "https://www.livemint.com/rss/companies", defaultCategory: "Business" },
@@ -44,11 +35,14 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Times of India - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "India News" },
   { name: "Times of India - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business"},
   { name: "Times of India - Tech", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/5880659.cms", defaultCategory: "Technology"},
+
+  // BBC News
+  { name: "BBC - Top Stories", rssUrl: "http://feeds.bbci.co.uk/news/rss.xml", defaultCategory: "World News" },
+  { name: "BBC - World", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News" },
+  { name: "BBC - Technology", rssUrl: "http://feeds.bbci.co.uk/news/technology/rss.xml", defaultCategory: "Technology" },
+  { name: "BBC - Business", rssUrl: "http://feeds.bbci.co.uk/news/business/rss.xml", defaultCategory: "Business" },
   
-  // Other existing feeds (if any, for example Reddit/Flipboard based on previous interactions)
-  { name: "The Guardian - World News", rssUrl: "https://www.theguardian.com/international/rss", defaultCategory: "World News" },
-  { name: "The Guardian - Business", rssUrl: "https://www.theguardian.com/uk/business/rss", defaultCategory: "Business" },
-  { name: "Flipboard - Tech", rssUrl: "https://flipboard.com/@flipboard/tech.rss", defaultCategory: "Technology" },
+  // Reddit
   { name: "Reddit - WorldNews", rssUrl: "https://www.reddit.com/r/worldnews/.rss", defaultCategory: "World News"},
 ];
 
@@ -58,7 +52,18 @@ const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string): string | null {
   let imageUrl = null;
   
-  if (item['media:group'] && item['media:group']['media:content']) {
+  // Prioritize media:content as it often contains more detailed image info
+  if (item['media:content']) {
+    const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
+    for (const content of mediaContents) {
+      if (content && content.url && (content.medium === 'image' || (String(content.type).startsWith('image/')) || (content.type && String(content.type).includes('image')))) {
+        imageUrl = content.url;
+        break;
+      }
+    }
+  }
+
+  if (!imageUrl && item['media:group'] && item['media:group']['media:content']) {
     const mediaContents = Array.isArray(item['media:group']['media:content'])
       ? item['media:group']['media:content']
       : [item['media:group']['media:content']];
@@ -70,24 +75,16 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
   
-  if (!imageUrl && item['media:content']) {
-    const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
-    for (const content of mediaContents) {
-      if (content && content.url && (content.medium === 'image' || (String(content.type).startsWith('image/')) || (content.type && String(content.type).includes('image')))) {
-        imageUrl = content.url;
-        break;
-      }
-    }
-  }
-  
   if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
     imageUrl = item.enclosure.url;
   }
 
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
+    // This might be a lower quality thumbnail, so it's a lower priority
     imageUrl = item['media:thumbnail'].url;
   }
   
+  // Specific for Times of India / Hindustan Times if other methods fail
   if (!imageUrl && (item.source?.includes("Times of India") || item.source?.includes("Hindustan Times")) ) {
     const description = normalizeContent(getNestedValue(item, 'description'));
     if (description) {
@@ -98,12 +95,13 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
+  // Generic search in content/description for an <img> tag
   if (!imageUrl) {
     const contentFieldsToSearch = [
       getNestedValue(item, 'content:encoded'), 
       getNestedValue(item, 'description'),
       getNestedValue(item, 'content'),
-      getNestedValue(item, 'content._'),
+      getNestedValue(item, 'content._'), // For Reddit's structure sometimes
       getNestedValue(item, 'summary'), 
     ];
     for (const field of contentFieldsToSearch) {
@@ -127,15 +125,18 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
         const baseLink = getNestedValue(item, 'link');
         if (baseLink && typeof baseLink === 'string' && baseLink.startsWith('http')) {
             try {
-                const baseUrl = new URL(baseLink);
-                return new URL(imageUrl, baseUrl.origin).href;
+                const baseUrlObject = new URL(baseLink);
+                return new URL(imageUrl, baseUrlObject.origin).href;
             } catch (e) {
+                // console.warn(`Could not construct absolute URL for relative image path: ${imageUrl} with base: ${baseLink}`);
                 return null; 
             }
         }
+        // console.warn(`Could not construct absolute URL for relative image path: ${imageUrl} as baseLink is invalid.`);
         return null; 
     }
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        // console.warn(`Image URL does not start with http/https: ${imageUrl}`);
         return null; 
     }
     return imageUrl;
@@ -162,6 +163,7 @@ function normalizeContent(contentInput: any): string {
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
+    // Try common object structures for content
     const potentialValues = [
       getNestedValue(contentInput, 'content:encoded'),
       getNestedValue(contentInput, 'content'),
@@ -181,29 +183,41 @@ function normalizeContent(contentInput: any): string {
   return text.trim();
 }
 
-function normalizeSummary(descriptionInput: any, fullContentInput?: any): string {
+function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceName?: string): string {
   let textToSummarize = '';
-  const descriptionText = normalizeContent(descriptionInput);
+  let descriptionText = normalizeContent(descriptionInput);
   const fullContentText = normalizeContent(fullContentInput);
 
+  if (sourceName && sourceName.includes("Reddit")) {
+    // More aggressive cleaning for Reddit descriptions
+    descriptionText = descriptionText
+        .replace(/<p>submitted by.*?<\/p>/gi, '') // Remove "submitted by..." paragraph
+        .replace(/<a[^>]*?>\[link\]<\/a>/gi, '')    // Remove [link] anchor
+        .replace(/<a[^>]*?>\[comments\]<\/a>/gi, '') // Remove [comments] anchor
+        .replace(/<img[^>]*?>/gi, '');              // Remove any image tags from description
+  }
+
+  // Prefer full content if it's substantially longer or if description is minimal
   if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { 
     textToSummarize = fullContentText;
   } else if (descriptionText) {
     textToSummarize = descriptionText;
-  } else if (fullContentText) {
+  } else if (fullContentText) { // Fallback to full content if description is empty
     textToSummarize = fullContentText;
   }
   
+  // General cleanup: remove HTML, extra whitespace, etc.
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
-    .replace(/<[^>]+>/g, ' ') 
-    .replace(/\[link\]|\[comments\]/gi, '') 
+    .replace(/<[^>]+>/g, ' ') // Strip all HTML tags
+    .replace(/\[link\]|\[comments\]/gi, '') // Remove [link] and [comments] text
     .replace(/&nbsp;/gi, ' ') 
     .replace(/\s+/g, ' ')
     .trim();
     
   if (!plainText && fullContentText && fullContentText !== textToSummarize) { 
+      // If plainText is empty but fullContentText was available and different (e.g., description was just HTML fluff)
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -224,7 +238,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 NewsFlashApp/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 NewsAggregator/1.1',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
       next: { revalidate: 300 } // 5 minutes
@@ -239,17 +253,18 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
     let items = getNestedValue(result, 'rss.channel.item', []);
     if (!items || (Array.isArray(items) && items.length === 0)) {
-      items = getNestedValue(result, 'feed.entry', []); 
+      items = getNestedValue(result, 'feed.entry', []); // For Atom feeds
     }
      if (!items || (Array.isArray(items) && items.length === 0)) { 
-      items = getNestedValue(result, 'rdf:RDF.item', []); 
+      items = getNestedValue(result, 'rdf:RDF.item', []); // For RDF feeds
     }
 
     if (!Array.isArray(items)) {
-      items = items ? [items] : []; 
+      items = items ? [items] : []; // Ensure items is an array
     }
 
     if (items.length === 0) {
+      // console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl})`);
       return [];
     }
 
@@ -272,14 +287,21 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       
       if (source.name.includes("Reddit") && item.content && (item.content._ || typeof item.content === 'string')) {
           const contentStr = item.content._ || item.content;
+          // Reddit often has the true article link inside the description/content as "[link]"
           const linkMatch = String(contentStr).match(/<a href="([^"]+)">\[link\]<\/a>/);
           if (linkMatch && linkMatch[1]) originalLink = linkMatch[1];
       }
       originalLink = typeof originalLink === 'string' ? originalLink.trim() : '#';
       
+      // Fallback if link is still '#' and guid is a permalink
+      if (originalLink === '#' && item.guid && typeof item.guid === 'string' && (item.guid.startsWith('http') || (typeof item.guid === 'object' && item.guid.isPermaLink !== 'false'))) {
+        originalLink = typeof item.guid === 'object' ? item.guid._ : item.guid;
+      }
+      // Atom feeds often use <id> as the permalink
       if (originalLink === '#' && item.id && typeof item.id === 'string' && item.id.startsWith('http')) {
         originalLink = item.id; 
       }
+
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
       const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
@@ -287,15 +309,17 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       let guidValue = getNestedValue(item, 'guid');
       if (typeof guidValue === 'object') {
           if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { 
-              guidValue = originalLink; 
+              // If not a permalink, use the originalLink we derived, or a composite ID
+              guidValue = originalLink !== '#' ? originalLink : (title + source.name + index); 
           } else {
+              // If it is a permalink, use its content
               guidValue = normalizeContent(getNestedValue(guidValue, '_', getNestedValue(guidValue, '#text', originalLink)));
           }
       } else {
-          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); 
+          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); // Use <id> from Atom as a fallback for guid
       }
       
-      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink + source.name + index);
+      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink !== "#" ? originalLink : (title + source.name + index) );
       const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); 
       const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput; 
       const id = slugify(idBase) + '-' + idSuffix;
@@ -313,8 +337,15 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
       const imageUrl = extractImageUrl(item, title, finalCategory);
       
-      const rawContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
-      const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawContent);
+      let rawContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
+      // For Reddit, description might be cleaner for rawContent if content:encoded is just boilerplate
+      if (source.name.includes("Reddit")) {
+          const redditDescription = normalizeContent(getNestedValue(item, 'description'));
+          if (redditDescription && (!rawContent || rawContent.length < redditDescription.length + 20)) {
+              rawContent = redditDescription;
+          }
+      }
+      const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawContent, source.name);
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
@@ -332,7 +363,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       };
     }).filter(article => article.title && article.title !== 'Untitled Article' && !article.title.includes("reddit.com Store") && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
-    console.error(`Error processing RSS feed for ${source.name} (${source.rssUrl}):`, error);
+    // console.error(`Error processing RSS feed for ${source.name} (${source.rssUrl}):`, error);
     return [];
   }
 }
@@ -343,6 +374,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
 
+  // First, filter out articles with insufficient summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
     return summaryText.length >= 25 && 
@@ -350,6 +382,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
            summaryText !== "..."; 
   });
   
+  // Then, de-duplicate
   const uniqueArticlesMap = new Map<string, Article>();
   for (const article of allArticles) {
     if (!article.title || !article.sourceLink || article.sourceLink === '#') {
@@ -361,7 +394,8 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     let normalizedLinkKey = article.sourceLink;
     try {
         const url = new URL(article.sourceLink);
-        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed'];
+        // More robust query param removal
+        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk'];
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
@@ -374,23 +408,20 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     if (!existingArticle) {
         uniqueArticlesMap.set(uniqueKey, article);
     } else {
+        // Preference logic: keep the one with an image, or more content, or more specific category
         let keepNew = false;
         if (article.imageUrl && !existingArticle.imageUrl) {
             keepNew = true;
         } else if (!article.imageUrl && existingArticle.imageUrl) {
             // keep existing
-        }
-        else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) { 
+        } else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) { 
             keepNew = true;
         } else if (!article.content && existingArticle.content) {
            // keep existing
-        }
-        else if (article.category !== existingArticle.category && (article.category !== 'General' && article.category !== 'Top News' && existingArticle.category === 'General' || existingArticle.category === 'Top News')) {
-            keepNew = true;
-        }
-        else if (existingArticle.category && (existingArticle.category.toLowerCase().includes("top news") || existingArticle.category.toLowerCase().includes("general news")) && 
-                 article.category && !(article.category.toLowerCase().includes("top news") || article.category.toLowerCase().includes("general news"))){
-            keepNew = true;
+        } else if (article.category !== existingArticle.category && 
+                   (article.category.toLowerCase() !== 'general' && article.category.toLowerCase() !== 'top news' && article.category.toLowerCase() !== 'world news') &&
+                   (existingArticle.category.toLowerCase() === 'general' || existingArticle.category.toLowerCase() === 'top news' || existingArticle.category.toLowerCase() === 'world news')) {
+            keepNew = true; // Prefer a more specific category
         }
         
         if (keepNew) {
@@ -400,7 +431,9 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
+  // Sort by date as the final step
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return allArticles.slice(0, 100); 
+  return allArticles.slice(0, 150); // Limit to 150 articles after de-duplication
 }
+
