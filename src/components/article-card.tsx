@@ -6,8 +6,7 @@ import { CalendarDays, NewspaperIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { slugify } from "@/lib/utils";
-import { generateAiHintFromTitle } from "@/lib/utils"; // Updated import
+import { slugify, generateAiHintFromTitle } from "@/lib/utils"; // Corrected import
 
 interface ArticleCardProps {
   article: Article;

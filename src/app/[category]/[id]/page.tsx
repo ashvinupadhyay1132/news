@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generateAiHintFromTitle } from '@/lib/utils'; // Updated import
+import { generateAiHintFromTitle } from '@/lib/utils'; // Corrected import
 // IMPORTANT: For production, you MUST install and use an HTML sanitizer like DOMPurify.
 // import DOMPurify from 'dompurify';
 
