@@ -1,27 +1,88 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { categories } from "@/lib/placeholder-data";
-import { useRouter, useSearchParams } from "next/navigation";
+import { getCategories } from "@/lib/placeholder-data";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { useEffect, useState } from "react";
+import { Skeleton } from "./ui/skeleton";
 
 interface CategoryFilterProps {
-  currentCategory: string;
+  // currentCategory is derived from URL, no longer passed as prop
 }
 
-const CategoryFilter = ({ currentCategory }: CategoryFilterProps) => {
+const CategoryFilter = ({}: CategoryFilterProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const params = useParams(); // Use this to get category from URL path if applicable
+
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Determine current category from URL query first, then path
+  let currentCategoryQuery = searchParams.get('category') || "All";
+  const categoryFromPath = Array.isArray(params.category) ? params.category[0] : params.category;
+  
+  // If on a category page like /technology, that should be the active category
+  // otherwise, use the query param.
+  const activeCategory = categoryFromPath ? categories.find(c => slugify(c) === slugify(categoryFromPath)) || "All" : currentCategoryQuery;
+
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setIsLoading(true);
+      try {
+        const fetchedCategories = await getCategories();
+        setCategories(fetchedCategories);
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+        setCategories(["All"]); // Fallback
+      }
+      setIsLoading(false);
+    };
+    fetchCategories();
+  }, []);
 
   const handleCategoryChange = (category: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const newParams = new URLSearchParams(searchParams.toString());
     if (category === "All") {
-      params.delete('category');
+      newParams.delete('category');
+      router.push(`/?${newParams.toString()}`);
     } else {
-      params.set('category', category);
+      newParams.set('category', category);
+      // Navigate to homepage with category query param
+      // Or, if you want to navigate to /category/[categoryName]
+      // router.push(`/${slugify(category)}?${newParams.toString()}`);
+      router.push(`/?${newParams.toString()}`);
     }
-    router.push(`/?${params.toString()}`);
   };
+  
+  function slugify(text: string): string {
+    if (!text) return '';
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w-]+/g, '')
+      .replace(/--+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
+  }
+
+
+  if (isLoading) {
+    return (
+      <div className="mb-8">
+        <Skeleton className="h-7 w-48 mb-3" />
+        <div className="flex space-x-2 p-2 border rounded-md">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-24" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-8">
@@ -31,7 +92,7 @@ const CategoryFilter = ({ currentCategory }: CategoryFilterProps) => {
           {categories.map((category) => (
             <Button
               key={category}
-              variant={currentCategory === category ? "primary" : "outline"}
+              variant={activeCategory === category ? "primary" : "outline"}
               onClick={() => handleCategoryChange(category)}
               className="shrink-0"
             >

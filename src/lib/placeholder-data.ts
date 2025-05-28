@@ -1,3 +1,7 @@
+import type { ParsedUrlQuery } from 'querystring';
+import { fetchArticlesFromAllSources } from './rss-service';
+import { slugify } from './utils';
+
 export interface Article {
   id: string;
   title: string;
@@ -7,39 +11,65 @@ export interface Article {
   category: string;
   imageUrl: string;
   link: string;
-  content?: string; // Optional full content
+  content?: string; // Full content, often HTML from RSS
 }
 
-export const categories: string[] = ["All", "Technology", "Business", "Sports", "Entertainment", "World News", "Science"];
+let cachedArticles: Article[] | null = null;
+let lastFetchTime: number = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const generateArticles = (category: string, count: number): Article[] => {
-  const articles: Article[] = [];
-  for (let i = 1; i <= count; i++) {
-    articles.push({
-      id: `${category.toLowerCase().replace(/\s+/g, '-')}-${i}`,
-      title: `${category} Article Title ${i}: Catchy Headline Here`,
-      summary: `This is a brief summary of the ${category.toLowerCase()} article number ${i}. It gives a glimpse into the main topic and entices the reader to learn more. We're talking about exciting developments and key insights.`,
-      date: new Date(Date.now() - Math.random() * 10000000000).toISOString(), // Random date within last few months
-      source: `Source ${String.fromCharCode(65 + (i % 5))}`, // Source A, B, C, D, E
-      category: category,
-      imageUrl: `https://placehold.co/600x400.png`,
-      link: `/${category.toLowerCase().replace(/\s+/g, '-')}/${i}`,
-      content: `This is the full content for ${category} Article ${i}. It delves deeper into the topic, providing detailed information, analysis, and perhaps some quotes or statistics. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`,
-    });
+export async function getArticles(query?: ParsedUrlQuery): Promise<Article[]> {
+  const now = Date.now();
+  if (cachedArticles && (now - lastFetchTime < CACHE_DURATION)) {
+    // console.log("Serving articles from cache");
+    return filterAndSearchArticles(cachedArticles, query);
   }
-  return articles;
-};
+  // console.log("Fetching fresh articles");
+  const freshArticles = await fetchArticlesFromAllSources();
+  cachedArticles = freshArticles;
+  lastFetchTime = now;
+  return filterAndSearchArticles(freshArticles, query);
+}
 
+export async function getArticleById(id: string): Promise<Article | undefined> {
+  // Ensure cache is populated if empty or stale, but don't pass query here
+  const articles = await getArticles(); 
+  return articles.find(article => article.id === id);
+}
 
-export const placeholderArticles: Article[] = [
-  ...generateArticles("Technology", 8),
-  ...generateArticles("Business", 6),
-  ...generateArticles("Sports", 7),
-  ...generateArticles("Entertainment", 5),
-  ...generateArticles("World News", 9),
-  ...generateArticles("Science", 4),
-].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort by date descending
+export async function getCategories(): Promise<string[]> {
+  // Ensure cache is populated
+  const articles = await getArticles(); 
+  const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean)); // Filter out undefined/null categories
+  return ["All", ...Array.from(uniqueCategories).sort()];
+}
 
-export const getArticleById = (id: string): Article | undefined => {
-  return placeholderArticles.find(article => article.id === id);
-};
+// Helper for filtering and searching, can be used by getArticles or client-side
+export function filterAndSearchArticles(
+  articles: Article[],
+  query?: ParsedUrlQuery
+): Article[] {
+  if (!query) return articles;
+
+  let filtered = articles;
+  const currentCategory = query.category as string | undefined;
+  const searchTerm = query.q as string | undefined;
+
+  if (currentCategory && currentCategory !== "All") {
+    filtered = filtered.filter(
+      (article) => slugify(article.category) === slugify(currentCategory)
+    );
+  }
+
+  if (searchTerm) {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    filtered = filtered.filter(
+      (article) =>
+        article.title.toLowerCase().includes(lowerSearchTerm) ||
+        article.summary.toLowerCase().includes(lowerSearchTerm) ||
+        article.category.toLowerCase().includes(lowerSearchTerm) ||
+        article.source.toLowerCase().includes(lowerSearchTerm)
+    );
+  }
+  return filtered;
+}

@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Article } from "@/lib/placeholder-data";
-import { placeholderArticles } from "@/lib/placeholder-data";
+import { getArticles, filterAndSearchArticles } from "@/lib/placeholder-data"; // Import getArticles and filterAndSearchArticles
 import ArticleCard from "./article-card";
 import useIntersectionObserver from "@/hooks/use-intersection-observer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import type { ParsedUrlQuery } from 'querystring';
+
 
 interface ArticleGridProps {
   searchTerm: string;
@@ -17,90 +19,77 @@ interface ArticleGridProps {
 const ARTICLES_PER_PAGE = 9;
 
 const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
+  const [allFetchedArticles, setAllFetchedArticles] = useState<Article[]>([]);
   const [displayedArticles, setDisplayedArticles] = useState<Article[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
+  const [isFetchingInitial, setIsFetchingInitial] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const entry = useIntersectionObserver(loadMoreRef, { threshold: 0.5 });
 
-  const filterAndSearchArticles = useCallback(() => {
-    let filtered = placeholderArticles;
-
-    if (currentCategory !== "All") {
-      filtered = filtered.filter(
-        (article) => article.category === currentCategory
-      );
+  const fetchAndFilterArticles = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Construct query for getArticles
+      const query: ParsedUrlQuery = {};
+      if (searchTerm) query.q = searchTerm;
+      if (currentCategory && currentCategory !== "All") query.category = currentCategory;
+      
+      const fetchedArticles = await getArticles(query); // Pass query to fetch filtered articles
+      setAllFetchedArticles(fetchedArticles); // Store all *filtered* articles based on current search/category
+      setDisplayedArticles(fetchedArticles.slice(0, ARTICLES_PER_PAGE));
+      setHasMore(fetchedArticles.length > ARTICLES_PER_PAGE);
+      setPage(2); // Next page to load will be 2
+    } catch (error) {
+      console.error("Failed to fetch articles:", error);
+      setAllFetchedArticles([]);
+      setDisplayedArticles([]);
+      setHasMore(false);
     }
-
-    if (searchTerm) {
-      const lowerSearchTerm = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (article) =>
-          article.title.toLowerCase().includes(lowerSearchTerm) ||
-          article.summary.toLowerCase().includes(lowerSearchTerm) ||
-          article.category.toLowerCase().includes(lowerSearchTerm) ||
-          article.source.toLowerCase().includes(lowerSearchTerm)
-      );
-    }
-    return filtered;
+    setIsLoading(false);
+    setIsFetchingInitial(false);
   }, [currentCategory, searchTerm]);
   
-  const loadMoreArticles = useCallback(() => {
-    if (isLoading || !hasMore) return;
-    setIsLoading(true);
+  useEffect(() => {
+    setIsFetchingInitial(true);
+    fetchAndFilterArticles();
+  }, [fetchAndFilterArticles]); // Rerun when searchTerm or currentCategory changes
 
-    // Simulate API call
-    setTimeout(() => {
-      const allFilteredArticles = filterAndSearchArticles();
-      const nextPageArticles = allFilteredArticles.slice(
-        (page -1) * ARTICLES_PER_PAGE,
-        page * ARTICLES_PER_PAGE
-      );
-      
-      setDisplayedArticles((prev) => page === 1 ? nextPageArticles : [...prev, ...nextPageArticles]);
-      setHasMore(allFilteredArticles.length > page * ARTICLES_PER_PAGE);
-      setPage((prev) => prev + 1);
-      setIsLoading(false);
-    }, 500);
-  }, [isLoading, hasMore, page, filterAndSearchArticles]);
+  const loadMoreDisplayedArticles = useCallback(() => {
+    if (isLoading || !hasMore || isFetchingInitial) return;
+    setIsLoading(true); 
+    
+    const nextPageStartIndex = (page - 1) * ARTICLES_PER_PAGE;
+    const nextPageEndIndex = page * ARTICLES_PER_PAGE;
+    const nextPageArticles = allFetchedArticles.slice(nextPageStartIndex, nextPageEndIndex);
+    
+    setDisplayedArticles((prev) => [...prev, ...nextPageArticles]);
+    setHasMore(allFetchedArticles.length > nextPageEndIndex);
+    setPage((prev) => prev + 1);
+    setIsLoading(false);
+  }, [isLoading, hasMore, page, allFetchedArticles, isFetchingInitial]);
 
   useEffect(() => {
-    setPage(1);
-    setDisplayedArticles([]);
-    setHasMore(true);
-    // Initial load or when filters change
-    // Need to ensure loadMoreArticles uses the latest filter/search terms
-    // This effect will trigger loadMoreArticles with new page=1 state
-  }, [searchTerm, currentCategory]);
-
-  useEffect(() => {
-    // This effect is for the initial load and subsequent loads due to filter changes.
-    // It ensures that when searchTerm or currentCategory changes,
-    // displayedArticles is reset and the first page of new results is loaded.
-    if (page === 1 && hasMore && !isLoading) {
-       loadMoreArticles();
+    if (entry?.isIntersecting && hasMore && !isLoading && !isFetchingInitial) {
+      loadMoreDisplayedArticles();
     }
-  }, [page, hasMore, isLoading, loadMoreArticles]);
+  }, [entry, loadMoreDisplayedArticles, hasMore, isLoading, isFetchingInitial]);
 
-
-  useEffect(() => {
-    if (entry?.isIntersecting && hasMore && !isLoading) {
-      loadMoreArticles();
-    }
-  }, [entry, loadMoreArticles, hasMore, isLoading]);
-
-  if (page === 1 && isLoading) { // Initial loading state
+  if (isFetchingInitial) { // Initial loading state for the entire grid
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
-          <div key={index} className="flex flex-col space-y-3">
-            <Skeleton className="h-[200px] w-full rounded-xl" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-8 w-1/4 mt-2" />
+          <div key={index} className="flex flex-col space-y-3 p-4 border rounded-lg bg-card">
+            <Skeleton className="h-48 w-full rounded-md" />
+            <Skeleton className="h-4 w-20 mt-2" />
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <div className="flex justify-between items-center pt-2 mt-auto">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-20" />
             </div>
           </div>
         ))}
@@ -124,11 +113,11 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
         {displayedArticles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
+          <ArticleCard key={article.id + article.source} article={article} /> // Added source to key for more uniqueness
         ))}
       </div>
       <div ref={loadMoreRef} className="h-10 flex justify-center items-center mt-8">
-        {isLoading && (
+        {isLoading && !isFetchingInitial && ( // Show spinner only for subsequent loads
            <div className="flex items-center space-x-2 text-muted-foreground">
             <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
