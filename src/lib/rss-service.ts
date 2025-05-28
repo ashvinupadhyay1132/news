@@ -14,18 +14,26 @@ interface NewsSource {
   defaultCategory?: string;
 }
 
-// Curated list based on recent request
 const NEWS_SOURCES: NewsSource[] = [
-  // Mint
+  // Mint (India)
   { name: "Mint - Latest News", rssUrl: "https://www.livemint.com/rss/latestnews", defaultCategory: "India News" },
   { name: "Mint - Companies", rssUrl: "https://www.livemint.com/rss/companies", defaultCategory: "Business" },
+  { name: "Mint - Money", rssUrl: "https://www.livemint.com/rss/money", defaultCategory: "Finance" },
   { name: "Mint - Technology", rssUrl: "https://www.livemint.com/rss/technology", defaultCategory: "Technology" },
-  // Hindustan Times
+  { name: "Mint - Opinion", rssUrl: "https://www.livemint.com/rss/opinion", defaultCategory: "Opinion" },
+  
+  // Hindustan Times (India)
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "India News" },
+  { name: "Hindustan Times - Business", rssUrl: "https://www.hindustantimes.com/business/rss/feed", defaultCategory: "Business" },
   { name: "Hindustan Times - Tech", rssUrl: "https://tech.hindustantimes.com/rss", defaultCategory: "Technology" },
+
   // Times of India
   { name: "Times of India - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "India News" },
-  // BBC
+  { name: "Times of India - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business"}, // Business
+  { name: "Times of India - Tech", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/5880659.cms", defaultCategory: "Technology"}, // Tech
+
+  // BBC (International)
+  { name: "BBC - Top Stories", rssUrl: "http://feeds.bbci.co.uk/news/rss.xml", defaultCategory: "World News" },
   { name: "BBC - World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News" },
   { name: "BBC - Technology", rssUrl: "http://feeds.bbci.co.uk/news/technology/rss.xml", defaultCategory: "Technology" },
   { name: "BBC - Business", rssUrl: "http://feeds.bbci.co.uk/news/business/rss.xml", defaultCategory: "Business" },
@@ -36,6 +44,7 @@ const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs
 
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string): string | null {
   let imageUrl = null;
+  const categoryHint = slugify(articleCategory || generateAiHintFromTitle(articleTitle) || 'news');
 
   // Priority 1: media:group containing media:content (often high quality)
   if (item['media:group'] && item['media:group']['media:content']) {
@@ -108,6 +117,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     if (imageUrl.startsWith('//')) {
       return `https:${imageUrl}`;
     }
+    // Handle cases where URL might be relative for some feeds (less common but possible)
     if (imageUrl.startsWith('/')) {
         const baseLink = getNestedValue(item, 'link');
         if (baseLink && typeof baseLink === 'string' && baseLink.startsWith('http')) {
@@ -116,19 +126,20 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
                 return new URL(imageUrl, baseUrl.origin).href;
             } catch (e) {
                 // console.warn("Error constructing absolute URL for relative image path:", imageUrl, e);
-                return null;
+                return null; // Can't form a valid absolute URL
             }
         }
-        return null; 
+        return null; // No base URL to resolve against
     }
+    // Basic check for protocol
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
         // console.warn("Image URL does not start with http/https:", imageUrl);
-        return null; 
+        return null; // Invalid URL format
     }
     return imageUrl;
   }
 
-  return null;
+  return null; // Return null if no valid image URL is found
 }
 
 
@@ -136,21 +147,37 @@ function normalizeContent(contentInput: any): string {
   let text = '';
   if (typeof contentInput === 'string') {
     text = contentInput;
-  } else if (contentInput && typeof contentInput._ === 'string') { 
+  } else if (contentInput && typeof contentInput._ === 'string') { // For things like { _: "text" } or CDATA sections in xml2js
     text = contentInput._;
-  } else if (contentInput && typeof contentInput.$t === 'string') { 
+  } else if (contentInput && typeof contentInput.$t === 'string') { // Common in some XML structures
     text = contentInput.$t;
-  } else if (contentInput && typeof contentInput['#'] === 'string') { 
+  } else if (contentInput && typeof contentInput['#'] === 'string') { // Another xml2js structure for text content
     text = contentInput['#'];
-  } else if (contentInput && typeof contentInput['#text'] === 'string') { 
-    text = contentInput['#text'];
-  } else if (contentInput && contentInput['#name'] === '__cdata' && typeof contentInput._ === 'string') { 
+  } else if (contentInput && typeof contentInput['#text'] === 'string') { // Yet another
+      text = contentInput['#text'];
+  } else if (contentInput && contentInput['#name'] === '__cdata' && typeof contentInput._ === 'string') { // CDATA specifically
      text = contentInput._;
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
     // Attempt to extract from common object structures if direct string properties fail
-    text = String(getNestedValue(contentInput, 'content', getNestedValue(contentInput, 'description', getNestedValue(contentInput, '$t', ''))));
+    // Prioritize 'content:encoded' or 'content', then 'description', then 'summary'
+    const potentialValues = [
+      getNestedValue(contentInput, 'content:encoded'),
+      getNestedValue(contentInput, 'content'),
+      getNestedValue(contentInput, 'description'),
+      getNestedValue(contentInput, 'summary'),
+      contentInput.toString() // Fallback if it's an object with a meaningful toString
+    ];
+    for (const val of potentialValues) {
+      if (typeof val === 'string' && val.trim() !== '') {
+        text = val;
+        break;
+      } else if (val && typeof val._ === 'string' && val._.trim() !== '') {
+        text = val._;
+        break;
+      }
+    }
   }
   return text.trim();
 }
@@ -165,16 +192,17 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any): string
     textToSummarize = fullContentText;
   } else if (descriptionText) {
     textToSummarize = descriptionText;
-  } else if (fullContentText) { 
+  } else if (fullContentText) { // Fallback to full content if descriptionText is empty
     textToSummarize = fullContentText;
   }
   
+  // Strip HTML tags and clean up
   const plainText = textToSummarize
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
-    .replace(/<[^>]+>/g, ' ') 
-    .replace(/\[link\]|\[comments\]/gi, '') 
-    .replace(/&nbsp;/gi, ' ') 
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags
+    .replace(/<[^>]+>/g, ' ') // Remove all other HTML tags
+    .replace(/\[link\]|\[comments\]/gi, '') // Remove common RSS artifacts
+    .replace(/&nbsp;/gi, ' ') // Replace non-breaking spaces
     .replace(/\s+/g, ' ')
     .trim();
     
@@ -190,6 +218,7 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any): string
         .trim();
       return plainFullContent.substring(0, 250) + (plainFullContent.length > 250 ? '...' : '');
   }
+
   if (plainText.length === 0) return "No summary available.";
   return plainText.substring(0, 250) + (plainText.length > 250 ? '...' : '');
 }
@@ -199,14 +228,16 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8' 
+        'User-Agent': 'Mozilla/5.0 (compatible; TrendingNewsFeedBot/1.0; +https://trendingnewsfeed.in/bot.html)',
+        'Accept': 'application/rss+xml,application/xml,application/atom+xml,text/xml;q=0.9,*/*;q=0.8' 
       },
       next: { revalidate: 300 } // Revalidate every 5 minutes
     });
 
     if (!response.ok) {
       console.error(`Failed to fetch RSS from ${source.name} (${source.rssUrl}): ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      // console.error(`Response body: ${errorBody.substring(0, 500)}...`); // Log part of the error body
       return [];
     }
     const xmlText = await response.text();
@@ -216,17 +247,17 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     if (!items || (Array.isArray(items) && items.length === 0)) {
       items = getNestedValue(result, 'feed.entry', []); // For Atom feeds
     }
-     if (!items || (Array.isArray(items) && items.length === 0)) { // For RDF feeds
+     if (!items || (Array.isArray(items) && items.length === 0)) { // For RDF feeds (less common now)
       items = getNestedValue(result, 'rdf:RDF.item', []); 
     }
 
 
     if (!Array.isArray(items)) {
-      items = items ? [items] : []; // Ensure items is an array
+      items = items ? [items] : []; // Ensure items is an array even if only one item is returned
     }
 
     if (items.length === 0) {
-      // console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl})`);
+      // console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl}). Parsed result:`, JSON.stringify(result, null, 2).substring(0, 500));
       return [];
     }
 
@@ -264,6 +295,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
       const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
 
+      // GUID handling: Prefer guid._ or guid.#text if guid is an object. Fallback to originalLink or item.id.
       let guidValue = getNestedValue(item, 'guid');
       if (typeof guidValue === 'object') {
           // Check for isPermaLink attribute, common in RSS
@@ -280,12 +312,11 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       
       const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink + source.name + index);
       const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); // Short, alphanumeric suffix from source name
-      // Ensure idBase is not overly long and slugify it
-      const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput;
+      const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput; // Ensure idBase is not overly long
       const id = slugify(idBase) + '-' + idSuffix;
 
 
-      // Category extraction
+      // Category extraction: Handle single category string, array of strings, or array of objects (like Atom)
       let categoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
       if (Array.isArray(categoryFromFeed)) {
           // If category is an array, map through it. Handle objects with 'term' (Atom) or string categories.
@@ -315,7 +346,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         date,
         source: source.name,
         category: finalCategory,
-        imageUrl: imageUrl,
+        imageUrl: imageUrl, // Can be null
         link: internalArticleLink,
         sourceLink: originalLink,
         content: rawContent || summaryText, // Provide raw content if available, else summary
@@ -333,10 +364,10 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
 
-  // Filter out articles with empty or uninformative summaries
+  // Filter out articles with empty, placeholder, or very short summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
-    return summaryText.length > 25 && // Ensure summary has meaningful content (e.g., > 25 chars)
+    return summaryText.length >= 25 && // Ensure summary has meaningful content (e.g., >= 25 chars)
            summaryText.toLowerCase() !== "no summary available." &&
            summaryText !== "..."; // Check for common "empty" placeholder from normalizeSummary
   });
