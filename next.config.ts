@@ -146,6 +146,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // New addition for images.wsj.net
+      {
+        protocol: 'https',
+        hostname: 'images.wsj.net',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
