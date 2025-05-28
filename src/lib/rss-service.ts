@@ -15,7 +15,7 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
-  { name: "Bing News (via RSSHub)", rssUrl: "https://rsshub.app/bing/news", defaultCategory: "Global News" },
+  { name: "RSSHub - Bing News", rssUrl: "https://rsshub.app/bing/news", defaultCategory: "Global News" },
   { name: "The Guardian - World", rssUrl: "https://www.theguardian.com/international/rss", defaultCategory: "World News" },
   { name: "The Guardian - Business", rssUrl: "https://www.theguardian.com/uk/business/rss", defaultCategory: "Business" },
   { name: "Flipboard - Tech", rssUrl: "https://flipboard.com/@flipboard/tech.rss", defaultCategory: "Technology" },
@@ -27,107 +27,123 @@ const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs
 function extractImageUrl(item: any, categoryHint: string = 'news'): string | null {
   let imageUrl = null;
 
-  // Reddit specific: media:thumbnail
-  if (item['media:thumbnail'] && item['media:thumbnail'].url) {
-    imageUrl = item['media:thumbnail'].url;
-  }
-
-  // Prioritize media:content with medium="image" or type starting with "image/"
-  if (!imageUrl && item['media:group'] && item['media:group']['media:content']) {
-    const mediaContents = Array.isArray(item['media:group']['media:content']) ? item['media:group']['media:content'] : [item['media:group']['media:content']];
+  // Priority 1: media:group containing media:content (often more structured)
+  if (item['media:group'] && item['media:group']['media:content']) {
+    const mediaContents = Array.isArray(item['media:group']['media:content'])
+      ? item['media:group']['media:content']
+      : [item['media:group']['media:content']];
     for (const content of mediaContents) {
-      if (content.url && (content.medium === 'image' || (content.type && content.type.startsWith('image/')))) {
+      if (content && content.url && (content.medium === 'image' || (content.type && String(content.type).startsWith('image/')))) {
         imageUrl = content.url;
         break;
       }
     }
   }
+
+  // Priority 2: Direct media:content (common in many feeds, including The Guardian)
   if (!imageUrl && item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
-       if (content.url && (content.medium === 'image' || (content.type && content.type.startsWith('image/')))) {
+      if (content && content.url && (content.medium === 'image' || (content.type && String(content.type).startsWith('image/')))) {
         imageUrl = content.url;
         break;
-       }
+      }
     }
   }
-  // Check media:thumbnail again (general case, if not caught by Reddit specific)
+
+  // Priority 3: media:thumbnail (often a fallback or primary in feeds like Reddit)
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
     imageUrl = item['media:thumbnail'].url;
   }
-  // Check enclosure
-  if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && item.enclosure.type.startsWith('image/')) {
+
+  // Priority 4: Enclosure (standard RSS way for media)
+  if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
     imageUrl = item.enclosure.url;
   }
-  // For Google News specific structure (less common now with current feeds)
+
+  // Priority 5: Google News specific (less common with current feeds but good to have)
   if (!imageUrl && item['g-img'] && item['g-img'].img && item['g-img'].img.src) {
     imageUrl = item['g-img'].img.src;
   }
-  // Look for image in description (basic attempt, might be unreliable)
-  if (!imageUrl && item.description && typeof item.description === 'string') {
-    const imgMatch = item.description.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      imageUrl = imgMatch[1];
-    }
-  }
-   // Look for image in content (Reddit often has it here)
-  if (!imageUrl && item.content && typeof item.content === 'string') {
-    const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      imageUrl = imgMatch[1];
-    }
-  }
-  if (!imageUrl && item.content && item.content._ && typeof item.content._ === 'string') { // For Reddit's content casing
-    const imgMatch = item.content._.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      imageUrl = imgMatch[1];
+
+  // Last Resort: Look for image in HTML content (description or content field)
+  // This is less reliable and more prone to errors.
+  if (!imageUrl) {
+    const contentFields = [
+      getNestedValue(item, 'description'),
+      getNestedValue(item, 'content'),
+      getNestedValue(item, 'content._') // For Reddit's content casing
+    ];
+    for (const field of contentFields) {
+      if (field && typeof field === 'string') {
+        const imgMatch = field.match(/<img[^>]+src="([^">]+)"/);
+        if (imgMatch && imgMatch[1]) {
+          imageUrl = imgMatch[1];
+          break;
+        }
+      }
     }
   }
 
-
-  // If an image URL is found, ensure it's a full URL
+  // Clean up and validate the extracted URL
   if (imageUrl && typeof imageUrl === 'string') {
+    imageUrl = imageUrl.trim();
     if (imageUrl.startsWith('//')) {
       return `https:${imageUrl}`;
     }
-    if (imageUrl.startsWith('/')) { // Relative URL, less ideal for cross-source aggregation
-        // We can't resolve this without knowing the base URL of the original item's site.
-        // Best to return null and let placeholder be used.
-        return null;
+    if (imageUrl.startsWith('/')) { // Relative URL, can't be resolved reliably across different sources
+      return null;
     }
-    return imageUrl.trim(); // Trim any whitespace
+    // Basic check for common image extensions if no other type info was present
+    if (!imageUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?|$)/i)) {
+        // If it doesn't look like an image URL and wasn't confirmed by type/medium, be cautious
+        // However, some CDNs have URLs without extensions. For now, we'll allow if extracted by a specific tag.
+    }
+    return imageUrl;
   }
 
-  return null; // Return null if no valid image found, placeholder will be used by component
+  return null; // Return null if no valid image found
 }
 
 function normalizeContent(contentInput: any): string {
   let text = '';
   if (typeof contentInput === 'string') {
     text = contentInput;
-  } else if (contentInput && typeof contentInput._ === 'string') {
+  } else if (contentInput && typeof contentInput._ === 'string') { // XML character content for elements with attributes
     text = contentInput._;
-  } else if (contentInput && contentInput['#name'] === '__cdata') {
-    text = contentInput['#text'];
-  } else if (contentInput && contentInput['#text']) {
-    text = contentInput['#text'];
-  } else if (contentInput && contentInput['#']) {
+  } else if (contentInput && contentInput['#name'] === '__cdata' && contentInput['#text']) { // CDATA
+     text = contentInput['#text'];
+  } else if (contentInput && contentInput['#text']) { // Text node from xml2js
+     text = contentInput['#text'];
+  } else if (contentInput && contentInput['#']) { // Another possible text node structure
      text = contentInput['#'];
-  }
-  // Handle Reddit's HTML content if it's wrapped in an object
-  else if (typeof contentInput === 'object' && contentInput.hasOwnProperty('_')) {
-    text = String(contentInput._);
+  } else if (Array.isArray(contentInput)) { // Handle cases where parsing results in an array of text segments
+    text = contentInput.map(segment => normalizeContent(segment)).join(' ');
+  } else if (typeof contentInput === 'object' && contentInput !== null) {
+    // If it's an object, it might be a complex structure, try to get a string representation or a specific field
+    // This part might need more specific handling based on observed feed structures
+    text = String(getNestedValue(contentInput, 'content', getNestedValue(contentInput, 'description', '')));
   }
   return text.trim();
 }
 
-function normalizeSummary(description: any, fullContent?: string): string {
-  let text = normalizeContent(description);
-  if (!text && fullContent) { // if description is empty, try to make summary from fullContent
-    text = fullContent;
+function normalizeSummary(descriptionInput: any, fullContentInput?: any): string {
+  let text = '';
+  const descriptionText = normalizeContent(descriptionInput);
+  const fullContentText = normalizeContent(fullContentInput);
+
+  if (descriptionText) {
+    text = descriptionText;
+  } else if (fullContentText) { // if description is empty, try to make summary from fullContent
+    text = fullContentText;
   }
+  
   // Strip HTML tags for a plain text summary, limit length
-  const plainText = text.replace(/<[^>]+>/g, '').replace(/\[link\]|\[comments\]/gi, '').replace(/\s+/g, ' ').trim(); // Remove reddit specific tags
+  const plainText = text.replace(/<[^>]+>/g, '').replace(/\[link\]|\[comments\]/gi, '').replace(/\s+/g, ' ').trim();
+  if (!plainText && fullContentText) { // If stripping HTML from description resulted in empty, try full content
+      const plainFullContent = fullContentText.replace(/<[^>]+>/g, '').replace(/\[link\]|\[comments\]/gi, '').replace(/\s+/g, ' ').trim();
+      return plainFullContent.substring(0, 250) + (plainFullContent.length > 250 ? '...' : '');
+  }
   return plainText.substring(0, 250) + (plainText.length > 250 ? '...' : '');
 }
 
@@ -135,82 +151,100 @@ function normalizeSummary(description: any, fullContent?: string): string {
 async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/rss+xml,application/xml' 
+      },
       next: { revalidate: 300 } // 5 min revalidation
     });
+
     if (!response.ok) {
       console.error(`Failed to fetch RSS from ${source.name} (${source.rssUrl}): ${response.status} ${response.statusText}`);
+      const errorBody = await response.text().catch(() => "Could not read error body");
+      console.error("Error body:", errorBody.substring(0, 500));
       return [];
     }
     const xmlText = await response.text();
     const result = await parser.parseStringPromise(xmlText);
 
     let items = getNestedValue(result, 'rss.channel.item', []);
-    if (!items || (Array.isArray(items) && items.length === 0)) { // Atom feeds or empty array
-      items = getNestedValue(result, 'feed.entry', []); // Common for Atom, used by Reddit
+    if (!items || (Array.isArray(items) && items.length === 0)) {
+      items = getNestedValue(result, 'feed.entry', []); // Common for Atom (e.g., Reddit)
+    }
+     if (!items || (Array.isArray(items) && items.length === 0)) { // For feeds that might have items directly under 'rdf:RDF' then 'item'
+      items = getNestedValue(result, 'rdf:RDF.item', []);
     }
 
+
     if (!Array.isArray(items)) {
-      items = items ? [items] : []; // Handle single item case
+      items = items ? [items] : [];
     }
 
     if (items.length === 0) {
-      console.warn(`No items found for ${source.name}. Feed structure might be different or empty. Parsed result:`, JSON.stringify(result, null, 2).substring(0, 500));
+      console.warn(`No items found for ${source.name} (${source.rssUrl}). Feed structure might be different or empty. Parsed root keys:`, Object.keys(result || {}).join(', '));
       return [];
     }
 
     return items.map((item: any, index: number) => {
       const title = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
 
-      let originalLink = getNestedValue(item, 'link.href', getNestedValue(item, 'link', '#'));
-      if (Array.isArray(originalLink)) {
-        const altLink = originalLink.find(l => typeof l === 'object' && l.rel === 'alternate' && l.href);
-        const firstLink = originalLink.find(l => typeof l === 'string' || (typeof l === 'object' && l.href));
-        originalLink = altLink ? altLink.href : (typeof firstLink === 'object' ? firstLink.href : firstLink);
-      } else if (typeof originalLink === 'object' && originalLink?.href) {
-        originalLink = originalLink.href;
+      // Link extraction refinement
+      let originalLink = '#';
+      const linkField = getNestedValue(item, 'link');
+      if (typeof linkField === 'string') {
+        originalLink = linkField;
+      } else if (typeof linkField === 'object' && linkField?.href) { // Atom link object
+        originalLink = linkField.href;
+      } else if (Array.isArray(linkField)) { // Array of link objects (Atom)
+        const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.href);
+        originalLink = alternateLink ? alternateLink.href : ( (typeof linkField[0] === 'object' && linkField[0]?.href) || (typeof linkField[0] === 'string' ? linkField[0] : '#') );
       }
-      originalLink = typeof originalLink === 'string' ? originalLink.trim() : '#';
-      // For Reddit, sometimes the link is in a content string: "submitted by ... <a href="[URL]">...</a>"
-      if (originalLink === '#' && item.content && item.content._) {
-          const linkMatch = item.content._.match(/<a href="([^"]+)">\[link\]<\/a>/);
+      
+      // Reddit specific link extraction from content
+      if ((originalLink === '#' || source.name.includes("Reddit")) && item.content && (item.content._ || typeof item.content === 'string')) {
+          const contentStr = item.content._ || item.content;
+          const linkMatch = String(contentStr).match(/<a href="([^"]+)">\[link\]<\/a>/);
           if (linkMatch && linkMatch[1]) {
               originalLink = linkMatch[1];
+          } else {
+             const otherLinkMatch = String(contentStr).match(/<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/); // More general <a> tag
+             if(otherLinkMatch && otherLinkMatch[2]) originalLink = otherLinkMatch[2];
           }
       }
+      originalLink = typeof originalLink === 'string' ? originalLink.trim() : '#';
 
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
-      const date = pubDateSource ? new Date(pubDateSource).toISOString() : new Date().toISOString();
+      const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
 
       let guidValue = normalizeContent(getNestedValue(item, 'guid', getNestedValue(item, 'id')));
       if (typeof getNestedValue(item, 'guid') === 'object' && getNestedValue(item, 'guid').isPermaLink === 'false') {
-        guidValue = originalLink;
-      } else if (typeof getNestedValue(item, 'id') === 'object' || (typeof getNestedValue(item, 'id') === 'string' && getNestedValue(item, 'id').startsWith('tag:'))) { // For Atom feeds where id is an object or a tag URI
-        guidValue = normalizeContent(getNestedValue(item, 'id'));
+        guidValue = originalLink; // Use link if GUID is not permalink
+      } else if (typeof getNestedValue(item, 'id') === 'string' && getNestedValue(item, 'id').startsWith('tag:')) { // Atom IDs are often tag URIs
+         guidValue = normalizeContent(getNestedValue(item, 'id'));
+      } else if (guidValue === originalLink && originalLink.includes("reddit.com")) { // Reddit GUIDs can be just the link
+         guidValue = normalizeContent(getNestedValue(item, 'id')) || originalLink; // Prefer atom id for reddit
       }
 
-      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink + date + source.name + index);
-      const id = slugify(idInput.substring(0,100));
+
+      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink + source.name + index);
+      const id = slugify(idInput.substring(0, Math.min(idInput.length, 75))); // Shorter, more robust IDs
 
       let categoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
       if (Array.isArray(categoryFromFeed)) {
-          const firstCat = categoryFromFeed[0];
-          if (typeof firstCat === 'object') {
-            categoryFromFeed = firstCat.term || firstCat._ || firstCat['#text'] || firstCat.label;
-          } else {
-            categoryFromFeed = firstCat;
-          }
+          categoryFromFeed = categoryFromFeed.map(cat => {
+            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label;
+            return cat;
+          }).filter(Boolean).join(', ') || source.defaultCategory || 'General';
       } else if (typeof categoryFromFeed === 'object') {
           categoryFromFeed = categoryFromFeed.term || categoryFromFeed._ || categoryFromFeed['#text'] || categoryFromFeed.label;
       }
-      const finalCategory = typeof categoryFromFeed === 'string' ? categoryFromFeed.trim() : (source.defaultCategory || 'General');
+      const finalCategory = typeof categoryFromFeed === 'string' ? categoryFromFeed.trim().split(',')[0].trim() : (source.defaultCategory || 'General'); // Take first category if multiple
 
       const imageUrl = extractImageUrl(item, finalCategory);
 
       const rawContent = normalizeContent(getNestedValue(item, 'content:encoded') || getNestedValue(item, 'content') || getNestedValue(item, 'description') || getNestedValue(item, 'summary'));
-      const summaryText = normalizeSummary(getNestedValue(item, 'description') || getNestedValue(item, 'summary') || (item.content && item.content._), rawContent);
-
+      const summaryText = normalizeSummary(getNestedValue(item, 'description') || getNestedValue(item, 'summary'), rawContent);
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
@@ -239,30 +273,27 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
 
-  // De-duplicate articles based on title and source link (more robust)
+  // De-duplicate articles
   const uniqueArticlesMap = new Map<string, Article>();
   for (const article of allArticles) {
-    // Normalize title for better deduplication (lowercase, first 50 chars)
-    const normalizedTitleKey = article.title.toLowerCase().substring(0, 50).trim();
-    // Normalize source link (remove query params and trailing slash for better matching)
+    let normalizedTitleKey = article.title.toLowerCase().replace(/\s+/g, ' ').substring(0, 80).trim();
     let normalizedLinkKey = article.sourceLink;
     try {
       const url = new URL(article.sourceLink);
-      normalizedLinkKey = `${url.hostname}${url.pathname}`.replace(/\/$/, ''); // remove trailing slash
-    } catch (e) {
-      // if not a valid URL, use as is
-    }
+      normalizedLinkKey = `${url.hostname}${url.pathname}`.replace(/\/$/, '').toLowerCase();
+    } catch (e) {/* use as is if not valid URL */}
 
     const uniqueKey = `${normalizedTitleKey}|${normalizedLinkKey}`;
-    if (!uniqueArticlesMap.has(uniqueKey)) {
+    
+    if (!uniqueArticlesMap.has(uniqueKey) || 
+        (uniqueArticlesMap.has(uniqueKey) && (article.content?.length || 0) > (uniqueArticlesMap.get(uniqueKey)?.content?.length || 0))) {
+      // Prefer article with more content if a duplicate is found
       uniqueArticlesMap.set(uniqueKey, article);
     }
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
-  // Sort by date (newest first)
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
 
   return allArticles.slice(0, 100); // Limit to 100 most recent unique articles
 }
