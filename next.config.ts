@@ -185,7 +185,33 @@ const nextConfig: NextConfig = {
         hostname: 'media.zenfs.com', // Yahoo/Verizon Media
         port: '',
         pathname: '/**',
-      }
+      },
+      // Bing images (often used by RSSHub Bing news)
+      {
+        protocol: 'https',
+        hostname: '*.bing.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'th.bing.com',
+        port: '',
+        pathname: '/**',
+      },
+      // ESPN images (common CDN a.espncdn.com) - though RSSHub might proxy
+       {
+        protocol: 'https',
+        hostname: 'a.espncdn.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.espncdn.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
