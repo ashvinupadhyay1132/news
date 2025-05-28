@@ -19,13 +19,13 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
-  // Mint (India)
+  // Mint (India) - Reset to a curated list
   { name: "Mint - Latest News", rssUrl: "https://www.livemint.com/rss/latestnews", defaultCategory: "India News" },
   { name: "Mint - Companies", rssUrl: "https://www.livemint.com/rss/companies", defaultCategory: "Business" },
   { name: "Mint - Money", rssUrl: "https://www.livemint.com/rss/money", defaultCategory: "Finance" },
-  { name: "Mint - Opinion", rssUrl: "https://www.livemint.com/rss/opinion", defaultCategory: "Opinion" },
-  { name: "Mint - Politics", rssUrl: "https://www.livemint.com/rss/politics", defaultCategory: "Politics"},
-  { name: "Mint - Science", rssUrl: "https://www.livemint.com/rss/science", defaultCategory: "Science"},
+  // Mint - Opinion: https://www.livemint.com/rss/opinion (Removed for reset)
+  // Mint - Politics: https://www.livemint.com/rss/politics (Removed for reset)
+  // Mint - Science: https://www.livemint.com/rss/science (Removed for reset)
   
   // Hindustan Times (India)
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "Top News" },
@@ -59,51 +59,56 @@ const parser = new Parser({
 });
 
 
+/**
+ * Fetches the HTML of an article and extracts the og:image or twitter:image URL.
+ * @param {string} articleUrl - The URL of the article.
+ * @returns {Promise<string|null>} The image URL or null if not found.
+ */
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
-  if (!articleUrl || !articleUrl.startsWith('http')) {
-    // console.warn(`Invalid article URL for meta image fetching: ${articleUrl}`);
-    return null;
-  }
-  try {
-    const response = await fetch(articleUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-      },
-      signal: AbortSignal.timeout(8000) 
-    });
-
-    if (!response.ok) {
-      // console.error(`Failed to fetch HTML for meta image from ${articleUrl}: ${response.status}`);
+    if (!articleUrl || !articleUrl.startsWith('http')) {
+      // console.warn(`Invalid article URL for meta image fetching: ${articleUrl}`);
       return null;
     }
-
-    const htmlContent = await response.text();
-    const $ = cheerioLoad(htmlContent);
-
-    let ogImageUrl = 
-        $('meta[property="og:image"]').attr('content') ||
-        $('meta[name="og:image"]').attr('content') ||
-        $('meta[property="twitter:image"]').attr('content') ||
-        $('meta[name="twitter:image"]').attr('content');
-    
-    if (ogImageUrl && typeof ogImageUrl === 'string') {
-        ogImageUrl = he.decode(ogImageUrl.trim()); 
-        if (ogImageUrl.startsWith('/')) {
-            const urlObject = new URL(articleUrl);
-            ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
-        }
-        if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
-            return null;
-        }
-        return ogImageUrl;
+    try {
+      const response = await fetch(articleUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        },
+        signal: AbortSignal.timeout(8000) 
+      });
+  
+      if (!response.ok) {
+        // console.error(`Failed to fetch HTML for meta image from ${articleUrl}: ${response.status}`);
+        return null;
+      }
+  
+      const htmlContent = await response.text();
+      const $ = cheerioLoad(htmlContent);
+  
+      let ogImageUrl = 
+          $('meta[property="og:image"]').attr('content') ||
+          $('meta[name="og:image"]').attr('content') ||
+          $('meta[property="twitter:image"]').attr('content') ||
+          $('meta[name="twitter:image"]').attr('content');
+      
+      if (ogImageUrl && typeof ogImageUrl === 'string') {
+          ogImageUrl = he.decode(ogImageUrl.trim()); 
+          if (ogImageUrl.startsWith('/')) {
+              const urlObject = new URL(articleUrl);
+              ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
+          }
+          if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
+              return null;
+          }
+          return ogImageUrl;
+      }
+      return null;
+    } catch (error) {
+      // console.error(`Error fetching or parsing HTML for meta image from ${articleUrl}:`, error.message || error);
+      return null;
     }
-    return null;
-  } catch (error) {
-    // console.error(`Error fetching or parsing HTML for meta image from ${articleUrl}:`, error.message || error);
-    return null;
   }
-}
 
 
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string, articleLink?: string): string | null {
@@ -140,7 +145,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   }
   
   const descriptionForImageSearch = normalizeContent(getNestedValue(item, 'description'));
-  if (!imageUrl && descriptionForImageSearch ) { // Removed sourceName check here to broaden search
+  if (!imageUrl && descriptionForImageSearch ) {
     const imgMatch = descriptionForImageSearch.match(/<img[^>]+src="([^">]+)"/);
     if (imgMatch && imgMatch[1]) {
         imageUrl = imgMatch[1];
@@ -150,7 +155,6 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   if (!imageUrl) {
     const contentFieldsToSearch = [
       getNestedValue(item, 'content:encoded'), 
-      // descriptionForImageSearch, // Already checked
       getNestedValue(item, 'content'),
       getNestedValue(item, 'content._'),
       getNestedValue(item, 'summary'), 
@@ -206,7 +210,6 @@ function normalizeContent(contentInput: any): string {
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
-    // Try to find a textual value within the object, common in some feed structures
     const potentialTextKeys = ['_', '$t', '#text', '#cdata', 'p', 'span', 'div'];
     for (const key of potentialTextKeys) {
         if (typeof contentInput[key] === 'string') {
@@ -214,7 +217,7 @@ function normalizeContent(contentInput: any): string {
             break;
         }
     }
-    if (!text) { // If still no text, look for standard fields if it's a nested content object
+    if (!text) { 
         const standardFields = [
             getNestedValue(contentInput, 'content:encoded'),
             getNestedValue(contentInput, 'content'),
@@ -325,7 +328,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       feedXmlString = utf8Decoded;
     }
     
-    // Remove replacement characters and other problematic control characters BEFORE parsing
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
@@ -467,7 +469,14 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   const results = await Promise.all(allArticlesPromises);
 
   let allArticles: Article[] = results.flat();
-
+  
+  // Filter out articles with garbage characters in title or summary
+  allArticles = allArticles.filter(article => {
+    const hasGarbageTitle = article.title.includes('\uFFFD');
+    const hasGarbageSummary = article.summary.includes('\uFFFD');
+    return !hasGarbageTitle && !hasGarbageSummary;
+  });
+  
   // Filter out articles with insufficient summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
@@ -475,8 +484,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     return summaryText.length >= 20 && 
            summaryText.toLowerCase() !== "no summary available." &&
            summaryText.toLowerCase() !== "..." &&
-           !summaryText.toLowerCase().includes("submitted by") &&
-           summaryText !== titleText; // Avoid summary being identical to title if too basic
+           summaryText !== titleText; 
   });
   
   const uniqueArticlesMap = new Map<string, Article>();
@@ -525,18 +533,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
-  // Filter out articles that still contain the Unicode Replacement Character () after cleaning
-  allArticles = allArticles.filter(article => {
-    const hasGarbageTitle = article.title.includes('\uFFFD');
-    const hasGarbageSummary = article.summary.includes('\uFFFD');
-    // if (hasGarbageTitle || hasGarbageSummary) {
-      // console.log(`Filtering out article with persistent garbage characters: "${article.title}"`);
-    // }
-    return !hasGarbageTitle && !hasGarbageSummary;
-  });
-
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return allArticles.slice(0, 150); 
 }
-
