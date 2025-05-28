@@ -11,68 +11,93 @@ import { slugify, getNestedValue } from './utils';
 interface NewsSource {
   name: string;
   rssUrl: string;
-  defaultCategory?: string; // Optional: if feed items don't have categories
+  defaultCategory?: string; 
 }
 
-// Refined list of NEWS_SOURCES
 const NEWS_SOURCES: NewsSource[] = [
   { name: "BBC News", rssUrl: "https://feeds.bbci.co.uk/news/rss.xml", defaultCategory: "World News" },
   { name: "NDTV (India)", rssUrl: "https://feeds.feedburner.com/ndtvnews-top-stories", defaultCategory: "India News" },
   { name: "Google News", rssUrl: "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en", defaultCategory: "Global News" },
-  // Removed other feeds to focus on these three for reliability and coverage
 ];
 
 const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs: true });
 
-function extractImageUrl(item: any, categoryHint: string = 'news'): string {
-  // Try various common RSS/Media RSS tags for images.
-  // Prioritize media:content with medium="image"
+function extractImageUrl(item: any, categoryHint: string = 'news'): string | null {
+  let imageUrl = null;
+  // Prioritize media:content with medium="image" or type starting with "image/"
   if (item['media:group'] && item['media:group']['media:content']) {
     const mediaContents = Array.isArray(item['media:group']['media:content']) ? item['media:group']['media:content'] : [item['media:group']['media:content']];
     for (const content of mediaContents) {
-      if (content.url && (content.medium === 'image' || (content.type && content.type.startsWith('image/')))) return content.url;
+      if (content.url && (content.medium === 'image' || (content.type && content.type.startsWith('image/')))) {
+        imageUrl = content.url;
+        break;
+      }
     }
   }
-  if (item['media:content']) {
+  if (!imageUrl && item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
-       if (content.url && (content.medium === 'image' || (content.type && content.type.startsWith('image/')))) return content.url;
+       if (content.url && (content.medium === 'image' || (content.type && content.type.startsWith('image/')))) {
+        imageUrl = content.url;
+        break;
+       }
     }
   }
-  if (item['media:thumbnail'] && item['media:thumbnail'].url) {
-    return item['media:thumbnail'].url;
+  // Check media:thumbnail
+  if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
+    imageUrl = item['media:thumbnail'].url;
   }
-  if (item.enclosure && item.enclosure.url && item.enclosure.type && item.enclosure.type.startsWith('image/')) {
-    return item.enclosure.url;
+  // Check enclosure
+  if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && item.enclosure.type.startsWith('image/')) {
+    imageUrl = item.enclosure.url;
   }
-  // For Google News specific structure, if still used by some items (often they use media:content now)
-  if (item['g-img'] && item['g-img'].img && item['g-img'].img.src) {
-    return item['g-img'].img.src;
+  // For Google News specific structure (less common now)
+  if (!imageUrl && item['g-img'] && item['g-img'].img && item['g-img'].img.src) {
+    imageUrl = item['g-img'].img.src;
   }
   // Look for image in description (basic attempt, might be unreliable)
-  if (item.description && typeof item.description === 'string') {
+  if (!imageUrl && item.description && typeof item.description === 'string') {
     const imgMatch = item.description.match(/<img[^>]+src="([^">]+)"/);
     if (imgMatch && imgMatch[1]) {
-      return imgMatch[1];
+      imageUrl = imgMatch[1];
     }
   }
-  // Fallback placeholder with data-ai-hint
-  const hint = slugify(categoryHint) || "news article";
-  return `https://placehold.co/600x400.png`; 
+  
+  // If an image URL is found, ensure it's a full URL
+  if (imageUrl && typeof imageUrl === 'string') {
+    if (imageUrl.startsWith('//')) {
+      return `https:${imageUrl}`;
+    }
+    if (imageUrl.startsWith('/')) { // Relative URL, less ideal for cross-source aggregation
+        // We can't resolve this without knowing the base URL of the original item's site.
+        // Best to return null and let placeholder be used.
+        return null;
+    }
+    return imageUrl;
+  }
+
+  return null; // Return null if no valid image found, placeholder will be used by component
 }
 
-function normalizeDescription(description: any): string {
-  let text = 'No summary available.';
-  if (typeof description === 'string') {
-    text = description;
-  } else if (description && typeof description._ === 'string') { // Handle CDATA
-    text = description._;
-  } else if (description && description['#name'] === '__cdata') { // Check for xml2js cdata structure
-    text = description['#text'];
-  } else if (description && description['#']) { // Another CDATA pattern
-     text = description['#'];
+function normalizeContent(contentInput: any): string {
+  let text = '';
+  if (typeof contentInput === 'string') {
+    text = contentInput;
+  } else if (contentInput && typeof contentInput._ === 'string') { 
+    text = contentInput._;
+  } else if (contentInput && contentInput['#name'] === '__cdata') { 
+    text = contentInput['#text'];
+  } else if (contentInput && contentInput['#']) { 
+     text = contentInput['#'];
   }
-  
+  return text.trim();
+}
+
+function normalizeSummary(description: any, fullContent?: string): string {
+  let text = normalizeContent(description);
+  if (!text && fullContent) { // if description is empty, try to make summary from fullContent
+    text = fullContent;
+  }
   // Strip HTML tags for a plain text summary, limit length
   return text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 250) + (text.length > 250 ? '...' : '');
 }
@@ -81,7 +106,7 @@ function normalizeDescription(description: any): string {
 async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, { 
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }, // Common bot user agent
       next: { revalidate: 300 } // 5 min revalidation
     });
     if (!response.ok) {
@@ -92,72 +117,70 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const result = await parser.parseStringPromise(xmlText);
     
     let items = getNestedValue(result, 'rss.channel.item', []);
-    // Atom feeds have a different structure
-    if (!items || items.length === 0) {
+    if (!items || items.length === 0) { // Atom feeds
       items = getNestedValue(result, 'feed.entry', []);
     }
 
-
     if (!Array.isArray(items)) {
-      console.warn(`No items array found for ${source.name}, or items is not an array. Feed structure might be different.`);
+      // Handle case where 'items' might be a single object if only one item in feed
+      items = items ? [items] : [];
+    }
+    
+    if (items.length === 0) {
+      console.warn(`No items found for ${source.name}. Feed structure might be different or empty.`);
       return [];
     }
 
     return items.map((item: any, index: number) => {
-      const title = getNestedValue(item, 'title._', getNestedValue(item, 'title', 'Untitled Article')).trim();
+      const title = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
       
       let originalLink = getNestedValue(item, 'link.href', getNestedValue(item, 'link', '#'));
-      if (typeof originalLink !== 'string' && Array.isArray(originalLink)) { // Handle multiple link tags, prefer alternate
-        const altLink = originalLink.find(l => l.rel === 'alternate');
-        originalLink = altLink ? altLink.href : originalLink[0].href;
-      } else if (typeof originalLink !== 'string' && originalLink?.href) { // Handle link object
+      if (Array.isArray(originalLink)) { // Handle multiple link tags, prefer alternate or first
+        const altLink = originalLink.find(l => l.rel === 'alternate' && l.href);
+        originalLink = altLink ? altLink.href : originalLink[0]?.href;
+      } else if (typeof originalLink === 'object' && originalLink?.href) { 
         originalLink = originalLink.href;
       }
+      originalLink = typeof originalLink === 'string' ? originalLink : '#';
 
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
       const date = pubDateSource ? new Date(pubDateSource).toISOString() : new Date().toISOString();
       
-      let guidValue = getNestedValue(item, 'guid._', getNestedValue(item, 'guid', getNestedValue(item, 'id')));
-      if (typeof guidValue === 'object' && guidValue.isPermaLink === 'false') { // If guid is not a permalink, prefer the actual link
+      let guidValue = normalizeContent(getNestedValue(item, 'guid', getNestedValue(item, 'id')));
+      if (typeof getNestedValue(item, 'guid') === 'object' && getNestedValue(item, 'guid').isPermaLink === 'false') { 
         guidValue = originalLink;
-      } else if (typeof guidValue === 'object' && guidValue._) {
-        guidValue = guidValue._;
       }
 
       const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '') ? guidValue : (originalLink + date + source.name + index);
-      const id = slugify(idInput);
+      const id = slugify(idInput.substring(0,100)); // Slugify a potentially shorter string for ID
 
-      let categoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General News');
-      if (typeof categoryFromFeed === 'object' && categoryFromFeed.term) { // Atom feed category
-        categoryFromFeed = categoryFromFeed.term;
+      let categoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
+      if (Array.isArray(categoryFromFeed)) { // Multiple categories, pick first
+          categoryFromFeed = typeof categoryFromFeed[0] === 'object' ? categoryFromFeed[0].term || categoryFromFeed[0]['#text'] || categoryFromFeed[0]._ : categoryFromFeed[0];
+      } else if (typeof categoryFromFeed === 'object') { // Single category object
+          categoryFromFeed = categoryFromFeed.term || categoryFromFeed['#text'] || categoryFromFeed._;
       }
-      const category = Array.isArray(categoryFromFeed) ? categoryFromFeed[0] : categoryFromFeed;
-      const finalCategory = typeof category === 'string' ? category.trim() : (source.defaultCategory || 'General News');
+      const finalCategory = typeof categoryFromFeed === 'string' ? categoryFromFeed.trim() : (source.defaultCategory || 'General');
       
       const imageUrl = extractImageUrl(item, finalCategory);
       
-      // For content, try content:encoded, then description, then summary
-      let fullContent = getNestedValue(item, 'content:encoded') || getNestedValue(item, 'description') || getNestedValue(item, 'summary') || getNestedValue(item, 'content._') || getNestedValue(item, 'content.#text');
-      if(typeof fullContent !== 'string' && fullContent && fullContent._) fullContent = fullContent._; // handle CDATA
-      if(typeof fullContent !== 'string' && fullContent && fullContent['#text']) fullContent = fullContent['#text']; // handle another CDATA variant
-
-      const summary = normalizeDescription(fullContent || item.description || item.summary || getNestedValue(item, 'content'));
-
+      const rawContent = normalizeContent(getNestedValue(item, 'content:encoded') || getNestedValue(item, 'content') || getNestedValue(item, 'description') || getNestedValue(item, 'summary'));
+      const summaryText = normalizeSummary(getNestedValue(item, 'description') || getNestedValue(item, 'summary'), rawContent);
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
       return {
         id,
         title,
-        summary,
+        summary: summaryText,
         date,
         source: source.name,
         category: finalCategory,
-        imageUrl,
+        imageUrl: imageUrl, // Can be null
         link: internalArticleLink, 
         sourceLink: originalLink,  
-        content: typeof fullContent === 'string' ? fullContent : summary,
+        content: rawContent || summaryText, // Provide rawContent if available, else summary
       };
     }).filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
@@ -174,14 +197,14 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
-  const uniqueArticles = allArticles.reduce((acc, current) => {
-    const x = acc.find(item => item.title === current.title && item.sourceLink === current.sourceLink);
-    if (!x) {
-      return acc.concat([current]);
-    } else {
-      return acc;
+  const uniqueArticlesMap = new Map<string, Article>();
+  for (const article of allArticles) {
+    // Use a combination of title and sourceLink for uniqueness, or just sourceLink if title is very generic
+    const uniqueKey = (article.title.length > 20 ? article.title : '') + article.sourceLink;
+    if (!uniqueArticlesMap.has(uniqueKey)) {
+      uniqueArticlesMap.set(uniqueKey, article);
     }
-  }, [] as Article[]);
+  }
   
-  return uniqueArticles.slice(0, 100); // Limit to latest 100 unique articles
+  return Array.from(uniqueArticlesMap.values()).slice(0, 100); // Limit to latest 100 unique articles
 }

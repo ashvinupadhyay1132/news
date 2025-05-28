@@ -24,16 +24,22 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Google News & other Google services (covers lh3.googleusercontent.com, news.google.com images etc.)
+      // Google News & other Google services
       {
         protocol: 'https',
-        hostname: '**.googleusercontent.com',
+        hostname: 'lh3.googleusercontent.com', // Common for Google images
         port: '',
         pathname: '/**',
       },
        {
         protocol: 'https',
-        hostname: 'news.google.com', // For images directly hosted or linked by news.google.com
+        hostname: 'news.google.com', 
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com', // Broader pattern for user content
         port: '',
         pathname: '/**',
       },
@@ -46,49 +52,49 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**.ndtvimg.com', // Broader pattern for ndtvimg.com subdomains
+        hostname: '*.ndtvimg.com', // Broader pattern for ndtvimg.com subdomains
         port: '',
         pathname: '/**',
       },
-      // General CDNs that might be used by various news outlets - add cautiously
-      // Example: Add Akamai if you notice many feeds use it.
-      // {
-      //   protocol: 'https',
-      //   hostname: '**.akamaihd.net',
-      //   port: '',
-      //   pathname: '/**',
-      // },
-      // Keeping some of the previously added ones if they are common patterns
+      // Common CDNs that might be used by various news outlets
       { 
         protocol: 'https',
-        hostname: '**.cnn.com', 
+        hostname: '*.cnn.com', 
         port: '',
         pathname: '/**',
       },
       { 
         protocol: 'https',
-        hostname: '**.reuters.com',
+        hostname: '*.reuters.com',
         port: '',
         pathname: '/**',
       },
       { 
         protocol: 'https',
-        hostname: 'i.guim.co.uk',
+        hostname: 'i.guim.co.uk', // The Guardian
         port: '',
         pathname: '/**',
       },
       { 
         protocol: 'https',
-        hostname: '**.cnbcfm.com',
+        hostname: '*.cnbcfm.com', // CNBC
         port: '',
         pathname: '/**',
       },
        { 
         protocol: 'https',
-        hostname: 'fm.cnbc.com',
+        hostname: 'fm.cnbc.com', // CNBC
         port: '',
         pathname: '/**',
       },
+      // Add other general CDNs if observed frequently
+      // Example: Akamai
+      // {
+      //   protocol: 'https',
+      //   hostname: '*.akamaihd.net',
+      //   port: '',
+      //   pathname: '/**',
+      // },
     ],
   },
 };

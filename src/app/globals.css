@@ -107,4 +107,40 @@ body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /* Refinements for a more "blogging platform" feel on article content */
+  .prose {
+    @apply text-foreground/90; /* Slightly softer text than pure foreground */
+  }
+  .dark .prose {
+    @apply text-foreground/90;
+  }
+
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    @apply text-primary;
+  }
+  .dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose h5, .dark .prose h6 {
+    @apply text-primary;
+  }
+  
+  .prose a {
+    @apply text-primary hover:underline;
+  }
+  .dark .prose a {
+    @apply text-primary hover:underline;
+  }
+
+  .prose strong {
+    @apply text-foreground;
+  }
+  .dark .prose strong {
+    @apply text-foreground;
+  }
+  
+  .prose blockquote {
+    @apply border-primary;
+  }
+  .dark .prose blockquote {
+    @apply border-primary;
+  }
 }

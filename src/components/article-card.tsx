@@ -19,41 +19,42 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
     day: 'numeric',
   });
 
-  // Construct a hint for AI image generation if needed for placeholders
   const imageHint = slugify(article.category) || "news";
-
+  const placeholderImageSrc = `https://placehold.co/600x400.png`;
 
   return (
-    <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg bg-card">
-      <Link href={article.link} className="block group">
-        <div className="relative w-full h-48 overflow-hidden">
+    <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg bg-card group">
+      <Link href={article.link} className="block">
+        <div className="relative w-full h-52 sm:h-48 overflow-hidden bg-muted/50"> {/* Added bg-muted for better placeholder appearance */}
           <Image
-            src={article.imageUrl || `https://placehold.co/600x400.png`}
+            src={article.imageUrl || placeholderImageSrc}
             alt={article.title}
             layout="fill"
             objectFit="cover"
             className="group-hover:scale-105 transition-transform duration-300 ease-in-out"
-            data-ai-hint={`${imageHint} article`}
+            data-ai-hint={`${imageHint} article thumbnail`}
             onError={(e) => {
-              // Fallback if image fails to load or is invalid
-              e.currentTarget.srcset = ''; // Clear srcset
-              e.currentTarget.src = `https://placehold.co/600x400.png`;
-              // Add data-ai-hint to placeholder if it's being used due to an error
-              e.currentTarget.setAttribute('data-ai-hint', `${imageHint} placeholder`);
+              // More robust fallback
+              const target = e.currentTarget;
+              if (target.src !== placeholderImageSrc) {
+                target.srcset = '';
+                target.src = placeholderImageSrc;
+                target.setAttribute('data-ai-hint', `${imageHint} placeholder thumbnail`);
+              }
             }}
           />
         </div>
       </Link>
-      <CardHeader className="p-4">
-        <Badge variant="secondary" className="mb-2 w-fit">{article.category}</Badge>
-        <CardTitle className="text-lg font-semibold leading-tight">
-          <Link href={article.link} className="hover:text-primary transition-colors">
+      <CardHeader className="p-4 pb-2">
+        <Badge variant="secondary" className="mb-2 w-fit text-xs">{article.category}</Badge>
+        <CardTitle className="text-lg font-semibold leading-snug"> {/* Adjusted leading for tighter fit */}
+          <Link href={article.link} className="hover:text-primary transition-colors line-clamp-3">
             {article.title}
           </Link>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 flex-grow">
-        <p className="text-sm text-muted-foreground line-clamp-3">{article.summary}</p>
+      <CardContent className="p-4 pt-1 flex-grow">
+        <p className="text-sm text-muted-foreground line-clamp-4">{article.summary}</p> {/* Increased line-clamp slightly */}
       </CardContent>
       <CardFooter className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
         <div className="text-xs text-muted-foreground space-y-1">
@@ -66,8 +67,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
             {article.source}
           </div>
         </div>
-        <Button asChild variant="link" size="sm" className="p-0 h-auto text-primary hover:underline">
-          {/* This link goes to the internal app page for the article */}
+        <Button asChild variant="link" size="sm" className="p-0 h-auto text-primary hover:underline self-end sm:self-center">
           <Link href={article.link}>Read More &rarr;</Link>
         </Button>
       </CardFooter>

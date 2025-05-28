@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useParams, notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getArticleById, type Article } from '@/lib/placeholder-data';
 import Image from 'next/image';
@@ -18,6 +18,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { slugify } from '@/lib/utils';
+// IMPORTANT: For production, you MUST install and use an HTML sanitizer like DOMPurify.
+// import DOMPurify from 'dompurify';
 
 export default function ArticlePage() {
   const params = useParams();
@@ -33,13 +35,13 @@ export default function ArticlePage() {
         setLoading(true);
         try {
           const fetchedArticle = await getArticleById(articleIdParam as string);
-          if (fetchedArticle) {
-            setArticle(fetchedArticle);
-          } else {
+          setArticle(fetchedArticle || null); // Set to null if not found
+          if (!fetchedArticle) {
             console.warn(`Article with ID ${articleIdParam} not found.`);
           }
         } catch (error) {
           console.error("Error fetching article:", error);
+          setArticle(null);
         } finally {
           setLoading(false);
         }
@@ -52,20 +54,22 @@ export default function ArticlePage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto p-6 sm:p-8">
-        <Skeleton className="h-10 w-32 mb-6" /> {/* Back button skeleton */}
-        <Skeleton className="h-6 w-24 mb-3" /> {/* Badge skeleton */}
-        <Skeleton className="h-12 w-full mb-3" /> {/* Title skeleton */}
-        <Skeleton className="h-10 w-3/4 mb-4" /> {/* Meta info skeleton */}
-        <Skeleton className="h-64 sm:h-96 w-full mb-8 rounded-md" /> {/* Image skeleton */}
-        <Skeleton className="h-5 w-full mb-2" />
-        <Skeleton className="h-5 w-full mb-2" />
-        <Skeleton className="h-5 w-5/6 mb-6" />
-        <Skeleton className="h-5 w-full mb-2" />
-        <Skeleton className="h-5 w-full mb-2" />
-        <Skeleton className="h-5 w-3/4 mb-8" />
-        <div className="mt-8 pt-6 border-t flex justify-end">
-          <Skeleton className="h-10 w-24" /> {/* Share button skeleton */}
+      <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
+        <Skeleton className="h-10 w-32 mb-8" />
+        <Skeleton className="h-6 w-24 mb-4" /> 
+        <Skeleton className="h-12 sm:h-16 w-full mb-4" /> 
+        <Skeleton className="h-5 w-3/4 mb-6" /> 
+        <Skeleton className="h-64 sm:h-80 md:h-96 w-full mb-8 rounded-lg" />
+        <div className="space-y-3">
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-5/6" />
+          <Skeleton className="h-5 w-full mt-4" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-3/4" />
+        </div>
+        <div className="mt-10 pt-6 border-t flex justify-end">
+          <Skeleton className="h-10 w-24" />
         </div>
       </div>
     );
@@ -73,9 +77,12 @@ export default function ArticlePage() {
 
   if (!article) {
     return (
-      <div className="text-center py-10">
-        <h1 className="text-2xl font-semibold mb-4">Article not found</h1>
-        <p className="text-muted-foreground mb-6">The article you are looking for does not exist or may have been moved.</p>
+      <div className="text-center py-12">
+        <NewspaperIcon className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+        <h1 className="text-3xl font-semibold mb-4">Article Not Found</h1>
+        <p className="text-muted-foreground mb-8">
+          The article you are looking for does not exist or may have been moved.
+        </p>
         <Button asChild>
           <Link href="/">
             <ArrowLeft className="mr-2 h-4 w-4" /> Go back to Homepage
@@ -94,26 +101,26 @@ export default function ArticlePage() {
   }) : 'Date not available';
 
   const handleShare = (platform: 'twitter' | 'facebook' | 'linkedin' | 'whatsapp' | 'copy') => {
-    const url = article.sourceLink || window.location.href; 
+    const urlToShare = article.sourceLink || window.location.href; 
     const text = `Check out this article: ${article.title}`;
     let shareUrl = '';
 
     switch (platform) {
       case 'twitter':
-        shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+        shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(urlToShare)}&text=${encodeURIComponent(text)}`;
         break;
       case 'facebook':
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(urlToShare)}`;
         break;
       case 'linkedin':
-        shareUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(url)}&title=${encodeURIComponent(article.title)}&summary=${encodeURIComponent(article.summary)}`;
+        shareUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(urlToShare)}&title=${encodeURIComponent(article.title)}&summary=${encodeURIComponent(article.summary)}`;
         break;
       case 'whatsapp':
-        shareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text + " " + url)}`;
+        shareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text + " " + urlToShare)}`;
         break;
       case 'copy':
-        navigator.clipboard.writeText(url).then(() => {
-          toast({ title: "Link Copied!", description: "Article link copied to clipboard." });
+        navigator.clipboard.writeText(urlToShare).then(() => {
+          toast({ title: "Link Copied!", description: "Original article link copied to clipboard." });
         }).catch(err => {
           toast({ title: "Error", description: "Could not copy link.", variant: "destructive" });
           console.error('Failed to copy: ', err);
@@ -126,20 +133,21 @@ export default function ArticlePage() {
   };
   
   const imageHint = slugify(article.category) || "news";
+  const placeholderImageSrc = `https://placehold.co/1200x675.png`; // Larger placeholder for article page
 
   return (
-    <div className="max-w-3xl mx-auto bg-card p-6 sm:p-8 rounded-lg shadow-xl">
-      <Button asChild variant="outline" className="mb-6">
-        <Link href="/">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to News
+    <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl my-8">
+      <Button asChild variant="outline" className="mb-8 group">
+        <Link href="/" className="flex items-center text-sm">
+          <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back to News
         </Link>
       </Button>
 
       <article>
-        <header className="mb-6">
-          <Badge variant="secondary" className="mb-3">{article.category}</Badge>
-          <h1 className="text-3xl sm:text-4xl font-bold text-primary mb-3 leading-tight">{article.title}</h1>
-          <div className="flex flex-wrap items-center text-sm text-muted-foreground space-x-4 mb-4">
+        <header className="mb-8">
+          <Badge variant="secondary" className="mb-3 text-sm py-1 px-2.5">{article.category}</Badge>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-primary mb-4 leading-tight">{article.title}</h1>
+          <div className="flex flex-wrap items-center text-sm text-muted-foreground space-x-4 mb-6">
             <div className="flex items-center">
               <CalendarDays className="h-4 w-4 mr-1.5" />
               <span>{formattedDate}</span>
@@ -151,52 +159,55 @@ export default function ArticlePage() {
           </div>
         </header>
 
-        <div className="relative w-full h-64 sm:h-96 mb-8 rounded-md overflow-hidden shadow-md">
-          <Image
-            src={article.imageUrl || `https://placehold.co/800x450.png`}
-            alt={article.title}
-            layout="fill"
-            objectFit="cover"
-            priority 
-            className="transition-opacity duration-300"
-            data-ai-hint={`${imageHint} article full image`}
-            onError={(e) => {
-              e.currentTarget.srcset = ''; 
-              e.currentTarget.src = `https://placehold.co/800x450.png`;
-              e.currentTarget.setAttribute('data-ai-hint', `${imageHint} placeholder large`);
-            }}
-          />
-        </div>
+        {article.imageUrl && (
+          <div className="relative w-full aspect-video mb-8 rounded-lg overflow-hidden shadow-md bg-muted/50">
+            <Image
+              src={article.imageUrl}
+              alt={article.title}
+              layout="fill"
+              objectFit="cover"
+              priority 
+              className="transition-opacity duration-300"
+              data-ai-hint={`${imageHint} article full image`}
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src !== placeholderImageSrc) {
+                  target.srcset = '';
+                  target.src = placeholderImageSrc;
+                  target.setAttribute('data-ai-hint', `${imageHint} placeholder large`);
+                }
+              }}
+            />
+          </div>
+        )}
         
-        <div className="prose dark:prose-invert max-w-none mb-8 text-foreground/90">
-          <p className="text-lg leading-relaxed italic mb-6">{article.summary}</p>
+        <div className="prose dark:prose-invert max-w-none mb-8 text-lg leading-relaxed text-foreground/90">
           {/* 
             SECURITY WARNING: Rendering HTML from RSS feeds (article.content) via dangerouslySetInnerHTML 
             is a significant XSS (Cross-Site Scripting) risk if the content is not sanitized.
             For a production application, you MUST use a library like DOMPurify to sanitize
             this HTML before rendering it. Example:
-            import DOMPurify from 'dompurify';
-            const cleanHtml = DOMPurify.sanitize(article.content);
-            <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />
+            // import DOMPurify from 'dompurify';
+            // const cleanHtml = DOMPurify.sanitize(article.content || article.summary);
+            // <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />
           */}
-          {article.content && article.content.trim() !== article.summary.trim() && !article.summary.includes('No summary available.') ? (
-             <div dangerouslySetInnerHTML={{ __html: article.content }} />
-          ) : (
-            article.summary.includes('No summary available.') && <p>Full content could not be loaded for this article from the RSS feed.</p>
+          <div dangerouslySetInnerHTML={{ __html: article.content || article.summary }} />
+          {(!article.content || article.content.trim() === article.summary.trim()) && article.summary.includes('No summary available.') && (
+            <p className="mt-6 text-muted-foreground italic">Full content could not be loaded for this article from the RSS feed.</p>
           )}
         </div>
 
-        <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="mt-10 pt-8 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
           {article.sourceLink && article.sourceLink !== '#' && (
-            <Button variant="outline" asChild>
-              <a href={article.sourceLink.startsWith('http') ? article.sourceLink : `https://${article.sourceLink}`} target="_blank" rel="noopener noreferrer">
-                Read on {article.source} <ExternalLink className="ml-2 h-4 w-4" />
+            <Button variant="default" asChild size="lg">
+              <a href={article.sourceLink.startsWith('http') ? article.sourceLink : `https://${article.sourceLink}`} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                Read Full Article on {article.source} <ExternalLink className="ml-2 h-4 w-4" />
               </a>
             </Button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" size="lg">
                 <Share2 className="mr-2 h-4 w-4" /> Share
               </Button>
             </DropdownMenuTrigger>
