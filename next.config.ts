@@ -17,31 +17,6 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // BBC News
-      {
-        protocol: 'https',
-        hostname: 'ichef.bbci.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'http', // BBC sometimes uses http for images in feeds
-        hostname: 'ichef.bbci.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'newsimg.bbc.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-       {
-        protocol: 'http',
-        hostname: 'newsimg.bbc.co.uk',
-        port: '',
-        pathname: '/**',
-      },
       // RSSHub (might proxy images or link to various sources)
       {
         protocol: 'https',

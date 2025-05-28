@@ -15,34 +15,41 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
+  // RSSHub Bing News Feeds
+  { name: "RSSHub - Bing General News", rssUrl: "https://rsshub.app/bing/news", defaultCategory: "General News" },
+  { name: "RSSHub - Bing Tech", rssUrl: "https://rsshub.app/bing/news/technology", defaultCategory: "Technology" },
+  { name: "RSSHub - Bing Business", rssUrl: "https://rsshub.app/bing/news/business", defaultCategory: "Business" },
+  { name: "RSSHub - Bing World", rssUrl: "https://rsshub.app/bing/news/world", defaultCategory: "World News" },
+  { name: "RSSHub - Bing Entertainment", rssUrl: "https://rsshub.app/bing/news/entertainment", defaultCategory: "Entertainment" },
+  { name: "RSSHub - Bing Sports", rssUrl: "https://rsshub.app/bing/news/sports", defaultCategory: "Sports" },
+  { name: "RSSHub - Bing India News", rssUrl: "https://rsshub.app/bing/news/India", defaultCategory: "India News" },
+
   // Mint (India)
   { name: "Mint - Latest News", rssUrl: "https://www.livemint.com/rss/latestnews", defaultCategory: "India News" },
   { name: "Mint - Companies", rssUrl: "https://www.livemint.com/rss/companies", defaultCategory: "Business" },
   { name: "Mint - Money", rssUrl: "https://www.livemint.com/rss/money", defaultCategory: "Finance" },
   { name: "Mint - Opinion", rssUrl: "https://www.livemint.com/rss/opinion", defaultCategory: "Opinion" },
   { name: "Mint - Politics", rssUrl: "https://www.livemint.com/rss/politics", defaultCategory: "Politics"},
-  { name: "Mint - Science", rssUrl: "https://www.livemint.com/rss/science", defaultCategory: "Science"},
   
   // Hindustan Times (India)
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "Top News" },
   { name: "Hindustan Times - Main News", rssUrl: "https://www.hindustantimes.com/rss/news", defaultCategory: "India News" },
   { name: "Hindustan Times - Business", rssUrl: "https://www.hindustantimes.com/business/rss/feed", defaultCategory: "Business" },
-  { name: "Hindustan Times - Tech (HT Tech)", rssUrl: "https://tech.hindustantimes.com/rss", defaultCategory: "Technology" }, // Changed from tech.hindustantimes.com/rss/tech/rssfeed.xml
+  { name: "Hindustan Times - Tech (HT Tech)", rssUrl: "https://tech.hindustantimes.com/rss", defaultCategory: "Technology" },
   { name: "Hindustan Times - Entertainment", rssUrl: "https://www.hindustantimes.com/rss/entertainment/rssfeed.xml", defaultCategory: "Entertainment" },
   { name: "Hindustan Times - Sports", rssUrl: "https://www.hindustantimes.com/rss/sports/rssfeed.xml", defaultCategory: "Sports" },
   { name: "Hindustan Times - Auto", rssUrl: "https://auto.hindustantimes.com/rss/rssfeed.xml", defaultCategory: "Auto" },
-
 
   // Times of India
   { name: "Times of India - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "India News" },
   { name: "Times of India - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business"},
   { name: "Times of India - Tech", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/5880659.cms", defaultCategory: "Technology"},
-
-  // BBC (International)
-  { name: "BBC - Top Stories", rssUrl: "http://feeds.bbci.co.uk/news/rss.xml", defaultCategory: "World News" },
-  { name: "BBC - World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News" },
-  { name: "BBC - Technology", rssUrl: "http://feeds.bbci.co.uk/news/technology/rss.xml", defaultCategory: "Technology" },
-  { name: "BBC - Business", rssUrl: "http://feeds.bbci.co.uk/news/business/rss.xml", defaultCategory: "Business" },
+  
+  // Other existing feeds (if any, for example Reddit/Flipboard based on previous interactions)
+  { name: "The Guardian - World News", rssUrl: "https://www.theguardian.com/international/rss", defaultCategory: "World News" },
+  { name: "The Guardian - Business", rssUrl: "https://www.theguardian.com/uk/business/rss", defaultCategory: "Business" },
+  { name: "Flipboard - Tech", rssUrl: "https://flipboard.com/@flipboard/tech.rss", defaultCategory: "Technology" },
+  { name: "Reddit - WorldNews", rssUrl: "https://www.reddit.com/r/worldnews/.rss", defaultCategory: "World News"},
 ];
 
 
@@ -51,7 +58,6 @@ const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string): string | null {
   let imageUrl = null;
   
-  // Priority 1: media:group containing media:content (often high quality)
   if (item['media:group'] && item['media:group']['media:content']) {
     const mediaContents = Array.isArray(item['media:group']['media:content'])
       ? item['media:group']['media:content']
@@ -64,28 +70,24 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
   
-  // Priority 2: Direct media:content (common in many feeds like Mint, BBC, HT)
   if (!imageUrl && item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
-      if (content && content.url && (content.medium === 'image' || (String(content.type).startsWith('image/')))) {
+      if (content && content.url && (content.medium === 'image' || (String(content.type).startsWith('image/')) || (content.type && String(content.type).includes('image')))) {
         imageUrl = content.url;
         break;
       }
     }
   }
   
-  // Priority 3: Enclosure (standard RSS way for media)
   if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
     imageUrl = item.enclosure.url;
   }
 
-  // Priority 4: media:thumbnail
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
     imageUrl = item['media:thumbnail'].url;
   }
   
-  // Priority 5: For specific Indian news sites - often in description as img src
   if (!imageUrl && (item.source?.includes("Times of India") || item.source?.includes("Hindustan Times")) ) {
     const description = normalizeContent(getNestedValue(item, 'description'));
     if (description) {
@@ -96,7 +98,6 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
-  // Last Resort: Look for image in HTML content (description or content field)
   if (!imageUrl) {
     const contentFieldsToSearch = [
       getNestedValue(item, 'content:encoded'), 
@@ -129,15 +130,12 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
                 const baseUrl = new URL(baseLink);
                 return new URL(imageUrl, baseUrl.origin).href;
             } catch (e) {
-                // console.error("Error constructing absolute image URL from relative path:", e);
                 return null; 
             }
         }
-        // console.warn("Cannot construct absolute image URL: base link missing or invalid for relative path", imageUrl);
         return null; 
     }
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-        // console.warn("Invalid image URL (not http/https):", imageUrl);
         return null; 
     }
     return imageUrl;
@@ -169,13 +167,12 @@ function normalizeContent(contentInput: any): string {
       getNestedValue(contentInput, 'content'),
       getNestedValue(contentInput, 'description'),
       getNestedValue(contentInput, 'summary'),
-      // contentInput.toString() // Avoid generic toString on objects if not helpful
     ];
     for (const val of potentialValues) {
       if (typeof val === 'string' && val.trim() !== '') {
         text = val;
         break;
-      } else if (val && typeof val._ === 'string' && val._.trim() !== '') { // Handle CDATA like objects
+      } else if (val && typeof val._ === 'string' && val._.trim() !== '') {
         text = val._;
         break;
       }
@@ -189,16 +186,14 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any): string
   const descriptionText = normalizeContent(descriptionInput);
   const fullContentText = normalizeContent(fullContentInput);
 
-  // Prefer full content if it's substantially longer or description is minimal
   if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { 
     textToSummarize = fullContentText;
   } else if (descriptionText) {
     textToSummarize = descriptionText;
-  } else if (fullContentText) { // Fallback to full content if description is entirely missing
+  } else if (fullContentText) {
     textToSummarize = fullContentText;
   }
   
-  // Strip HTML tags, [link], [comments], &nbsp;, and excessive whitespace
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
@@ -208,8 +203,6 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any): string
     .replace(/\s+/g, ' ')
     .trim();
     
-  // If stripping HTML resulted in empty, but original full content was different (e.g., image-only description)
-  // try to get some text from the full content again if it wasn't the primary source.
   if (!plainText && fullContentText && fullContentText !== textToSummarize) { 
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -231,8 +224,8 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', // Common bot User-Agent
-        'Accept': 'application/rss+xml,application/xml,application/atom+xml,text/xml;q=0.9,*/*;q=0.8' 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 NewsFlashApp/1.0',
+        'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
       next: { revalidate: 300 } // 5 minutes
     });
@@ -246,18 +239,17 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
     let items = getNestedValue(result, 'rss.channel.item', []);
     if (!items || (Array.isArray(items) && items.length === 0)) {
-      items = getNestedValue(result, 'feed.entry', []); // Atom feed check
+      items = getNestedValue(result, 'feed.entry', []); 
     }
      if (!items || (Array.isArray(items) && items.length === 0)) { 
-      items = getNestedValue(result, 'rdf:RDF.item', []); // RDF feed check
+      items = getNestedValue(result, 'rdf:RDF.item', []); 
     }
 
     if (!Array.isArray(items)) {
-      items = items ? [items] : []; // Ensure items is an array
+      items = items ? [items] : []; 
     }
 
     if (items.length === 0) {
-      // console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl})`);
       return [];
     }
 
@@ -269,16 +261,15 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
       if (typeof linkField === 'string') {
         originalLink = linkField;
-      } else if (typeof linkField === 'object' && linkField?.href) { // Atom link object
+      } else if (typeof linkField === 'object' && linkField?.href) { 
         originalLink = linkField.href;
-      } else if (typeof linkField === 'object' && !linkField?.href && linkField?._) { // Other object link
+      } else if (typeof linkField === 'object' && !linkField?.href && linkField?._) { 
         originalLink = linkField._;
-      } else if (Array.isArray(linkField)) { // Array of links (Atom)
+      } else if (Array.isArray(linkField)) { 
         const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.href);
         originalLink = alternateLink ? alternateLink.href : ( (typeof linkField[0] === 'object' && linkField[0]?.href) || (typeof linkField[0] === 'string' ? linkField[0] : '#') );
       }
       
-      // Specific handling for Reddit "View article" links if standard link is to comments
       if (source.name.includes("Reddit") && item.content && (item.content._ || typeof item.content === 'string')) {
           const contentStr = item.content._ || item.content;
           const linkMatch = String(contentStr).match(/<a href="([^"]+)">\[link\]<\/a>/);
@@ -287,7 +278,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       originalLink = typeof originalLink === 'string' ? originalLink.trim() : '#';
       
       if (originalLink === '#' && item.id && typeof item.id === 'string' && item.id.startsWith('http')) {
-        originalLink = item.id; // Use Atom ID as link if it's a URL and link is missing
+        originalLink = item.id; 
       }
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
@@ -295,14 +286,13 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
       let guidValue = getNestedValue(item, 'guid');
       if (typeof guidValue === 'object') {
-          // If guid isPermaLink="false", it's not the article URL. Prefer originalLink.
           if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { 
               guidValue = originalLink; 
           } else {
               guidValue = normalizeContent(getNestedValue(guidValue, '_', getNestedValue(guidValue, '#text', originalLink)));
           }
       } else {
-          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); // Fallback to Atom ID for guid
+          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); 
       }
       
       const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink + source.name + index);
@@ -313,7 +303,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       let categoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
       if (Array.isArray(categoryFromFeed)) {
           categoryFromFeed = categoryFromFeed.map(cat => {
-            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$; // Atom category term
+            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$; 
             return cat;
           }).filter(Boolean).join(', ') || source.defaultCategory || 'General';
       } else if (typeof categoryFromFeed === 'object') {
@@ -336,9 +326,9 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         source: source.name,
         category: finalCategory,
         imageUrl: imageUrl, 
-        link: internalArticleLink, // Internal app link
-        sourceLink: originalLink, // Original article link
-        content: rawContent || summaryText, // Fullest content available from feed
+        link: internalArticleLink, 
+        sourceLink: originalLink, 
+        content: rawContent || summaryText, 
       };
     }).filter(article => article.title && article.title !== 'Untitled Article' && !article.title.includes("reddit.com Store") && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
@@ -353,7 +343,6 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
 
-  // Filter out articles with empty, placeholder, or very short summaries BEFORE de-duplication
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
     return summaryText.length >= 25 && 
@@ -361,27 +350,21 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
            summaryText !== "..."; 
   });
   
-  // De-duplicate articles
   const uniqueArticlesMap = new Map<string, Article>();
   for (const article of allArticles) {
     if (!article.title || !article.sourceLink || article.sourceLink === '#') {
-        // console.warn("Skipping article due to missing title or sourceLink:", article);
         continue; 
     }
 
-    // Normalize title: lowercase, remove extra spaces, take first 80 chars
     let normalizedTitleKey = article.title.toLowerCase().replace(/\s+/g, ' ').substring(0, 80).trim();
     
-    // Normalize link: remove protocol, www, trailing slash, common tracking params
     let normalizedLinkKey = article.sourceLink;
     try {
         const url = new URL(article.sourceLink);
-        // Remove common query parameters that don't change content
         const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed'];
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
-        // console.warn("Could not parse URL for de-duplication:", article.sourceLink, e);
         normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
     }
 
@@ -391,27 +374,22 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     if (!existingArticle) {
         uniqueArticlesMap.set(uniqueKey, article);
     } else {
-        // Preference logic for duplicates
         let keepNew = false;
-        // Prefer article with image if current one doesn't have it
         if (article.imageUrl && !existingArticle.imageUrl) {
             keepNew = true;
         } else if (!article.imageUrl && existingArticle.imageUrl) {
-            // keep existing (already has image)
+            // keep existing
         }
-        // Prefer article with (more) content
-        else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) { // +50 to avoid minor diffs
+        else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) { 
             keepNew = true;
         } else if (!article.content && existingArticle.content) {
-            // keep existing (already has content)
+           // keep existing
         }
-        // If both have similar content length and image status, prefer the one with a more specific category if different
         else if (article.category !== existingArticle.category && (article.category !== 'General' && article.category !== 'Top News' && existingArticle.category === 'General' || existingArticle.category === 'Top News')) {
             keepNew = true;
         }
-        // Prefer article from a non-"Top News" or "General" category if the existing one is
-        else if (existingArticle.category && (existingArticle.category.toLowerCase().includes("top news") || existingArticle.category.toLowerCase().includes("general")) && 
-                 article.category && !(article.category.toLowerCase().includes("top news") || article.category.toLowerCase().includes("general"))){
+        else if (existingArticle.category && (existingArticle.category.toLowerCase().includes("top news") || existingArticle.category.toLowerCase().includes("general news")) && 
+                 article.category && !(article.category.toLowerCase().includes("top news") || article.category.toLowerCase().includes("general news"))){
             keepNew = true;
         }
         
@@ -422,8 +400,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
-  // Sort by date, newest first
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return allArticles.slice(0, 100); // Limit to 100 articles for performance
+  return allArticles.slice(0, 100); 
 }
