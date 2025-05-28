@@ -6,10 +6,11 @@
 
 import { Parser } from 'xml2js';
 import type { Article } from './placeholder-data';
-import { slugify, getNestedValue, generateAiHintFromTitle } from './utils';
+import { slugify, generateAiHintFromTitle, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
+
 
 interface NewsSource {
   name: string;
@@ -219,7 +220,14 @@ function normalizeContent(contentInput: any): string {
         }
     }
   }
-  return text ? he.decode(text.trim()) : '';
+  
+  if (text) {
+    // Decode HTML entities first
+    text = he.decode(text.trim());
+    // Then, remove any Unicode Replacement Characters () that might have resulted from earlier decoding issues or were in the source
+    text = text.replace(/\uFFFD/g, ''); 
+  }
+  return text || '';
 }
 
 function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceName?: string): string {
@@ -296,7 +304,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
     // Attempt 2: Decode as Windows-1252 (if UTF-8 seems problematic)
-    // Only try Windows-1252 if UTF-8 produced a significant number of replacement characters.
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 2 || utf8ReplacementCharCount / utf8Decoded.length > 0.005)) { // Adjusted threshold
       // console.warn(`UTF-8 decoding for ${source.name} resulted in ${utf8ReplacementCharCount} replacement characters. Trying Windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
@@ -509,4 +516,3 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   return allArticles.slice(0, 150); 
 }
-
