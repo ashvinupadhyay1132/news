@@ -50,7 +50,7 @@ const NEWS_SOURCES: NewsSource[] = [
 ];
 
 
-const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs: true });
+const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs: true, trim: true });
 
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
   if (!articleUrl || !articleUrl.startsWith('http')) {
@@ -80,11 +80,19 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
         $('meta[property="twitter:image"]').attr('content') ||
         $('meta[name="twitter:image"]').attr('content');
     
-    if (ogImageUrl && ogImageUrl.startsWith('/')) {
-        const urlObject = new URL(articleUrl);
-        ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
+    if (ogImageUrl && typeof ogImageUrl === 'string') {
+        ogImageUrl = he.decode(ogImageUrl.trim()); // Decode entities from URL itself
+        if (ogImageUrl.startsWith('/')) {
+            const urlObject = new URL(articleUrl);
+            ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
+        }
+        // Ensure it's a valid absolute URL
+        if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
+            return null;
+        }
+        return ogImageUrl;
     }
-    return he.decode(ogImageUrl || null);
+    return null;
   } catch (error) {
     // console.error(`Error fetching or parsing HTML for meta image from ${articleUrl}:`, error.message || error);
     return null;
@@ -222,10 +230,16 @@ function normalizeContent(contentInput: any): string {
   }
   
   if (text) {
-    // Decode HTML entities first
-    text = he.decode(text.trim());
-    // Then, remove any Unicode Replacement Characters () that might have resulted from earlier decoding issues or were in the source
-    text = text.replace(/\uFFFD/g, ''); 
+    let decodedText = text.trim();
+    try {
+        decodedText = he.decode(decodedText); // Decode HTML entities
+    } catch (e) {
+        // console.warn("he.decode failed for text:", decodedText, e);
+        // If he.decode fails, proceed with the original trimmed text
+    }
+    // Remove Unicode Replacement Character and other common problematic non-printable ASCII (except tab, LF, CR)
+    decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
+    text = decodedText;
   }
   return text || '';
 }
@@ -299,22 +313,17 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     
     let feedXmlString: string;
 
-    // Attempt 1: Decode as UTF-8
     const utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
-    // Attempt 2: Decode as Windows-1252 (if UTF-8 seems problematic)
-    if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 2 || utf8ReplacementCharCount / utf8Decoded.length > 0.005)) { // Adjusted threshold
+    if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 2 || utf8ReplacementCharCount / utf8Decoded.length > 0.005)) {
       // console.warn(`UTF-8 decoding for ${source.name} resulted in ${utf8ReplacementCharCount} replacement characters. Trying Windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
     }
 
-    // Final cleanup of the XML string before parsing:
-    // 1. Remove common control characters (excluding tab, LF, CR).
     feedXmlString = feedXmlString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    // 2. Explicitly remove any remaining U+FFFD () characters.
     feedXmlString = feedXmlString.replace(/\uFFFD/g, '');
 
 
