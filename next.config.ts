@@ -63,7 +63,7 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Bing often uses these for images
+      // Bing often uses these for images (via RSSHub)
       {
         protocol: 'https',
         hostname: '**.bing.com',
@@ -76,26 +76,26 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Google News & other Google services (kept as Bing might link to them)
+      // Google News & other Google services (might be linked by other feeds)
       {
         protocol: 'https',
-        hostname: 'lh3.googleusercontent.com', 
+        hostname: 'lh3.googleusercontent.com',
         port: '',
         pathname: '/**',
       },
        {
         protocol: 'https',
-        hostname: 'news.google.com', 
+        hostname: 'news.google.com',
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: '*.googleusercontent.com', 
+        hostname: '*.googleusercontent.com',
         port: '',
         pathname: '/**',
       },
-      // NDTV (kept in case Bing News links to it, though primary feed removed)
+      // NDTV (kept in case some aggregated feed links to it)
       {
         protocol: 'https',
         hostname: 'c.ndtvimg.com',
@@ -109,33 +109,40 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       // Common CDNs that might be used by various news outlets
-      { 
+      {
         protocol: 'https',
-        hostname: '*.cnn.com', 
+        hostname: '*.cnn.com',
         port: '',
         pathname: '/**',
       },
-      { 
+      {
         protocol: 'https',
         hostname: '*.reuters.com',
         port: '',
         pathname: '/**',
       },
-      { 
+      {
         protocol: 'https',
         hostname: 'i.guim.co.uk', // The Guardian
         port: '',
         pathname: '/**',
       },
-      { 
+      {
         protocol: 'https',
         hostname: '*.cnbcfm.com', // CNBC
         port: '',
         pathname: '/**',
       },
-       { 
+       {
         protocol: 'https',
         hostname: 'fm.cnbc.com', // CNBC
+        port: '',
+        pathname: '/**',
+      },
+      // New addition for the-independent.com images
+      {
+        protocol: 'https',
+        hostname: 'static.the-independent.com',
         port: '',
         pathname: '/**',
       },
