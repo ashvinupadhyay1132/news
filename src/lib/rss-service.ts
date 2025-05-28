@@ -7,6 +7,10 @@
 import { Parser } from 'xml2js';
 import type { Article } from './placeholder-data';
 import { slugify, getNestedValue, generateAiHintFromTitle } from './utils';
+import he from 'he';
+import iconv from 'iconv-lite';
+import { load as cheerioLoad } from 'cheerio'; // Changed import
+// import axios from 'axios'; // Using native fetch instead for this part
 
 interface NewsSource {
   name: string;
@@ -15,18 +19,17 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
-  // Mint (India)
+  // Mint (India) - Various categories
   { name: "Mint - Latest News", rssUrl: "https://www.livemint.com/rss/latestnews", defaultCategory: "India News" },
   { name: "Mint - Companies", rssUrl: "https://www.livemint.com/rss/companies", defaultCategory: "Business" },
   { name: "Mint - Money", rssUrl: "https://www.livemint.com/rss/money", defaultCategory: "Finance" },
   { name: "Mint - Opinion", rssUrl: "https://www.livemint.com/rss/opinion", defaultCategory: "Opinion" },
   { name: "Mint - Politics", rssUrl: "https://www.livemint.com/rss/politics", defaultCategory: "Politics"},
-  
-  // Hindustan Times (India)
+  // Hindustan Times (India) - Various categories
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "Top News" },
   { name: "Hindustan Times - Main News", rssUrl: "https://www.hindustantimes.com/rss/news", defaultCategory: "India News" },
   { name: "Hindustan Times - Business", rssUrl: "https://www.hindustantimes.com/business/rss/feed", defaultCategory: "Business" },
-  { name: "Hindustan Times - Tech (HT Tech)", rssUrl: "https://tech.hindustantimes.com/rss", defaultCategory: "Technology" },
+  { name: "Hindustan Times - Tech (HT Tech)", rssUrl: "https://tech.hindustantimes.com/rss/tech/rssfeed.xml", defaultCategory: "Technology" },
   { name: "Hindustan Times - Entertainment", rssUrl: "https://www.hindustantimes.com/rss/entertainment/rssfeed.xml", defaultCategory: "Entertainment" },
   { name: "Hindustan Times - Sports", rssUrl: "https://www.hindustantimes.com/rss/sports/rssfeed.xml", defaultCategory: "Sports" },
   { name: "Hindustan Times - Auto", rssUrl: "https://auto.hindustantimes.com/rss/rssfeed.xml", defaultCategory: "Auto" },
@@ -48,10 +51,50 @@ const NEWS_SOURCES: NewsSource[] = [
 
 const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs: true });
 
+async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
+  if (!articleUrl || !articleUrl.startsWith('http')) {
+    // console.warn(`Invalid article URL for meta image fetching: ${articleUrl}`);
+    return null;
+  }
+  try {
+    // Use native fetch for consistency within Next.js server components/actions
+    const response = await fetch(articleUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+      },
+      signal: AbortSignal.timeout(8000) // 8-second timeout
+    });
+
+    if (!response.ok) {
+      // console.error(`Failed to fetch HTML for meta image from ${articleUrl}: ${response.status}`);
+      return null;
+    }
+
+    const htmlContent = await response.text();
+    const $ = cheerioLoad(htmlContent); // Use the imported load function
+
+    let ogImageUrl = 
+        $('meta[property="og:image"]').attr('content') ||
+        $('meta[name="og:image"]').attr('content') ||
+        $('meta[property="twitter:image"]').attr('content') ||
+        $('meta[name="twitter:image"]').attr('content');
+    
+    if (ogImageUrl && ogImageUrl.startsWith('/')) {
+        const urlObject = new URL(articleUrl);
+        ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
+    }
+    return he.decode(ogImageUrl || null); // Decode entities from image URL too
+  } catch (error) {
+    // console.error(`Error fetching or parsing HTML for meta image from ${articleUrl}:`, error.message || error);
+    return null;
+  }
+}
+
+
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string): string | null {
   let imageUrl = null;
   
-  // Prioritize media:content as it often contains more detailed image info
   if (item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
@@ -79,12 +122,10 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   }
 
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
-    // This might be a lower quality thumbnail, so it's a lower priority
     imageUrl = item['media:thumbnail'].url;
   }
   
-  // Specific for Times of India / Hindustan Times if other methods fail
-  if (!imageUrl && (item.source?.includes("Times of India") || item.source?.includes("Hindustan Times")) ) {
+  if (!imageUrl && (getNestedValue(item, 'source._', '').includes("Times of India") || getNestedValue(item, 'source._', '').includes("Hindustan Times")) ) {
     const description = normalizeContent(getNestedValue(item, 'description'));
     if (description) {
         const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
@@ -94,13 +135,12 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
-  // Generic search in content/description for an <img> tag
   if (!imageUrl) {
     const contentFieldsToSearch = [
       getNestedValue(item, 'content:encoded'), 
       getNestedValue(item, 'description'),
       getNestedValue(item, 'content'),
-      getNestedValue(item, 'content._'), // For Reddit's structure sometimes
+      getNestedValue(item, 'content._'),
       getNestedValue(item, 'summary'), 
     ];
     for (const field of contentFieldsToSearch) {
@@ -116,7 +156,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   }
   
   if (imageUrl && typeof imageUrl === 'string') {
-    imageUrl = imageUrl.trim();
+    imageUrl = he.decode(imageUrl.trim()); // Decode entities in image URLs too
     if (imageUrl.startsWith('//')) {
       return `https:${imageUrl}`;
     }
@@ -127,20 +167,16 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
                 const baseUrlObject = new URL(baseLink);
                 return new URL(imageUrl, baseUrlObject.origin).href;
             } catch (e) {
-                // console.warn(`Could not construct absolute URL for relative image path: ${imageUrl} with base: ${baseLink}`);
                 return null; 
             }
         }
-        // console.warn(`Could not construct absolute URL for relative image path: ${imageUrl} as baseLink is invalid.`);
         return null; 
     }
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-        // console.warn(`Image URL does not start with http/https: ${imageUrl}`);
         return null; 
     }
     return imageUrl;
   }
-
   return null; 
 }
 
@@ -162,43 +198,50 @@ function normalizeContent(contentInput: any): string {
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
-    // Try common object structures for content
-    const potentialValues = [
-      getNestedValue(contentInput, 'content:encoded'),
-      getNestedValue(contentInput, 'content'),
-      getNestedValue(contentInput, 'description'),
-      getNestedValue(contentInput, 'summary'),
-    ];
-    for (const val of potentialValues) {
-      if (typeof val === 'string' && val.trim() !== '') {
-        text = val;
-        break;
-      } else if (val && typeof val._ === 'string' && val._.trim() !== '') {
-        text = val._;
-        break;
-      }
+    // Prioritize 'content:encoded' if available and it's a string or has string content
+    const encodedContent = getNestedValue(contentInput, 'content:encoded');
+    if (typeof encodedContent === 'string' && encodedContent.trim() !== '') {
+        text = encodedContent;
+    } else if (encodedContent && typeof encodedContent._ === 'string' && encodedContent._.trim() !== '') {
+        text = encodedContent._;
+    } else {
+        // Fallback to other fields if encoded content is not suitable
+        const potentialValues = [
+        getNestedValue(contentInput, 'content'),
+        getNestedValue(contentInput, 'description'),
+        getNestedValue(contentInput, 'summary'),
+        ];
+        for (const val of potentialValues) {
+        if (typeof val === 'string' && val.trim() !== '') {
+            text = val;
+            break;
+        } else if (val && typeof val._ === 'string' && val._.trim() !== '') {
+            text = val._;
+            break;
+        }
+        }
     }
   }
-  return text.trim();
+  // Decode HTML entities right after extracting the potential string content
+  return text ? he.decode(text.trim()) : '';
 }
 
 function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceName?: string): string {
   let textToSummarize = '';
-  let descriptionText = normalizeContent(descriptionInput);
-  const fullContentText = normalizeContent(fullContentInput);
+  let descriptionText = normalizeContent(descriptionInput); 
+  const fullContentText = normalizeContent(fullContentInput); 
 
   if (sourceName && sourceName.toLowerCase().includes("reddit")) {
-    // More aggressive cleaning for Reddit descriptions
     descriptionText = descriptionText
-        .replace(/<p>submitted by.*?<\/p>/gi, '') // Remove "submitted by..." paragraph
-        .replace(/<a href="[^"]*">\[comments\]<\/a>/gi, '') // Remove [comments] anchor
-        .replace(/<a href="[^"]*">\[link\]<\/a>/gi, '')    // Remove [link] anchor
-        .replace(/<a[^>]*?>\[\d+ comments?\]<\/a>/gi, '') // Remove comment count links like [100 comments]
-        .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, '') // Remove "read more" paragraphs
-        .replace(/<img[^>]*?>/gi, '');              // Remove any image tags from description
+        .replace(/<p>submitted by.*?<\/p>/gi, '') 
+        .replace(/<a href="[^"]*">\[comments\]<\/a>/gi, '') 
+        .replace(/<a href="[^"]*">\[link\]<\/a>/gi, '')    
+        .replace(/<a[^>]*?>\[\d+ comments?\]<\/a>/gi, '') 
+        .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, '') 
+        .replace(/<img[^>]*?>/gi, '');              
   }
 
-  // Prefer full content if it's substantially longer or if description is minimal
+  // Prefer full content if it's substantially longer than the description
   if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { 
     textToSummarize = fullContentText;
   } else if (descriptionText) {
@@ -207,18 +250,18 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
     textToSummarize = fullContentText;
   }
   
-  // General cleanup: remove HTML, extra whitespace, etc.
+  // Strip HTML tags, replace common RSS artifacts, and normalize whitespace
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
-    .replace(/<[^>]+>/g, ' ') // Strip all HTML tags
-    .replace(/\[link\]|\[comments\]/gi, '') // Remove [link] and [comments] text
+    .replace(/<[^>]+>/g, ' ') 
+    .replace(/\[link\]|\[comments\]/gi, '') 
     .replace(/&nbsp;/gi, ' ') 
     .replace(/\s+/g, ' ')
     .trim();
     
+  // If stripping HTML from preferred text results in empty, try from fullContent if it was different
   if (!plainText && fullContentText && fullContentText !== textToSummarize) { 
-      // If plainText is empty but fullContentText was available and different (e.g., description was just HTML fluff)
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -237,7 +280,7 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
 
 async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
-    const response = await fetch(source.rssUrl, {
+    const fetchResponse = await fetch(source.rssUrl, {
       headers: { 
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
@@ -245,32 +288,49 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       next: { revalidate: 300 } // 5 minutes
     });
 
-    if (!response.ok) {
-      console.error(`Failed to fetch RSS from ${source.name} (${source.rssUrl}): ${response.status} ${response.statusText}`);
+    if (!fetchResponse.ok) {
+      // console.error(`Failed to fetch RSS from ${source.name} (${source.rssUrl}): ${fetchResponse.status} ${fetchResponse.statusText}`);
       return [];
     }
-    const xmlText = await response.text();
-    const result = await parser.parseStringPromise(xmlText);
+
+    const arrayBuffer = await fetchResponse.arrayBuffer();
+    const rawDataBuffer = Buffer.from(arrayBuffer);
+    
+    let feedXmlString;
+    const utf8String = iconv.decode(rawDataBuffer, 'utf-8');
+
+    if (utf8String.includes('\uFFFD') && utf8String.includes('<?xml')) { 
+      // console.warn(`Potentially malformed UTF-8 for ${source.name} (${source.rssUrl}). Trying Windows-1252.`);
+      feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252');
+    } else {
+      feedXmlString = utf8String;
+    }
+    feedXmlString = feedXmlString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // Remove control characters
+
+    const result = await parser.parseStringPromise(feedXmlString);
 
     let items = getNestedValue(result, 'rss.channel.item', []);
     if (!items || (Array.isArray(items) && items.length === 0)) {
-      items = getNestedValue(result, 'feed.entry', []); // For Atom feeds
+      items = getNestedValue(result, 'feed.entry', []); 
     }
      if (!items || (Array.isArray(items) && items.length === 0)) { 
-      items = getNestedValue(result, 'rdf:RDF.item', []); // For RDF feeds
+      items = getNestedValue(result, 'rdf:RDF.item', []); 
     }
 
     if (!Array.isArray(items)) {
-      items = items ? [items] : []; // Ensure items is an array
+      items = items ? [items] : []; 
     }
 
     if (items.length === 0) {
-      // console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl})`);
+      // console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl}) after parsing.`);
       return [];
     }
 
-    return items.map((item: any, index: number) => {
-      const title = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
+    const processedItems: Article[] = [];
+
+    for (const [index, item] of items.entries()) {
+      const rawTitle = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
+      const title = rawTitle; 
 
       let originalLink = '#';
       const linkField = getNestedValue(item, 'link');
@@ -288,19 +348,16 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       
       if (source.name.toLowerCase().includes("reddit") && item.content && (item.content._ || typeof item.content === 'string')) {
           const contentStr = item.content._ || item.content;
-          // Reddit often has the true article link inside the description/content as "[link]"
           const linkMatch = String(contentStr).match(/<a href="([^"]+)">\[link\]<\/a>/);
           if (linkMatch && linkMatch[1]) originalLink = linkMatch[1];
       }
-      originalLink = typeof originalLink === 'string' ? originalLink.trim() : '#';
+      originalLink = typeof originalLink === 'string' ? he.decode(originalLink.trim()) : '#'; 
       
-      // Fallback if link is still '#' and guid is a permalink
       if (originalLink === '#' && item.guid && typeof item.guid === 'string' && (item.guid.startsWith('http') || (typeof item.guid === 'object' && item.guid.isPermaLink !== 'false'))) {
-        originalLink = typeof item.guid === 'object' ? item.guid._ : item.guid;
+        originalLink = he.decode(typeof item.guid === 'object' ? item.guid._ : item.guid);
       }
-      // Atom feeds often use <id> as the permalink
       if (originalLink === '#' && item.id && typeof item.id === 'string' && item.id.startsWith('http')) {
-        originalLink = item.id; 
+        originalLink = he.decode(item.id); 
       }
 
 
@@ -310,14 +367,12 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       let guidValue = getNestedValue(item, 'guid');
       if (typeof guidValue === 'object') {
           if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { 
-              // If not a permalink, use the originalLink we derived, or a composite ID
               guidValue = originalLink !== '#' ? originalLink : (title + source.name + index); 
           } else {
-              // If it is a permalink, use its content
               guidValue = normalizeContent(getNestedValue(guidValue, '_', getNestedValue(guidValue, '#text', originalLink)));
           }
       } else {
-          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); // Use <id> from Atom as a fallback for guid
+          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); 
       }
       
       const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink !== "#" ? originalLink : (title + source.name + index) );
@@ -334,23 +389,37 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       } else if (typeof categoryFromFeed === 'object') {
           categoryFromFeed = categoryFromFeed.term || categoryFromFeed._ || categoryFromFeed['#text'] || categoryFromFeed.label || categoryFromFeed.name || categoryFromFeed.$;
       }
-      const finalCategory = typeof categoryFromFeed === 'string' ? categoryFromFeed.trim().split(',')[0].trim() : (source.defaultCategory || 'General');
+      const finalCategory = typeof categoryFromFeed === 'string' ? he.decode(categoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General');
 
-      const imageUrl = extractImageUrl(item, title, finalCategory);
+      let imageUrl = extractImageUrl(item, title, finalCategory);
       
-      let rawContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
-      // For Reddit, description might be cleaner for rawContent if content:encoded is just boilerplate
+      if (!imageUrl && source.name.toLowerCase().includes("mint") && originalLink && originalLink !== '#') {
+        // console.log(`Mint article "${title}" missing image from feed. Attempting og:image fetch...`);
+        try {
+          const ogImage = await fetchOgImageFromUrl(originalLink);
+          if (ogImage) {
+            imageUrl = ogImage;
+            // console.log(`Successfully fetched og:image for Mint article: ${title}`);
+          } else {
+            // console.log(`No og:image found for Mint article: ${title}`);
+          }
+        } catch (ogError) {
+          // console.error(`Error fetching og:image for ${title}:`, ogError);
+        }
+      }
+      
+      let itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
       if (source.name.toLowerCase().includes("reddit")) {
           const redditDescription = normalizeContent(getNestedValue(item, 'description'));
-          if (redditDescription && (!rawContent || rawContent.length < redditDescription.length + 20)) {
-              rawContent = redditDescription;
+          if (redditDescription && (!itemContent || itemContent.length < redditDescription.length + 20)) {
+              itemContent = redditDescription;
           }
       }
-      const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawContent, source.name);
+      const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), itemContent, source.name);
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
-      return {
+      processedItems.push({
         id,
         title,
         summary: summaryText, 
@@ -360,9 +429,10 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         imageUrl: imageUrl, 
         link: internalArticleLink, 
         sourceLink: originalLink, 
-        content: rawContent || summaryText, 
-      };
-    }).filter(article => article.title && article.title !== 'Untitled Article' && !article.title.includes("reddit.com Store") && article.sourceLink && article.sourceLink !== '#');
+        content: itemContent || summaryText, 
+      });
+    }
+    return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && !article.title.includes("reddit.com Store") && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
     // console.error(`Error processing RSS feed for ${source.name} (${source.rssUrl}):`, error);
     return [];
@@ -375,32 +445,34 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
 
-  // First, filter out articles with insufficient summaries
+  // Filter out articles with empty or insufficient summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
     return summaryText.length >= 25 && 
            summaryText.toLowerCase() !== "no summary available." &&
            summaryText.toLowerCase() !== "..." &&
-           !summaryText.toLowerCase().includes("submitted by"); // Further filter out Reddit "submitted by" if it slips through
+           !summaryText.toLowerCase().includes("submitted by"); 
   });
   
-  // Then, de-duplicate
+  // De-duplicate articles
   const uniqueArticlesMap = new Map<string, Article>();
   for (const article of allArticles) {
     if (!article.title || !article.sourceLink || article.sourceLink === '#') {
         continue; 
     }
 
+    // Normalize title for key: lowercase, remove extra spaces, take first 80 chars
     let normalizedTitleKey = article.title.toLowerCase().replace(/\s+/g, ' ').substring(0, 80).trim();
     
+    // Normalize link for key: remove www, query params, trailing slash, lowercase
     let normalizedLinkKey = article.sourceLink;
     try {
         const url = new URL(article.sourceLink);
-        // More robust query param removal
         const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk', 'spot_im_highlight_immediate', 'spot_im_platform', 'spot_im_鑑定'];
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
+        // Fallback if URL parsing fails (e.g., invalid URL)
         normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
     }
 
@@ -410,7 +482,10 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     if (!existingArticle) {
         uniqueArticlesMap.set(uniqueKey, article);
     } else {
-        // Preference logic: keep the one with an image, or more content, or more specific category
+        // Preference logic for duplicates:
+        // 1. Prefer article with an image if the other doesn't have one.
+        // 2. Prefer article with (longer) content if image status is similar.
+        // 3. Prefer article with a more specific category.
         let keepNew = false;
         if (article.imageUrl && !existingArticle.imageUrl) {
             keepNew = true;
@@ -423,7 +498,8 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         } else if (article.category !== existingArticle.category && 
                    (article.category.toLowerCase() !== 'general' && article.category.toLowerCase() !== 'top news' && article.category.toLowerCase() !== 'world news') &&
                    (existingArticle.category.toLowerCase() === 'general' || existingArticle.category.toLowerCase() === 'top news' || existingArticle.category.toLowerCase() === 'world news')) {
-            keepNew = true; // Prefer a more specific category
+            // Prefer a more specific category over a general one
+            keepNew = true; 
         }
         
         if (keepNew) {
@@ -433,8 +509,10 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
-  // Sort by date as the final step
+  // Sort all articles by date (newest first)
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return allArticles.slice(0, 150); // Limit to 150 articles after de-duplication
+  return allArticles.slice(0, 150); // Limit to latest 150 unique articles
 }
+
+    
