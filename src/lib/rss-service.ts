@@ -9,9 +9,7 @@ import type { Article } from './placeholder-data';
 import { slugify, getNestedValue, generateAiHintFromTitle } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
-import { load as cheerioLoad } from 'cheerio'; // Corrected import
-
-// import axios from 'axios'; // Using native fetch instead for this part
+import { load as cheerioLoad } from 'cheerio';
 
 interface NewsSource {
   name: string;
@@ -26,6 +24,7 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Mint - Money", rssUrl: "https://www.livemint.com/rss/money", defaultCategory: "Finance" },
   { name: "Mint - Opinion", rssUrl: "https://www.livemint.com/rss/opinion", defaultCategory: "Opinion" },
   { name: "Mint - Politics", rssUrl: "https://www.livemint.com/rss/politics", defaultCategory: "Politics"},
+
   // Hindustan Times (India) - Various categories
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "Top News" },
   { name: "Hindustan Times - Main News", rssUrl: "https://www.hindustantimes.com/rss/news", defaultCategory: "India News" },
@@ -34,7 +33,7 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Hindustan Times - Entertainment", rssUrl: "https://www.hindustantimes.com/rss/entertainment/rssfeed.xml", defaultCategory: "Entertainment" },
   { name: "Hindustan Times - Sports", rssUrl: "https://www.hindustantimes.com/rss/sports/rssfeed.xml", defaultCategory: "Sports" },
   { name: "Hindustan Times - Auto", rssUrl: "https://auto.hindustantimes.com/rss/rssfeed.xml", defaultCategory: "Auto" },
-
+  
   // Times of India
   { name: "Times of India - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "India News" },
   { name: "Times of India - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business"},
@@ -72,7 +71,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
     }
 
     const htmlContent = await response.text();
-    const $ = cheerioLoad(htmlContent); // Use the imported load function
+    const $ = cheerioLoad(htmlContent);
 
     let ogImageUrl = 
         $('meta[property="og:image"]').attr('content') ||
@@ -264,11 +263,11 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
         .replace(/&nbsp;/gi, ' ')
         .replace(/\s+/g, ' ')
         .trim();
-      return plainFullContent.substring(0, 250) + (plainFullContent.length > 250 ? '...' : '');
+      return he.decode(plainFullContent.substring(0, 250) + (plainFullContent.length > 250 ? '...' : ''));
   }
 
   if (plainText.length === 0) return "No summary available.";
-  return plainText.substring(0, 250) + (plainText.length > 250 ? '...' : '');
+  return he.decode(plainText.substring(0, 250) + (plainText.length > 250 ? '...' : ''));
 }
 
 
@@ -290,16 +289,27 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const arrayBuffer = await fetchResponse.arrayBuffer();
     const rawDataBuffer = Buffer.from(arrayBuffer);
     
-    let feedXmlString;
-    const utf8String = iconv.decode(rawDataBuffer, 'utf-8');
+    let feedXmlString: string;
 
-    if (utf8String.includes('\uFFFD') && utf8String.includes('<?xml')) { 
-      // console.warn(`Potentially malformed UTF-8 for ${source.name} (${source.rssUrl}). Trying Windows-1252.`);
-      feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252');
+    // Attempt 1: Decode as UTF-8
+    const utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
+    const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
+
+    // Attempt 2: Decode as Windows-1252 (if UTF-8 seems problematic)
+    // Only try Windows-1252 if UTF-8 produced a significant number of replacement characters.
+    if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 2 || utf8ReplacementCharCount / utf8Decoded.length > 0.005)) { // Adjusted threshold
+      // console.warn(`UTF-8 decoding for ${source.name} resulted in ${utf8ReplacementCharCount} replacement characters. Trying Windows-1252.`);
+      feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
-      feedXmlString = utf8String;
+      feedXmlString = utf8Decoded;
     }
+
+    // Final cleanup of the XML string before parsing:
+    // 1. Remove common control characters (excluding tab, LF, CR).
     feedXmlString = feedXmlString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    // 2. Explicitly remove any remaining U+FFFD () characters.
+    feedXmlString = feedXmlString.replace(/\uFFFD/g, '');
+
 
     const result = await parser.parseStringPromise(feedXmlString);
 
@@ -500,4 +510,3 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   return allArticles.slice(0, 150); 
 }
 
-    
