@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generateAiHintFromTitle } from '@/lib/utils'; // Corrected import
+import { generateAiHintFromTitle } from '@/lib/utils';
 // IMPORTANT: For production, you MUST install and use an HTML sanitizer like DOMPurify.
 // import DOMPurify from 'dompurify';
 
@@ -59,7 +59,7 @@ export default function ArticlePage() {
         <Skeleton className="h-6 w-24 mb-4" /> 
         <Skeleton className="h-12 sm:h-16 w-full mb-4" /> 
         <Skeleton className="h-5 w-3/4 mb-6" /> 
-        <Skeleton className="h-64 sm:h-80 md:h-96 w-full mb-8 rounded-lg" />
+        <Skeleton className="h-64 sm:h-80 md:h-96 w-full mb-8 rounded-lg aspect-video bg-muted/50" />
         <div className="space-y-3">
           <Skeleton className="h-5 w-full" />
           <Skeleton className="h-5 w-full" />
@@ -132,8 +132,9 @@ export default function ArticlePage() {
     }
   };
   
-  const imageAiHintForPage = article.imageUrl ? article.category : generateAiHintFromTitle(article.title);
   const placeholderImageSrc = `https://placehold.co/1200x675.png`;
+  const imageAiHintForPage = generateAiHintFromTitle(article.title, article.category);
+
 
   return (
     <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl my-8">
@@ -159,7 +160,7 @@ export default function ArticlePage() {
           </div>
         </header>
 
-        { (article.imageUrl || placeholderImageSrc) && ( // Ensure this block renders if either is available
+        { (article.imageUrl || placeholderImageSrc) && ( 
           <div className="relative w-full aspect-video mb-8 rounded-lg overflow-hidden shadow-md bg-muted/50">
             <Image
               src={article.imageUrl || placeholderImageSrc}
@@ -168,13 +169,13 @@ export default function ArticlePage() {
               objectFit="cover"
               priority 
               className="transition-opacity duration-300"
-              data-ai-hint={`${imageAiHintForPage} article full image`}
+              data-ai-hint={article.imageUrl ? `${article.category} article full image` : imageAiHintForPage}
               onError={(e) => {
                 const target = e.currentTarget;
                 if (target.src !== placeholderImageSrc) {
                   target.srcset = '';
                   target.src = placeholderImageSrc;
-                  target.setAttribute('data-ai-hint', `${generateAiHintFromTitle(article.title)} placeholder large`);
+                  target.setAttribute('data-ai-hint', imageAiHintForPage);
                 }
               }}
             />

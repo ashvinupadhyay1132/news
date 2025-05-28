@@ -40,25 +40,41 @@ export function getNestedValue(obj: any, path: string, defaultValue: any = undef
   return value === undefined ? defaultValue : value;
 }
 
-// Function to generate AI hint for placeholder images based on title
-export function generateAiHintFromTitle(title: string): string {
-  if (!title) return 'news article';
+// Function to generate AI hint for placeholder images
+export function generateAiHintFromTitle(title: string, category?: string): string {
   const commonWords = new Set([
     'a', 'an', 'the', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'for', 'to', 'and', 'or', 'but', 'of', 'with',
     'how', 'why', 'when', 'what', 'who', 'it', 'its', 'from', 'as', 'by', 'this', 'that', 'these', 'those',
-    'live', 'updates', 'news', 'story', 'reports', 'says', 'told', 'after', 'before', 'over', 'under', 'new', 'old'
+    'live', 'updates', 'news', 'story', 'reports', 'says', 'told', 'after', 'before', 'over', 'under', 'new', 'old',
+    'latest', 'top', 'daily', 'breaking', 'headlines', 'analysis', 'review', 'explainer', 'opinion', 'world', 'india', 'global', 'local'
   ]);
 
-  const words = title
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '') // Remove punctuation except hyphens
-    .split(/\s+/)
-    .map(word => word.replace(/^-+|-+$/g, '')) // Trim hyphens from words
-    .filter(word => word.length > 2 && !commonWords.has(word) && !/^\d+$/.test(word)); // Remove short words, common words, and pure numbers
+  const titleKeywords = title
+    ? title
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .split(/\s+/)
+        .map(word => word.replace(/^-+|-+$/g, ''))
+        .filter(word => word.length > 2 && !commonWords.has(word) && !/^\d+$/.test(word))
+    : [];
 
-  if (words.length === 0) return 'article media';
-  if (words.length === 1) return words[0];
-  // Return a maximum of two keywords
-  const hint = words.slice(0, 2).join(' ');
-  return hint;
+  let categoryKeyword = '';
+  if (category) {
+    const catSlug = slugify(category);
+    if (catSlug && !commonWords.has(catSlug) && catSlug.split('-').length === 1 && catSlug !== 'general' && catSlug !== 'all') {
+      categoryKeyword = catSlug;
+    }
+  }
+
+  if (categoryKeyword) {
+    if (titleKeywords.length > 0 && categoryKeyword !== titleKeywords[0]) {
+      return `${categoryKeyword} ${titleKeywords[0]}`.substring(0, 50); // Max 2 words generally, ensure reasonable length
+    }
+    return categoryKeyword;
+  }
+
+  if (titleKeywords.length === 0) return 'news article';
+  if (titleKeywords.length === 1) return titleKeywords[0];
+  return `${titleKeywords[0]} ${titleKeywords[1]}`.substring(0, 50);
 }
+

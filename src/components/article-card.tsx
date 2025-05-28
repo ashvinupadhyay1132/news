@@ -6,7 +6,7 @@ import { CalendarDays, NewspaperIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { slugify, generateAiHintFromTitle } from "@/lib/utils"; // Corrected import
+import { slugify, generateAiHintFromTitle } from "@/lib/utils";
 
 interface ArticleCardProps {
   article: Article;
@@ -19,7 +19,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
     day: 'numeric',
   });
 
-  const imageAiHint = article.imageUrl ? slugify(article.category) : generateAiHintFromTitle(article.title);
+  const imageAiHint = generateAiHintFromTitle(article.title, article.category);
   const placeholderImageSrc = `https://placehold.co/600x400.png`;
 
   return (
@@ -32,14 +32,14 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
             layout="fill"
             objectFit="cover"
             className="group-hover:scale-105 transition-transform duration-300 ease-in-out"
-            data-ai-hint={`${imageAiHint} thumbnail`}
+            data-ai-hint={article.imageUrl ? `${slugify(article.category)} thumbnail` : imageAiHint}
             onError={(e) => {
               const target = e.currentTarget;
               if (target.src !== placeholderImageSrc) {
-                target.srcset = '';
+                target.srcset = ''; // Prevent further attempts with broken src
                 target.src = placeholderImageSrc;
                 // Update AI hint if we switched to placeholder
-                target.setAttribute('data-ai-hint', `${generateAiHintFromTitle(article.title)} placeholder`);
+                target.setAttribute('data-ai-hint', imageAiHint);
               }
             }}
           />
