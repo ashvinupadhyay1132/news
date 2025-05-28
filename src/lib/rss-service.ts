@@ -6,7 +6,7 @@
 
 import { Parser } from 'xml2js';
 import type { Article } from './placeholder-data';
-import { slugify, generateAiHintFromTitle, getNestedValue } from './utils';
+import { slugify, getNestedValue, generateAiHintFromTitle } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
@@ -106,10 +106,9 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
 }
 
 
-function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string): string | null {
+function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string, articleLink?: string): string | null {
   let imageUrl = null;
   
-  // Prioritize media:content which often has better quality/metadata
   if (item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
@@ -120,7 +119,6 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
-  // Check media:group for media:content (common in some Atom feeds)
   if (!imageUrl && item['media:group'] && item['media:group']['media:content']) {
     const mediaContents = Array.isArray(item['media:group']['media:content'])
       ? item['media:group']['media:content']
@@ -133,17 +131,14 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
   
-  // Check enclosure (common in RSS 2.0)
   if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
     imageUrl = item.enclosure.url;
   }
 
-  // Check media:thumbnail
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
     imageUrl = item['media:thumbnail'].url;
   }
   
-  // For specific sources known to embed images in description
   const descriptionForImageSearch = normalizeContent(getNestedValue(item, 'description'));
   if (!imageUrl && descriptionForImageSearch && (sourceName?.toLowerCase().includes("hindustan times") || sourceName?.toLowerCase().includes("times of india")) ) {
     const imgMatch = descriptionForImageSearch.match(/<img[^>]+src="([^">]+)"/);
@@ -152,11 +147,10 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
-  // Fallback: Search for <img> tags in various content fields
   if (!imageUrl) {
     const contentFieldsToSearch = [
       getNestedValue(item, 'content:encoded'), 
-      descriptionForImageSearch, // Already normalized
+      descriptionForImageSearch, 
       getNestedValue(item, 'content'),
       getNestedValue(item, 'content._'),
       getNestedValue(item, 'summary'), 
@@ -178,20 +172,15 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     if (imageUrl.startsWith('//')) {
       return `https:${imageUrl}`;
     }
-    // If URL is relative, try to make it absolute using the article's link as base
     if (imageUrl.startsWith('/')) {
-        const baseLink = getNestedValue(item, 'link');
-        if (baseLink && typeof baseLink === 'string' && baseLink.startsWith('http')) {
+        if (articleLink && articleLink.startsWith('http')) {
             try {
-                const baseUrlObject = new URL(baseLink);
+                const baseUrlObject = new URL(articleLink);
                 return new URL(imageUrl, baseUrlObject.origin).href;
-            } catch (e) {
-                return null; 
-            }
+            } catch (e) { return null; }
         }
         return null; 
     }
-    // Ensure it's a valid absolute URL
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
         return null; 
     }
@@ -217,7 +206,6 @@ function normalizeContent(contentInput: any): string {
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
-    // Try common content fields if it's an object
     const potentialValues = [
         getNestedValue(contentInput, 'content:encoded'),
         getNestedValue(contentInput, 'content'),
@@ -225,7 +213,7 @@ function normalizeContent(contentInput: any): string {
         getNestedValue(contentInput, 'summary'),
     ];
     for (const val of potentialValues) {
-        const normalizedVal = normalizeContent(val); // Recursive call for nested structures
+        const normalizedVal = normalizeContent(val); 
         if (normalizedVal && normalizedVal.trim() !== '') {
             text = normalizedVal;
             break;
@@ -241,7 +229,6 @@ function normalizeContent(contentInput: any): string {
         decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
         return decodedText;
     } catch (e) {
-        // Fallback to removing problematic characters from original trimmed text if he.decode fails
         return text.trim().replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     }
   }
@@ -254,37 +241,33 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   const descriptionText = normalizeContent(descriptionInput); 
   const fullContentText = normalizeContent(fullContentInput); 
 
-  // Prefer full content if it's substantially longer than description
   if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { 
     textToSummarize = fullContentText;
   } else if (descriptionText) {
     textToSummarize = descriptionText;
-  } else if (fullContentText) { // Fallback to full content if description is empty
+  } else if (fullContentText) { 
     textToSummarize = fullContentText;
   }
   
-  // Clean up specific boilerplate if it's a Reddit feed
   if (sourceName && sourceName.toLowerCase().includes("reddit")) {
     textToSummarize = textToSummarize
         .replace(/<p>submitted by.*?<\/p>/gi, '') 
-        .replace(/<a href="[^"]*">\[comments?\]<\/a>/gi, '') // Handles singular and plural
+        .replace(/<a href="[^"]*">\[comments?\]<\/a>/gi, '') 
         .replace(/<a href="[^"]*">\[link\]<\/a>/gi, '')    
         .replace(/<a[^>]*?>\[\d+ comments?\]<\/a>/gi, '') 
         .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, '') 
-        .replace(/<img[^>]*?>/gi, ''); // Remove image tags from summary text
+        .replace(/<img[^>]*?>/gi, ''); 
   }
 
-  // General cleanup: remove style/script tags, all other HTML tags, multiple spaces
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
-    .replace(/<[^>]+>/g, ' ') // Remove all HTML tags
-    .replace(/\[link\]|\[comments\]/gi, '') // Remove [link] [comments] text not caught by <a> tag removal
-    .replace(/&nbsp;/gi, ' ') // Replace non-breaking spaces
-    .replace(/\s+/g, ' ')    // Consolidate multiple whitespace characters
+    .replace(/<[^>]+>/g, ' ') 
+    .replace(/\[link\]|\[comments\]/gi, '') 
+    .replace(/&nbsp;/gi, ' ') 
+    .replace(/\s+/g, ' ')    
     .trim();
     
-  // If after all this, plainText is still empty, but fullContentText was different and non-empty, try to summarize that
   if (!plainText && fullContentText && fullContentText !== textToSummarize) { 
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -298,7 +281,6 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   }
 
   if (plainText.length === 0) return "No summary available.";
-  // Final decode after all manipulations, then truncate
   return he.decode(plainText.substring(0, 250) + (plainText.length > 250 ? '...' : ''));
 }
 
@@ -323,7 +305,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const rawDataBuffer = Buffer.from(arrayBuffer);
     
     let feedXmlString: string;
-    const utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
+    let utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
@@ -333,6 +315,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       feedXmlString = utf8Decoded;
     }
     
+    // Remove replacement characters and other problematic control characters BEFORE parsing
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
@@ -364,34 +347,34 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       let originalLink = '#';
       const linkField = getNestedValue(item, 'link');
       if (typeof linkField === 'string') {
-        originalLink = linkField;
+        originalLink = he.decode(linkField.trim());
       } else if (typeof linkField === 'object' && linkField?.href) { 
-        originalLink = linkField.href;
+        originalLink = he.decode(linkField.href.trim());
       } else if (typeof linkField === 'object' && !linkField?.href && linkField?._) { 
-        originalLink = linkField._;
+        originalLink = he.decode(linkField._.trim());
       } else if (Array.isArray(linkField)) { 
         const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.href);
-        const selfLink = linkField.find(l => typeof l === 'object' && l.rel === 'self' && l.href); // Atom sometimes has self link
-        originalLink = alternateLink ? alternateLink.href : 
-                       (selfLink && selfLink.href.startsWith('http') ? selfLink.href : // Less ideal but a fallback
+        const selfLink = linkField.find(l => typeof l === 'object' && l.rel === 'self' && l.href); 
+        let tempLink = alternateLink ? alternateLink.href : 
+                       (selfLink && selfLink.href.startsWith('http') ? selfLink.href : 
                        ( (typeof linkField[0] === 'object' && linkField[0]?.href) || (typeof linkField[0] === 'string' ? linkField[0] : '#') ));
+        originalLink = he.decode(String(tempLink).trim());
       }
       
       if (source.name.toLowerCase().includes("reddit") && item.content && (item.content._ || typeof item.content === 'string')) {
           const contentStr = item.content._ || item.content;
           const linkMatch = String(contentStr).match(/<a href="([^"]+)">\[link\]<\/a>/);
-          if (linkMatch && linkMatch[1]) originalLink = linkMatch[1];
+          if (linkMatch && linkMatch[1]) originalLink = he.decode(linkMatch[1].trim());
       }
-      originalLink = typeof originalLink === 'string' ? he.decode(originalLink.trim()) : '#'; 
       
       if (originalLink === '#' && item.guid && (typeof item.guid === 'string' || (typeof item.guid === 'object' && item.guid._)) ) {
           const guidContent = typeof item.guid === 'object' ? item.guid._ : item.guid;
           if (typeof guidContent === 'string' && guidContent.startsWith('http') && (getNestedValue(item.guid, 'isPermaLink', 'true') !== 'false') ) {
-            originalLink = he.decode(guidContent);
+            originalLink = he.decode(guidContent.trim());
           }
       }
       if (originalLink === '#' && item.id && typeof item.id === 'string' && item.id.startsWith('http')) {
-        originalLink = he.decode(item.id); 
+        originalLink = he.decode(item.id.trim()); 
       }
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
@@ -424,7 +407,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       }
       const finalCategory = typeof categoryFromFeed === 'string' ? he.decode(categoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General');
 
-      let imageUrl = extractImageUrl(item, title, finalCategory, source.name);
+      let imageUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
       
       if (!imageUrl && source.name.toLowerCase().includes("mint") && originalLink && originalLink !== '#') {
         try {
@@ -434,7 +417,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       }
       
       let itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
-      if (source.name.toLowerCase().includes("reddit")) { // Ensure Reddit content is also checked for specific patterns
+      if (source.name.toLowerCase().includes("reddit")) { 
           const redditDescription = normalizeContent(getNestedValue(item, 'description'));
           if (redditDescription && (!itemContent || itemContent.length < redditDescription.length + 20)) {
               itemContent = redditDescription;
@@ -470,6 +453,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
 
+  // Filter out articles with insufficient summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
     return summaryText.length >= 20 && 
@@ -523,6 +507,28 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     }
   }
   allArticles = Array.from(uniqueArticlesMap.values());
+
+  // Keyword-based filtering
+  const keywordsToFilterOut = [
+    "c-grade bollywood movie",
+    "gaurav gogoi",
+    "pakistan links",
+    "himanta sarma",
+    "details on sept 10"
+  ].map(kw => kw.toLowerCase());
+
+  allArticles = allArticles.filter(article => {
+    const titleLower = article.title.toLowerCase();
+    const summaryLower = article.summary.toLowerCase();
+    
+    for (const keyword of keywordsToFilterOut) {
+      if (titleLower.includes(keyword) || summaryLower.includes(keyword)) {
+        // console.log(`Filtering out article: "${article.title}" due to keyword: "${keyword}"`);
+        return false; // Exclude this article
+      }
+    }
+    return true; // Keep this article
+  });
 
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
