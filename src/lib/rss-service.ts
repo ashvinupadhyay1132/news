@@ -19,14 +19,16 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
-  // Mint (India) - Various categories
+  // Mint (India)
   { name: "Mint - Latest News", rssUrl: "https://www.livemint.com/rss/latestnews", defaultCategory: "India News" },
   { name: "Mint - Companies", rssUrl: "https://www.livemint.com/rss/companies", defaultCategory: "Business" },
   { name: "Mint - Money", rssUrl: "https://www.livemint.com/rss/money", defaultCategory: "Finance" },
   { name: "Mint - Opinion", rssUrl: "https://www.livemint.com/rss/opinion", defaultCategory: "Opinion" },
   { name: "Mint - Politics", rssUrl: "https://www.livemint.com/rss/politics", defaultCategory: "Politics"},
+  { name: "Mint - Science", rssUrl: "https://www.livemint.com/rss/science", defaultCategory: "Science"},
 
-  // Hindustan Times (India) - Various categories
+
+  // Hindustan Times (India)
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "Top News" },
   { name: "Hindustan Times - Main News", rssUrl: "https://www.hindustantimes.com/rss/news", defaultCategory: "India News" },
   { name: "Hindustan Times - Business", rssUrl: "https://www.hindustantimes.com/business/rss/feed", defaultCategory: "Business" },
@@ -50,7 +52,13 @@ const NEWS_SOURCES: NewsSource[] = [
 ];
 
 
-const parser = new Parser({ explicitArray: false, ignoreAttrs: false, mergeAttrs: true, trim: true });
+const parser = new Parser({ 
+  explicitArray: false, 
+  ignoreAttrs: false, 
+  mergeAttrs: true, 
+  trim: true // Added trim
+});
+
 
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
   if (!articleUrl || !articleUrl.startsWith('http')) {
@@ -58,6 +66,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
     return null;
   }
   try {
+    // Using native fetch
     const response = await fetch(articleUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
@@ -188,7 +197,6 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   return null; 
 }
 
-
 function normalizeContent(contentInput: any): string {
   let text = '';
   if (typeof contentInput === 'string') {
@@ -232,17 +240,20 @@ function normalizeContent(contentInput: any): string {
   if (text) {
     let decodedText = text.trim();
     try {
-        decodedText = he.decode(decodedText); // Decode HTML entities
+        // First, decode HTML entities
+        decodedText = he.decode(decodedText);
+        // Then, remove Unicode Replacement Character and other common problematic non-printable ASCII (except tab, LF, CR)
+        decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
+        text = decodedText;
     } catch (e) {
-        // console.warn("he.decode failed for text:", decodedText, e);
-        // If he.decode fails, proceed with the original trimmed text
+        // console.warn("Error during text normalization (he.decode or replace):", decodedText, e);
+        // Fallback to removing problematic characters from original trimmed text if he.decode fails
+        text = text.trim().replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     }
-    // Remove Unicode Replacement Character and other common problematic non-printable ASCII (except tab, LF, CR)
-    decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
-    text = decodedText;
   }
   return text || '';
 }
+
 
 function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceName?: string): string {
   let textToSummarize = '';
@@ -300,6 +311,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
+      signal: AbortSignal.timeout(15000), // 15 seconds timeout
       next: { revalidate: 300 } // 5 minutes
     });
 
@@ -314,17 +326,18 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     let feedXmlString: string;
 
     const utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
+    // Count replacement characters. If more than a small threshold, try another encoding.
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
-    if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 2 || utf8ReplacementCharCount / utf8Decoded.length > 0.005)) {
+    if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
       // console.warn(`UTF-8 decoding for ${source.name} resulted in ${utf8ReplacementCharCount} replacement characters. Trying Windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
     }
-
-    feedXmlString = feedXmlString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    feedXmlString = feedXmlString.replace(/\uFFFD/g, '');
+    
+    // Remove Unicode Replacement Character and other common problematic non-printable ASCII before parsing
+    feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
     const result = await parser.parseStringPromise(feedXmlString);
@@ -468,7 +481,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   // Filter out articles with empty or insufficient summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
-    return summaryText.length >= 25 && 
+    return summaryText.length >= 20 && // Relaxed from 25
            summaryText.toLowerCase() !== "no summary available." &&
            summaryText.toLowerCase() !== "..." &&
            !summaryText.toLowerCase().includes("submitted by"); 
@@ -525,3 +538,6 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   return allArticles.slice(0, 150); 
 }
+
+
+    
