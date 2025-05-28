@@ -24,22 +24,28 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      { // Common CDN for TechCrunch images
+      { 
         protocol: 'https',
-        hostname: '**.wp.com', // e.g., i0.wp.com, s.w.org (for plugins, etc.)
+        hostname: '**.wp.com', // e.g., i0.wp.com, s.w.org 
         port: '',
         pathname: '/**',
       },
       // Reuters
       {
         protocol: 'https',
-        hostname: '**.reuters.com', // covers www.reuters.com, static.reuters.com etc.
+        hostname: '**.reuters.com', 
         port: '',
         pathname: '/**',
       },
       {
-        protocol: 'http', // Reuters sometimes uses http for images in feeds
+        protocol: 'http', 
         hostname: '**.reuters.com',
+        port: '',
+        pathname: '/**',
+      },
+      { // Reuters media cdn
+        protocol: 'https',
+        hostname: 'static.reuters.com',
         port: '',
         pathname: '/**',
       },
@@ -68,6 +74,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+       {
+        protocol: 'https',
+        hostname: 'www.ndtv.com',
+        port: '',
+        pathname: '/**',
+      },
       // BBC
       {
         protocol: 'https',
@@ -76,7 +88,7 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       { 
-        protocol: 'http', // BBC sometimes uses http in feeds
+        protocol: 'http', 
         hostname: 'ichef.bbci.co.uk',
         port: '',
         pathname: '/**',
@@ -102,20 +114,32 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'vanilla.futurecdn.net', // Another Future PLC CDN
+        hostname: 'vanilla.futurecdn.net', 
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: 'www.livescience.com', // Base domain for potential relative paths in content
+        hostname: 'www.livescience.com', 
         port: '',
         pathname: '/**',
       },
-       // RSSHub itself (if any BBC feeds were still routed through it, though we switched to direct BBC)
+      // Times of India
       {
         protocol: 'https',
-        hostname: 'rsshub.app',
+        hostname: 'timesofindia.indiatimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'static.toiimg.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.timesofindia.indiatimes.com',
         port: '',
         pathname: '/**',
       },
@@ -124,5 +148,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
     

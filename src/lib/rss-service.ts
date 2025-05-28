@@ -15,23 +15,36 @@ interface NewsSource {
   name: string;
   rssUrl: string;
   defaultCategory?: string;
-  fetchOgImageFallback?: boolean; // New flag to control og:image fetching
+  fetchOgImageFallback?: boolean;
 }
 
 const NEWS_SOURCES: NewsSource[] = [
+  // Existing feeds that were working
   { name: "TechCrunch", rssUrl: "https://techcrunch.com/feed/", defaultCategory: "Technology", fetchOgImageFallback: true },
+  { name: "BBC - World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News", fetchOgImageFallback: true },
+  { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
+
+  // Re-verified/Focused Reuters and NDTV feeds
   { name: "Reuters - Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Finance", fetchOgImageFallback: true },
   { name: "NDTV - Movies", rssUrl: "https://movies.ndtv.com/rss", defaultCategory: "Entertainment", fetchOgImageFallback: true },
   { name: "NDTV - Sports", rssUrl: "https://sports.ndtv.com/rss/all", defaultCategory: "Sports", fetchOgImageFallback: true },
-  { name: "BBC - World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News", fetchOgImageFallback: true },
-  { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
+  
+  // New Times of India Feeds
+  { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: true },
+  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms", defaultCategory: "India", fetchOgImageFallback: true },
+  { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: true },
+  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
+  { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: true },
+  { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business", fetchOgImageFallback: true },
+  { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: true },
+  { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Lifestyle", fetchOgImageFallback: true },
 ];
 
 const parser = new Parser({ 
   explicitArray: false, 
   ignoreAttrs: false, 
-  mergeAttrs: true, 
-  trim: true // Added trim
+  mergeAttrs: true,
+  trim: true 
 });
 
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
@@ -45,7 +58,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
           'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         },
-        signal: AbortSignal.timeout(8000) // 8-second timeout
+        signal: AbortSignal.timeout(8000) 
       });
   
       if (!response.ok) {
@@ -70,7 +83,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
           }
           if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
               // console.warn(`[RSS Service] Invalid og:image URL scheme from meta: ${ogImageUrl}`);
-              return null; // Invalid image URL scheme
+              return null; 
           }
           return ogImageUrl;
       }
@@ -126,11 +139,9 @@ function normalizeContent(contentInput: any): string {
     let decodedText = text.trim();
     try {
         decodedText = he.decode(decodedText);
-        // Remove Unicode Replacement Character and common control characters
         decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
         return decodedText;
     } catch (e) {
-        // Fallback if he.decode fails, just return the trimmed and control-char-cleaned text
         return text.trim().replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     }
   }
@@ -150,7 +161,7 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
     textToSummarize = fullContentText;
   }
   
-  if (sourceName && sourceName.toLowerCase().includes("reddit")) { // Kept for potential future re-addition of Reddit
+  if (sourceName && sourceName.toLowerCase().includes("reddit")) {
     textToSummarize = textToSummarize
         .replace(/<p>submitted by.*?<\/p>/gi, '') 
         .replace(/<a href="[^"]*">\[comments?\]<\/a>/gi, '') 
@@ -188,7 +199,6 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string, articleLink?: string): string | null {
   let imageUrl: string | null = null;
   
-  // 1. Try media:content (often highest quality)
   if (item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
@@ -199,7 +209,6 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
-  // 2. Try media:group -> media:content
   if (!imageUrl && item['media:group'] && item['media:group']['media:content']) {
     const mediaContents = Array.isArray(item['media:group']['media:content'])
       ? item['media:group']['media:content']
@@ -212,46 +221,35 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
   
-  // 3. Try enclosure (common for podcasts but also images)
   if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
     imageUrl = item.enclosure.url;
   }
 
-  // 4. Try media:thumbnail
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
     imageUrl = item['media:thumbnail'].url;
   }
-   // 4.1. Try item.image (seen in some feeds like TechCrunch)
+ 
   if (!imageUrl && item.image && item.image.url) {
     imageUrl = item.image.url;
   } else if (!imageUrl && item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
     imageUrl = item.image;
   }
   
-  // 5. Try parsing from description or content fields (HTML img src)
-  const descriptionForImageSearch = normalizeContent(getNestedValue(item, 'description'));
-  if (!imageUrl && descriptionForImageSearch ) {
-    const imgMatch = descriptionForImageSearch.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-        imageUrl = imgMatch[1];
-    }
-  }
+  const contentFieldsForImageSearch = [
+    getNestedValue(item, 'content:encoded'), 
+    getNestedValue(item, 'content'),
+    getNestedValue(item, 'description'),
+    getNestedValue(item, 'summary'), 
+  ];
 
-  if (!imageUrl) {
-    const contentFieldsToSearch = [
-      getNestedValue(item, 'content:encoded'), 
-      getNestedValue(item, 'content'),
-      getNestedValue(item, 'content._'),
-      // getNestedValue(item, 'summary'), // summary is often plain text, less likely to contain <img>
-    ];
-    for (const field of contentFieldsToSearch) {
-      const normalizedField = normalizeContent(field); // Use normalizeContent which handles HTML structure better
-      if (normalizedField && typeof normalizedField === 'string') {
-        const imgMatch = normalizedField.match(/<img[^>]+src="([^">]+)"/);
-        if (imgMatch && imgMatch[1]) {
-          imageUrl = imgMatch[1];
-          break;
-        }
+  for (const field of contentFieldsForImageSearch) {
+    if (imageUrl) break;
+    const normalizedField = normalizeContent(field); 
+    if (normalizedField && typeof normalizedField === 'string') {
+      const imgMatch = normalizedField.match(/<img[^>]+src="([^">]+)"/);
+      if (imgMatch && imgMatch[1]) {
+        imageUrl = imgMatch[1];
+        break;
       }
     }
   }
@@ -268,11 +266,9 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
                 return new URL(imageUrl, baseUrlObject.origin).href;
             } catch (e) { /* console.warn(`[RSS Service] Could not construct absolute URL for relative image ${imageUrl} from base ${articleLink}`); */ return null; }
         }
-        // console.warn(`[RSS Service] Skipping relative image URL without a valid base: ${imageUrl}`);
         return null; 
     }
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-        // console.warn(`[RSS Service] Skipping invalid image URL scheme: ${imageUrl}`);
         return null; 
     }
     return imageUrl;
@@ -284,7 +280,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 NewsAggregator/1.0',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
       signal: AbortSignal.timeout(15000), 
@@ -316,10 +312,10 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const result = await parser.parseStringPromise(feedXmlString);
 
     let items = getNestedValue(result, 'rss.channel.item', []);
-    if (!items || (Array.isArray(items) && items.length === 0)) { // Atom feeds
+    if (!items || (Array.isArray(items) && items.length === 0)) { 
       items = getNestedValue(result, 'feed.entry', []); 
     }
-     if (!items || (Array.isArray(items) && items.length === 0)) { // RDF feeds
+     if (!items || (Array.isArray(items) && items.length === 0)) { 
       items = getNestedValue(result, 'rdf:RDF.item', []); 
     }
 
@@ -404,7 +400,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       
       if (!imageUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#') {
         try {
-          // console.log(`[RSS Service] Feed item "${title}" from ${source.name} missing image, attempting og:image fetch from ${originalLink}`);
           const ogImage = await fetchOgImageFromUrl(originalLink);
           if (ogImage) imageUrl = ogImage;
         } catch (ogError) { /* error already logged by fetchOgImageFromUrl */ }
@@ -415,14 +410,10 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
-      // Final check for garbage characters in critical fields
       if (title.includes('\uFFFD') || summaryText.includes('\uFFFD')) {
-        // console.warn(`[RSS Service] Skipping article due to persistent garbage characters after all cleaning: "${title}" from ${source.name}`);
         continue;
       }
-      // Filter out articles with insufficient summaries or placeholder text
       if (!summaryText || summaryText.length < 20 || summaryText.toLowerCase() === "no summary available." || summaryText.toLowerCase() === "...") {
-        // console.warn(`[RSS Service] Skipping article with insufficient summary: "${title}" from ${source.name}`);
         continue;
       }
 
@@ -434,7 +425,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         date,
         source: source.name,
         category: finalCategory,
-        imageUrl: imageUrl, 
+        imageUrl: imageUrl || null, 
         link: internalArticleLink, 
         sourceLink: originalLink, 
         content: itemContent || summaryText, 
@@ -453,7 +444,19 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
   
-  // De-duplication logic
+  // Filter out articles with garbage characters in title or summary
+  allArticles = allArticles.filter(article => 
+    !article.title.includes('\uFFFD') && 
+    !article.summary.includes('\uFFFD')
+  );
+  
+  // Filter out articles with insufficient summaries
+  allArticles = allArticles.filter(article => {
+    const summaryLower = article.summary.toLowerCase();
+    return article.summary.length >= 20 && summaryLower !== "no summary available." && summaryLower !== "...";
+  });
+
+
   const uniqueArticlesMap = new Map<string, Article>();
   for (const article of allArticles) {
     if (!article.title || !article.sourceLink || article.sourceLink === '#') {
@@ -488,8 +491,8 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         } else if (!article.content && existingArticle.content) {
            // keep existing
         } else if (article.category !== existingArticle.category && 
-                   (article.category.toLowerCase() !== 'general' && !article.category.toLowerCase().includes('news')) &&
-                   (existingArticle.category.toLowerCase() === 'general' || existingArticle.category.toLowerCase().includes('news'))) {
+                   (article.category.toLowerCase() !== 'general' && !article.category.toLowerCase().includes('news') && !article.category.toLowerCase().includes('top stories')) &&
+                   (existingArticle.category.toLowerCase() === 'general' || existingArticle.category.toLowerCase().includes('news') || existingArticle.category.toLowerCase().includes('top stories'))) {
             keepNew = true; 
         }
         
@@ -504,5 +507,4 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   return allArticles.slice(0, 150); 
 }
-
     
