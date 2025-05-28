@@ -19,14 +19,20 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
 
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg bg-card">
-      <Link href={article.link} className="block">
-        <div className="relative w-full h-48">
+      <Link href={article.link} className="block group">
+        <div className="relative w-full h-48 overflow-hidden">
           <Image
-            src={article.imageUrl}
+            src={article.imageUrl || 'https://placehold.co/600x400.png'}
             alt={article.title}
             layout="fill"
             objectFit="cover"
+            className="group-hover:scale-105 transition-transform duration-300 ease-in-out"
             data-ai-hint={`${article.category} news`}
+            onError={(e) => {
+              // Fallback if image fails to load or is invalid
+              e.currentTarget.srcset = ''; // Clear srcset
+              e.currentTarget.src = 'https://placehold.co/600x400.png';
+            }}
           />
         </div>
       </Link>
@@ -53,6 +59,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
           </div>
         </div>
         <Button asChild variant="link" size="sm" className="p-0 h-auto text-primary hover:underline">
+          {/* This link goes to the internal app page for the article */}
           <Link href={article.link}>Read More &rarr;</Link>
         </Button>
       </CardFooter>

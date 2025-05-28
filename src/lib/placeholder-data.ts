@@ -10,7 +10,8 @@ export interface Article {
   source: string;
   category: string;
   imageUrl: string;
-  link: string;
+  link: string; // Internal app link: /category/id
+  sourceLink: string; // Original article link from the RSS feed
   content?: string; // Full content, often HTML from RSS
 }
 

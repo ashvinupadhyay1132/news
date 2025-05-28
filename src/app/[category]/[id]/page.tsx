@@ -1,12 +1,13 @@
+
 "use client";
 
-import { useParams, notFound } from 'next/navigation'; // Import notFound
+import { useParams, notFound } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getArticleById, type Article } from '@/lib/placeholder-data';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CalendarDays, NewspaperIcon, Share2 } from 'lucide-react';
+import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -15,8 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
-import PageLoading from '@/app/loading'; 
-import { Skeleton } from '@/components/ui/skeleton'; // For more granular loading inside the page
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ArticlePage() {
   const params = useParams();
@@ -24,27 +24,19 @@ export default function ArticlePage() {
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Ensure articleId is a string
   const articleIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
-  const articleCategoryParam = Array.isArray(params.category) ? params.category[0] : params.category;
-
 
   useEffect(() => {
     if (articleIdParam) {
       const fetchArticle = async () => {
         setLoading(true);
         try {
-          // The ID from URL might need to be used directly if your getArticleById can handle it
-          // Or, if your routing relies on category/id structure, ensure IDs are unique within that structure.
-          // For RSS feeds, GUIDs are generally unique globally.
           const fetchedArticle = await getArticleById(articleIdParam as string);
           if (fetchedArticle) {
             setArticle(fetchedArticle);
           } else {
-            // If article not found by ID, trigger a 404
-            // This requires Next.js's notFound() which should ideally be used in Server Components
-            // or during data fetching in RSC. For client components, we can redirect or show a message.
-            // For now, we'll show "Article not found" as before.
+            // This will be handled by the !article check below, potentially triggering notFound()
+            // or showing a "not found" message. For simplicity, we just log here.
             console.warn(`Article with ID ${articleIdParam} not found.`);
           }
         } catch (error) {
@@ -60,7 +52,6 @@ export default function ArticlePage() {
   }, [articleIdParam]);
 
   if (loading) {
-    // More detailed skeleton for article page content
     return (
       <div className="max-w-3xl mx-auto p-6 sm:p-8">
         <Skeleton className="h-10 w-32 mb-6" /> {/* Back button skeleton */}
@@ -82,6 +73,8 @@ export default function ArticlePage() {
   }
 
   if (!article) {
+    // Optional: Trigger Next.js 404 page if article truly not found
+    // if (typeof window !== 'undefined') notFound(); // Only call on client-side after initial check
     return (
       <div className="text-center py-10">
         <h1 className="text-2xl font-semibold mb-4">Article not found</h1>
@@ -104,7 +97,7 @@ export default function ArticlePage() {
   }) : 'Date not available';
 
   const handleShare = (platform: 'twitter' | 'facebook' | 'linkedin' | 'whatsapp' | 'copy') => {
-    const url = window.location.href;
+    const url = article.sourceLink || window.location.href; // Prefer sharing the original source link
     const text = `Check out this article: ${article.title}`;
     let shareUrl = '';
 
@@ -130,7 +123,9 @@ export default function ArticlePage() {
         });
         return; 
     }
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    if (shareUrl) {
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   return (
@@ -157,41 +152,46 @@ export default function ArticlePage() {
           </div>
         </header>
 
-        <div className="relative w-full h-64 sm:h-96 mb-8 rounded-md overflow-hidden">
+        <div className="relative w-full h-64 sm:h-96 mb-8 rounded-md overflow-hidden shadow-md">
           <Image
-            src={article.imageUrl}
+            src={article.imageUrl || 'https://placehold.co/600x400.png'}
             alt={article.title}
             layout="fill"
             objectFit="cover"
-            priority
-            data-ai-hint={`${article.category} article image`}
+            priority // Prioritize loading for main article image
+            className="transition-opacity duration-300"
+            data-ai-hint={`${article.category} article full image`}
             onError={(e) => {
-              // Fallback if image fails to load
-              e.currentTarget.src = 'https://placehold.co/600x400.png';
-              e.currentTarget.srcset = ''; // Reset srcset as well if using next/image
+              e.currentTarget.srcset = ''; // Clear srcset to prevent issues with failed sources
+              e.currentTarget.src = 'https://placehold.co/800x450.png'; // Slightly larger placeholder
             }}
           />
         </div>
         
         <div className="prose dark:prose-invert max-w-none mb-8 text-foreground/90">
-          {/* Display summary as an intro if distinct from content, or just content */}
           <p className="text-lg leading-relaxed italic mb-6">{article.summary}</p>
-          {article.content && article.content !== article.summary ? (
-             // Strip HTML for now for safety, or use a sanitizer if HTML is intended
-            <div dangerouslySetInnerHTML={{ __html: article.content.replace(/(<([^>]+)>)/gi, "").replace(/\n/g, '<br />') }} />
-          ) : article.content === article.summary && !article.summary.includes("No summary available.") ? null 
-            // if content is same as summary, and summary is not the default "No summary", don't repeat.
-            : (
-            <p>Full content is not available for this article.</p>
+          {/* Render HTML content if available, otherwise show a message. 
+              NOTE: dangerouslySetInnerHTML is used here. For production, 
+              you MUST sanitize this HTML to prevent XSS attacks if the RSS content is not trusted.
+              Using a library like DOMPurify is recommended.
+          */}
+          {article.content && article.content.trim() !== article.summary.trim() && article.content.trim() !== 'No summary available.' ? (
+             <div dangerouslySetInnerHTML={{ __html: article.content }} />
+          ) : (
+            article.summary.includes('No summary available.') && <p>Full content could not be loaded for this article.</p>
+            // If content is same as summary (and summary is not the default "No summary"), don't show "Full content not available".
+            // If summary is the default "No summary", then it means content is also likely unavailable.
           )}
         </div>
 
-        <div className="mt-8 pt-6 border-t flex justify-between items-center">
-          <Button variant="outline" asChild>
-            <a href={article.link.startsWith('http') ? article.link : `https://${article.link}`} target="_blank" rel="noopener noreferrer">
-              Read on {article.source}
-            </a>
-          </Button>
+        <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+          {article.sourceLink && article.sourceLink !== '#' && (
+            <Button variant="outline" asChild>
+              <a href={article.sourceLink.startsWith('http') ? article.sourceLink : `https://${article.sourceLink}`} target="_blank" rel="noopener noreferrer">
+                Read on {article.source} <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -203,7 +203,7 @@ export default function ArticlePage() {
               <DropdownMenuItem onClick={() => handleShare('facebook')}>Facebook</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('linkedin')}>LinkedIn</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('whatsapp')}>WhatsApp</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleShare('copy')}>Copy Link</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('copy')}>Copy Original Link</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
