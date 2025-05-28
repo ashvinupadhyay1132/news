@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { slugify } from '@/lib/utils';
+import { generateAiHintFromTitle } from '@/lib/utils'; // Updated import
 // IMPORTANT: For production, you MUST install and use an HTML sanitizer like DOMPurify.
 // import DOMPurify from 'dompurify';
 
@@ -35,7 +35,7 @@ export default function ArticlePage() {
         setLoading(true);
         try {
           const fetchedArticle = await getArticleById(articleIdParam as string);
-          setArticle(fetchedArticle || null); // Set to null if not found
+          setArticle(fetchedArticle || null); 
           if (!fetchedArticle) {
             console.warn(`Article with ID ${articleIdParam} not found.`);
           }
@@ -132,8 +132,8 @@ export default function ArticlePage() {
     }
   };
   
-  const imageHint = slugify(article.category) || "news";
-  const placeholderImageSrc = `https://placehold.co/1200x675.png`; // Larger placeholder for article page
+  const imageAiHintForPage = article.imageUrl ? article.category : generateAiHintFromTitle(article.title);
+  const placeholderImageSrc = `https://placehold.co/1200x675.png`;
 
   return (
     <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl my-8">
@@ -159,22 +159,22 @@ export default function ArticlePage() {
           </div>
         </header>
 
-        {article.imageUrl && (
+        { (article.imageUrl || placeholderImageSrc) && ( // Ensure this block renders if either is available
           <div className="relative w-full aspect-video mb-8 rounded-lg overflow-hidden shadow-md bg-muted/50">
             <Image
-              src={article.imageUrl}
+              src={article.imageUrl || placeholderImageSrc}
               alt={article.title}
               layout="fill"
               objectFit="cover"
               priority 
               className="transition-opacity duration-300"
-              data-ai-hint={`${imageHint} article full image`}
+              data-ai-hint={`${imageAiHintForPage} article full image`}
               onError={(e) => {
                 const target = e.currentTarget;
                 if (target.src !== placeholderImageSrc) {
                   target.srcset = '';
                   target.src = placeholderImageSrc;
-                  target.setAttribute('data-ai-hint', `${imageHint} placeholder large`);
+                  target.setAttribute('data-ai-hint', `${generateAiHintFromTitle(article.title)} placeholder large`);
                 }
               }}
             />
@@ -192,8 +192,8 @@ export default function ArticlePage() {
             // <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />
           */}
           <div dangerouslySetInnerHTML={{ __html: article.content || article.summary }} />
-          {(!article.content || article.content.trim() === article.summary.trim()) && article.summary.includes('No summary available.') && (
-            <p className="mt-6 text-muted-foreground italic">Full content could not be loaded for this article from the RSS feed.</p>
+          {(!article.content || article.content.trim() === article.summary.trim() || article.summary.includes('No summary available.')) && (
+            <p className="mt-6 text-muted-foreground italic">Full content could not be loaded for this article from the RSS feed. Please use the link below to read the full article on the source's website.</p>
           )}
         </div>
 

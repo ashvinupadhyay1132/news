@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -37,4 +38,27 @@ export function getNestedValue(obj: any, path: string, defaultValue: any = undef
     return acc && acc[part];
   }, obj);
   return value === undefined ? defaultValue : value;
+}
+
+// Function to generate AI hint for placeholder images based on title
+export function generateAiHintFromTitle(title: string): string {
+  if (!title) return 'news article';
+  const commonWords = new Set([
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'for', 'to', 'and', 'or', 'but', 'of', 'with',
+    'how', 'why', 'when', 'what', 'who', 'it', 'its', 'from', 'as', 'by', 'this', 'that', 'these', 'those',
+    'live', 'updates', 'news', 'story', 'reports', 'says', 'told', 'after', 'before', 'over', 'under', 'new', 'old'
+  ]);
+
+  const words = title
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // Remove punctuation except hyphens
+    .split(/\s+/)
+    .map(word => word.replace(/^-+|-+$/g, '')) // Trim hyphens from words
+    .filter(word => word.length > 2 && !commonWords.has(word) && !/^\d+$/.test(word)); // Remove short words, common words, and pure numbers
+
+  if (words.length === 0) return 'article media';
+  if (words.length === 1) return words[0];
+  // Return a maximum of two keywords
+  const hint = words.slice(0, 2).join(' ');
+  return hint;
 }

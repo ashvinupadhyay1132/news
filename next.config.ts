@@ -24,15 +24,33 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // RSSHub (might proxy images or link to various sources)
       {
-        protocol: 'https',
-        hostname: 'rsshub.app', // For images proxied by RSSHub itself
+        protocol: 'http', // BBC sometimes uses http for images in feeds
+        hostname: 'ichef.bbci.co.uk',
         port: '',
         pathname: '/**',
       },
       {
-        protocol: 'http', // RSSHub might link to http images
+        protocol: 'https',
+        hostname: 'newsimg.bbc.co.uk',
+        port: '',
+        pathname: '/**',
+      },
+       {
+        protocol: 'http',
+        hostname: 'newsimg.bbc.co.uk',
+        port: '',
+        pathname: '/**',
+      },
+      // RSSHub (might proxy images or link to various sources)
+      {
+        protocol: 'https',
+        hostname: 'rsshub.app', 
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http', 
         hostname: 'rsshub.app',
         port: '',
         pathname: '/**',
@@ -95,47 +113,23 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // NDTV (kept in case some aggregated feed links to it)
+      // The Guardian
       {
         protocol: 'https',
-        hostname: 'c.ndtvimg.com',
+        hostname: 'i.guim.co.uk',
         port: '',
         pathname: '/**',
       },
+      // CNBC
       {
         protocol: 'https',
-        hostname: '*.ndtvimg.com',
-        port: '',
-        pathname: '/**',
-      },
-      // Common CDNs that might be used by various news outlets
-      {
-        protocol: 'https',
-        hostname: '*.cnn.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.reuters.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'i.guim.co.uk', // The Guardian
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.cnbcfm.com', // CNBC
+        hostname: '*.cnbcfm.com',
         port: '',
         pathname: '/**',
       },
        {
         protocol: 'https',
-        hostname: 'fm.cnbc.com', // CNBC
+        hostname: 'fm.cnbc.com',
         port: '',
         pathname: '/**',
       },
@@ -174,13 +168,64 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'styles.redditmedia.com', // For subreddit icons etc.
+        hostname: 'styles.redditmedia.com', 
         port: '',
         pathname: '/**',
       },
+      // Mint (livemint.com)
+      {
+        protocol: 'https',
+        hostname: 'images.livemint.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.livemint.com', // For images directly on their domain
+        port: '',
+        pathname: '/**',
+      },
+      // Hindustan Times (hindustantimes.com)
+      {
+        protocol: 'https',
+        hostname: 'images.hindustantimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.hindustantimes.com', // For images directly on their domain
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'tech.hindustantimes.com', // For tech section images
+        port: '',
+        pathname: '/**',
+      },
+      // Times of India (timesofindia.indiatimes.com)
+      {
+        protocol: 'https',
+        hostname: 'static.toiimg.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'timesofindia.indiatimes.com', // For images directly on their domain
+        port: '',
+        pathname: '/**',
+      },
+      // Other generic CDNs that might be used
+      {
+        protocol: 'https',
+        hostname: 'media.zenfs.com', // Yahoo/Verizon Media
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };
 
 export default nextConfig;
-

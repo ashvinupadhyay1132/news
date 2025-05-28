@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import { slugify } from "@/lib/utils";
+import { generateAiHintFromTitle } from "@/lib/utils"; // Updated import
 
 interface ArticleCardProps {
   article: Article;
@@ -19,7 +20,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
     day: 'numeric',
   });
 
-  const imageHint = slugify(article.category) || "news";
+  const imageAiHint = article.imageUrl ? slugify(article.category) : generateAiHintFromTitle(article.title);
   const placeholderImageSrc = `https://placehold.co/600x400.png`;
 
   return (
@@ -32,14 +33,14 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
             layout="fill"
             objectFit="cover"
             className="group-hover:scale-105 transition-transform duration-300 ease-in-out"
-            data-ai-hint={`${imageHint} article thumbnail`}
+            data-ai-hint={`${imageAiHint} thumbnail`}
             onError={(e) => {
-              // More robust fallback
               const target = e.currentTarget;
               if (target.src !== placeholderImageSrc) {
                 target.srcset = '';
                 target.src = placeholderImageSrc;
-                target.setAttribute('data-ai-hint', `${imageHint} placeholder thumbnail`);
+                // Update AI hint if we switched to placeholder
+                target.setAttribute('data-ai-hint', `${generateAiHintFromTitle(article.title)} placeholder`);
               }
             }}
           />
@@ -47,14 +48,14 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
       </Link>
       <CardHeader className="p-4 pb-2">
         <Badge variant="secondary" className="mb-2 w-fit text-xs">{article.category}</Badge>
-        <CardTitle className="text-lg font-semibold leading-snug"> {/* Adjusted leading for tighter fit */}
+        <CardTitle className="text-lg font-semibold leading-snug">
           <Link href={article.link} className="hover:text-primary transition-colors line-clamp-3">
             {article.title}
           </Link>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-4 pt-1 flex-grow">
-        <p className="text-sm text-muted-foreground line-clamp-4">{article.summary}</p> {/* Increased line-clamp slightly */}
+        <p className="text-sm text-muted-foreground line-clamp-4">{article.summary}</p>
       </CardContent>
       <CardFooter className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
         <div className="text-xs text-muted-foreground space-y-1">
