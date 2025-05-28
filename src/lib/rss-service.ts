@@ -25,9 +25,9 @@ const NEWS_SOURCES: NewsSource[] = [
   
   // Hindustan Times (India)
   { name: "Hindustan Times - Top News", rssUrl: "https://www.hindustantimes.com/rss/topnews/rssfeed.xml", defaultCategory: "Top News" },
-  { name: "Hindustan Times - Main News", rssUrl: "https://www.hindustantimes.com/rss", defaultCategory: "India News" },
+  { name: "Hindustan Times - Main News", rssUrl: "https://www.hindustantimes.com/rss", defaultCategory: "India News" }, // General India News
   { name: "Hindustan Times - Business", rssUrl: "https://www.hindustantimes.com/business/rss/feed", defaultCategory: "Business" },
-  { name: "Hindustan Times - Tech (HT)", rssUrl: "https://tech.hindustantimes.com/rss", defaultCategory: "Technology" }, // Renamed to avoid conflict
+  { name: "Hindustan Times - Tech (HT)", rssUrl: "https://tech.hindustantimes.com/rss", defaultCategory: "Technology" },
   { name: "Hindustan Times - Entertainment", rssUrl: "https://www.hindustantimes.com/rss/entertainment/rssfeed.xml", defaultCategory: "Entertainment" },
   { name: "Hindustan Times - Sports", rssUrl: "https://www.hindustantimes.com/rss/sports/rssfeed.xml", defaultCategory: "Sports" },
   { name: "Hindustan Times - Auto", rssUrl: "https://auto.hindustantimes.com/rss/rssfeed.xml", defaultCategory: "Auto" },
@@ -250,6 +250,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     }
 
     if (items.length === 0) {
+      console.warn(`No items found in RSS feed for ${source.name} (${source.rssUrl})`);
       return [];
     }
 
@@ -358,12 +359,17 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         continue; 
     }
 
+    // Normalize title: lowercase, remove extra spaces, take first 80 chars
     let normalizedTitleKey = article.title.toLowerCase().replace(/\s+/g, ' ').substring(0, 80).trim();
     
+    // Normalize link: remove protocol, www, trailing slash, common tracking params
     let normalizedLinkKey = article.sourceLink;
     try {
         const url = new URL(article.sourceLink);
-        normalizedLinkKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
+        // Remove common query parameters that don't change content
+        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid'];
+        paramsToRemove.forEach(param => url.searchParams.delete(param));
+        normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
         normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
     }
@@ -386,6 +392,10 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         } else if (article.content && existingArticle.content && article.content.length > existingArticle.content.length + 50) { 
             keepNew = true;
         }
+        // If both have similar content length and image status, prefer the one with a more specific category if different
+        else if (article.category !== 'General' && existingArticle.category === 'General') {
+            keepNew = true;
+        }
         
         if (keepNew) {
             uniqueArticlesMap.set(uniqueKey, article);
@@ -399,5 +409,3 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   return allArticles.slice(0, 100); 
 }
-
-    
