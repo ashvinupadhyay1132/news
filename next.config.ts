@@ -204,6 +204,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'auto.hindustantimes.com', // For auto section images
+        port: '',
+        pathname: '/**',
+      },
       // Times of India (timesofindia.indiatimes.com)
       {
         protocol: 'https',
