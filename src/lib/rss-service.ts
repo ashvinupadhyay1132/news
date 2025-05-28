@@ -9,7 +9,8 @@ import type { Article } from './placeholder-data';
 import { slugify, getNestedValue, generateAiHintFromTitle } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
-import { load as cheerioLoad } from 'cheerio'; // Changed import
+import { load as cheerioLoad } from 'cheerio'; // Corrected import
+
 // import axios from 'axios'; // Using native fetch instead for this part
 
 interface NewsSource {
@@ -57,7 +58,6 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
     return null;
   }
   try {
-    // Use native fetch for consistency within Next.js server components/actions
     const response = await fetch(articleUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
@@ -84,7 +84,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
         const urlObject = new URL(articleUrl);
         ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
     }
-    return he.decode(ogImageUrl || null); // Decode entities from image URL too
+    return he.decode(ogImageUrl || null);
   } catch (error) {
     // console.error(`Error fetching or parsing HTML for meta image from ${articleUrl}:`, error.message || error);
     return null;
@@ -156,7 +156,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   }
   
   if (imageUrl && typeof imageUrl === 'string') {
-    imageUrl = he.decode(imageUrl.trim()); // Decode entities in image URLs too
+    imageUrl = he.decode(imageUrl.trim());
     if (imageUrl.startsWith('//')) {
       return `https:${imageUrl}`;
     }
@@ -198,14 +198,12 @@ function normalizeContent(contentInput: any): string {
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
-    // Prioritize 'content:encoded' if available and it's a string or has string content
     const encodedContent = getNestedValue(contentInput, 'content:encoded');
     if (typeof encodedContent === 'string' && encodedContent.trim() !== '') {
         text = encodedContent;
     } else if (encodedContent && typeof encodedContent._ === 'string' && encodedContent._.trim() !== '') {
         text = encodedContent._;
     } else {
-        // Fallback to other fields if encoded content is not suitable
         const potentialValues = [
         getNestedValue(contentInput, 'content'),
         getNestedValue(contentInput, 'description'),
@@ -222,7 +220,6 @@ function normalizeContent(contentInput: any): string {
         }
     }
   }
-  // Decode HTML entities right after extracting the potential string content
   return text ? he.decode(text.trim()) : '';
 }
 
@@ -241,16 +238,14 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
         .replace(/<img[^>]*?>/gi, '');              
   }
 
-  // Prefer full content if it's substantially longer than the description
   if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { 
     textToSummarize = fullContentText;
   } else if (descriptionText) {
     textToSummarize = descriptionText;
-  } else if (fullContentText) { // Fallback to full content if description is empty
+  } else if (fullContentText) { 
     textToSummarize = fullContentText;
   }
   
-  // Strip HTML tags, replace common RSS artifacts, and normalize whitespace
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
@@ -260,7 +255,6 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
     .replace(/\s+/g, ' ')
     .trim();
     
-  // If stripping HTML from preferred text results in empty, try from fullContent if it was different
   if (!plainText && fullContentText && fullContentText !== textToSummarize) { 
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -305,7 +299,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     } else {
       feedXmlString = utf8String;
     }
-    feedXmlString = feedXmlString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // Remove control characters
+    feedXmlString = feedXmlString.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
     const result = await parser.parseStringPromise(feedXmlString);
 
@@ -461,10 +455,8 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         continue; 
     }
 
-    // Normalize title for key: lowercase, remove extra spaces, take first 80 chars
     let normalizedTitleKey = article.title.toLowerCase().replace(/\s+/g, ' ').substring(0, 80).trim();
     
-    // Normalize link for key: remove www, query params, trailing slash, lowercase
     let normalizedLinkKey = article.sourceLink;
     try {
         const url = new URL(article.sourceLink);
@@ -472,7 +464,6 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
-        // Fallback if URL parsing fails (e.g., invalid URL)
         normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
     }
 
@@ -482,10 +473,6 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     if (!existingArticle) {
         uniqueArticlesMap.set(uniqueKey, article);
     } else {
-        // Preference logic for duplicates:
-        // 1. Prefer article with an image if the other doesn't have one.
-        // 2. Prefer article with (longer) content if image status is similar.
-        // 3. Prefer article with a more specific category.
         let keepNew = false;
         if (article.imageUrl && !existingArticle.imageUrl) {
             keepNew = true;
@@ -498,7 +485,6 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         } else if (article.category !== existingArticle.category && 
                    (article.category.toLowerCase() !== 'general' && article.category.toLowerCase() !== 'top news' && article.category.toLowerCase() !== 'world news') &&
                    (existingArticle.category.toLowerCase() === 'general' || existingArticle.category.toLowerCase() === 'top news' || existingArticle.category.toLowerCase() === 'world news')) {
-            // Prefer a more specific category over a general one
             keepNew = true; 
         }
         
@@ -509,10 +495,9 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
-  // Sort all articles by date (newest first)
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return allArticles.slice(0, 150); // Limit to latest 150 unique articles
+  return allArticles.slice(0, 150); 
 }
 
     
