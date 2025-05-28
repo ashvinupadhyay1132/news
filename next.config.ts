@@ -58,7 +58,7 @@ const nextConfig: NextConfig = {
        // Flipboard & its CDNs / aggregated content
       {
         protocol: 'https',
-        hostname: '**.flipboard.com',
+        hostname: '**.flipboard.com', // Wildcard for flipboard CDNs
         port: '',
         pathname: '/**',
       },
@@ -84,7 +84,7 @@ const nextConfig: NextConfig = {
       // Bing often uses these for images (via RSSHub)
       {
         protocol: 'https',
-        hostname: '**.bing.com',
+        hostname: '**.bing.com', // Wildcard for bing.com and subdomains
         port: '',
         pathname: '/**',
       },
@@ -109,7 +109,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '*.googleusercontent.com',
+        hostname: '*.googleusercontent.com', // Wildcard for googleusercontent
         port: '',
         pathname: '/**',
       },
@@ -123,7 +123,7 @@ const nextConfig: NextConfig = {
       // CNBC
       {
         protocol: 'https',
-        hostname: '*.cnbcfm.com',
+        hostname: '*.cnbcfm.com', // Wildcard for cnbcfm.com
         port: '',
         pathname: '/**',
       },
