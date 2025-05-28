@@ -35,12 +35,14 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Times of India - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "India News" },
   { name: "Times of India - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business"},
   { name: "Times of India - Tech", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/5880659.cms", defaultCategory: "Technology"},
-
-  // BBC News
-  { name: "BBC - Top Stories", rssUrl: "http://feeds.bbci.co.uk/news/rss.xml", defaultCategory: "World News" },
-  { name: "BBC - World", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News" },
-  { name: "BBC - Technology", rssUrl: "http://feeds.bbci.co.uk/news/technology/rss.xml", defaultCategory: "Technology" },
-  { name: "BBC - Business", rssUrl: "http://feeds.bbci.co.uk/news/business/rss.xml", defaultCategory: "Business" },
+  
+  // RSSHub proxied BBC News
+  { name: "BBC - All World News (RSSHub)", rssUrl: "https://rsshub.app/bbc/world", defaultCategory: "World News" },
+  { name: "BBC - News Front Page (RSSHub)", rssUrl: "https://rsshub.app/bbc/index", defaultCategory: "Top Stories" },
+  { name: "BBC - Business (RSSHub)", rssUrl: "https://rsshub.app/bbc/business", defaultCategory: "Business" },
+  { name: "BBC - Entertainment & Arts (RSSHub)", rssUrl: "https://rsshub.app/bbc/entertainment_and_arts", defaultCategory: "Entertainment" },
+  { name: "BBC - Science & Environment (RSSHub)", rssUrl: "https://rsshub.app/bbc/science_and_environment", defaultCategory: "Science" },
+  { name: "BBC - Technology (RSSHub)", rssUrl: "https://rsshub.app/bbc/technology", defaultCategory: "Technology" },
   
   // Reddit
   { name: "Reddit - WorldNews", rssUrl: "https://www.reddit.com/r/worldnews/.rss", defaultCategory: "World News"},
@@ -188,12 +190,14 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   let descriptionText = normalizeContent(descriptionInput);
   const fullContentText = normalizeContent(fullContentInput);
 
-  if (sourceName && sourceName.includes("Reddit")) {
+  if (sourceName && sourceName.toLowerCase().includes("reddit")) {
     // More aggressive cleaning for Reddit descriptions
     descriptionText = descriptionText
         .replace(/<p>submitted by.*?<\/p>/gi, '') // Remove "submitted by..." paragraph
-        .replace(/<a[^>]*?>\[link\]<\/a>/gi, '')    // Remove [link] anchor
-        .replace(/<a[^>]*?>\[comments\]<\/a>/gi, '') // Remove [comments] anchor
+        .replace(/<a href="[^"]*">\[comments\]<\/a>/gi, '') // Remove [comments] anchor
+        .replace(/<a href="[^"]*">\[link\]<\/a>/gi, '')    // Remove [link] anchor
+        .replace(/<a[^>]*?>\[\d+ comments?\]<\/a>/gi, '') // Remove comment count links like [100 comments]
+        .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, '') // Remove "read more" paragraphs
         .replace(/<img[^>]*?>/gi, '');              // Remove any image tags from description
   }
 
@@ -238,7 +242,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const response = await fetch(source.rssUrl, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 NewsAggregator/1.1',
+        'User-Agent': 'Mozilla/5.0 (compatible; NewsFlashApp/1.0; +https://trendingnewsfeed.in/bot.html)',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
       next: { revalidate: 300 } // 5 minutes
@@ -285,7 +289,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         originalLink = alternateLink ? alternateLink.href : ( (typeof linkField[0] === 'object' && linkField[0]?.href) || (typeof linkField[0] === 'string' ? linkField[0] : '#') );
       }
       
-      if (source.name.includes("Reddit") && item.content && (item.content._ || typeof item.content === 'string')) {
+      if (source.name.toLowerCase().includes("reddit") && item.content && (item.content._ || typeof item.content === 'string')) {
           const contentStr = item.content._ || item.content;
           // Reddit often has the true article link inside the description/content as "[link]"
           const linkMatch = String(contentStr).match(/<a href="([^"]+)">\[link\]<\/a>/);
@@ -339,7 +343,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       
       let rawContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
       // For Reddit, description might be cleaner for rawContent if content:encoded is just boilerplate
-      if (source.name.includes("Reddit")) {
+      if (source.name.toLowerCase().includes("reddit")) {
           const redditDescription = normalizeContent(getNestedValue(item, 'description'));
           if (redditDescription && (!rawContent || rawContent.length < redditDescription.length + 20)) {
               rawContent = redditDescription;
@@ -379,7 +383,8 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     const summaryText = article.summary ? article.summary.trim() : "";
     return summaryText.length >= 25 && 
            summaryText.toLowerCase() !== "no summary available." &&
-           summaryText !== "..."; 
+           summaryText.toLowerCase() !== "..." &&
+           !summaryText.toLowerCase().includes("submitted by"); // Further filter out Reddit "submitted by" if it slips through
   });
   
   // Then, de-duplicate
@@ -395,7 +400,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     try {
         const url = new URL(article.sourceLink);
         // More robust query param removal
-        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk'];
+        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk', 'spot_im_highlight_immediate', 'spot_im_platform', 'spot_im_鑑定'];
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
@@ -437,3 +442,4 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   return allArticles.slice(0, 150); // Limit to 150 articles after de-duplication
 }
 
+    

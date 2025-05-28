@@ -17,20 +17,27 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // BBC
+      // RSSHub itself
+      {
+        protocol: 'https',
+        hostname: 'rsshub.app',
+        port: '',
+        pathname: '/**',
+      },
+      // BBC via RSSHub or direct
       {
         protocol: 'https',
         hostname: 'ichef.bbci.co.uk',
         port: '',
         pathname: '/**',
       },
-      { // Also http for some older BBC images
+      { 
         protocol: 'http',
         hostname: 'ichef.bbci.co.uk',
         port: '',
         pathname: '/**',
       },
-      { // news.bbcimg.co.uk also used
+      { 
         protocol: 'https',
         hostname: 'news.bbcimg.co.uk',
         port: '',
@@ -42,10 +49,10 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-       // Flipboard & its CDNs / aggregated content
+       // Flipboard & its CDNs / aggregated content (keeping in case RSSHub uses them)
       {
         protocol: 'https',
-        hostname: '**.flipboard.com', // Wildcard for flipboard CDNs
+        hostname: '**.flipboard.com', 
         port: '',
         pathname: '/**',
       },
@@ -55,16 +62,16 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Common image CDNs often used by news sites aggregated by Flipboard/RSSHub
+      // Common image CDNs
       {
         protocol: 'https',
-        hostname: '**.wp.com', // WordPress images (e.g., i0.wp.com, i1.wp.com)
+        hostname: '**.wp.com', 
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: '**.imgix.net', // Imgix CDN
+        hostname: '**.imgix.net', 
         port: '',
         pathname: '/**',
       },
@@ -83,21 +90,21 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '*.googleusercontent.com', // Wildcard for googleusercontent
+        hostname: '*.googleusercontent.com', 
         port: '',
         pathname: '/**',
       },
-      // The Guardian
+      // The Guardian (keeping in case)
       {
         protocol: 'https',
         hostname: 'i.guim.co.uk',
         port: '',
         pathname: '/**',
       },
-      // CNBC
+      // CNBC (keeping in case)
       {
         protocol: 'https',
-        hostname: '*.cnbcfm.com', // Wildcard for cnbcfm.com
+        hostname: '*.cnbcfm.com', 
         port: '',
         pathname: '/**',
       },
@@ -107,14 +114,14 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // New addition for the-independent.com images
+      // New addition for the-independent.com images (keeping in case)
       {
         protocol: 'https',
         hostname: 'static.the-independent.com',
         port: '',
         pathname: '/**',
       },
-      // New addition for images.wsj.net
+      // New addition for images.wsj.net (keeping in case)
       {
         protocol: 'https',
         hostname: 'images.wsj.net',
@@ -155,7 +162,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'www.livemint.com', // For images directly on their domain
+        hostname: 'www.livemint.com', 
         port: '',
         pathname: '/**',
       },
@@ -168,19 +175,19 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'www.hindustantimes.com', // For images directly on their domain
+        hostname: 'www.hindustantimes.com', 
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: 'tech.hindustantimes.com', // For tech section images
+        hostname: 'tech.hindustantimes.com', 
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: 'auto.hindustantimes.com', // For auto section images
+        hostname: 'auto.hindustantimes.com', 
         port: '',
         pathname: '/**',
       },
@@ -193,7 +200,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'timesofindia.indiatimes.com', // For images directly on their domain
+        hostname: 'timesofindia.indiatimes.com', 
         port: '',
         pathname: '/**',
       },
@@ -210,3 +217,4 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
+    
