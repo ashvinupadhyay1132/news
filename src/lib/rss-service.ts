@@ -140,7 +140,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   }
   
   const descriptionForImageSearch = normalizeContent(getNestedValue(item, 'description'));
-  if (!imageUrl && descriptionForImageSearch && (sourceName?.toLowerCase().includes("hindustan times") || sourceName?.toLowerCase().includes("times of india")) ) {
+  if (!imageUrl && descriptionForImageSearch ) { // Removed sourceName check here to broaden search
     const imgMatch = descriptionForImageSearch.match(/<img[^>]+src="([^">]+)"/);
     if (imgMatch && imgMatch[1]) {
         imageUrl = imgMatch[1];
@@ -150,7 +150,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   if (!imageUrl) {
     const contentFieldsToSearch = [
       getNestedValue(item, 'content:encoded'), 
-      descriptionForImageSearch, 
+      // descriptionForImageSearch, // Already checked
       getNestedValue(item, 'content'),
       getNestedValue(item, 'content._'),
       getNestedValue(item, 'summary'), 
@@ -206,17 +206,27 @@ function normalizeContent(contentInput: any): string {
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
   } else if (typeof contentInput === 'object' && contentInput !== null) {
-    const potentialValues = [
-        getNestedValue(contentInput, 'content:encoded'),
-        getNestedValue(contentInput, 'content'),
-        getNestedValue(contentInput, 'description'),
-        getNestedValue(contentInput, 'summary'),
-    ];
-    for (const val of potentialValues) {
-        const normalizedVal = normalizeContent(val); 
-        if (normalizedVal && normalizedVal.trim() !== '') {
-            text = normalizedVal;
+    // Try to find a textual value within the object, common in some feed structures
+    const potentialTextKeys = ['_', '$t', '#text', '#cdata', 'p', 'span', 'div'];
+    for (const key of potentialTextKeys) {
+        if (typeof contentInput[key] === 'string') {
+            text = contentInput[key];
             break;
+        }
+    }
+    if (!text) { // If still no text, look for standard fields if it's a nested content object
+        const standardFields = [
+            getNestedValue(contentInput, 'content:encoded'),
+            getNestedValue(contentInput, 'content'),
+            getNestedValue(contentInput, 'description'),
+            getNestedValue(contentInput, 'summary'),
+        ];
+        for (const val of standardFields) {
+            const normalizedVal = normalizeContent(val); 
+            if (normalizedVal && normalizedVal.trim() !== '') {
+                text = normalizedVal;
+                break;
+            }
         }
     }
   }
@@ -353,11 +363,16 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       } else if (typeof linkField === 'object' && !linkField?.href && linkField?._) { 
         originalLink = he.decode(linkField._.trim());
       } else if (Array.isArray(linkField)) { 
-        const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.href);
+        const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.type === 'text/html' && l.href);
         const selfLink = linkField.find(l => typeof l === 'object' && l.rel === 'self' && l.href); 
+        const firstValidLink = linkField.find(l => (typeof l === 'object' && l.href && l.href.startsWith('http')) || (typeof l === 'string' && l.startsWith('http')) );
+        
         let tempLink = alternateLink ? alternateLink.href : 
-                       (selfLink && selfLink.href.startsWith('http') ? selfLink.href : 
-                       ( (typeof linkField[0] === 'object' && linkField[0]?.href) || (typeof linkField[0] === 'string' ? linkField[0] : '#') ));
+                       ( (firstValidLink && typeof firstValidLink === 'object') ? firstValidLink.href : 
+                         (typeof firstValidLink === 'string' ? firstValidLink : 
+                           (selfLink && selfLink.href.startsWith('http') ? selfLink.href : '#')
+                         )
+                       );
         originalLink = he.decode(String(tempLink).trim());
       }
       
@@ -456,10 +471,12 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   // Filter out articles with insufficient summaries
   allArticles = allArticles.filter(article => {
     const summaryText = article.summary ? article.summary.trim() : "";
+    const titleText = article.title ? article.title.trim() : "";
     return summaryText.length >= 20 && 
            summaryText.toLowerCase() !== "no summary available." &&
            summaryText.toLowerCase() !== "..." &&
-           !summaryText.toLowerCase().includes("submitted by"); 
+           !summaryText.toLowerCase().includes("submitted by") &&
+           summaryText !== titleText; // Avoid summary being identical to title if too basic
   });
   
   const uniqueArticlesMap = new Map<string, Article>();
@@ -508,29 +525,18 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
-  // Keyword-based filtering
-  const keywordsToFilterOut = [
-    "c-grade bollywood movie",
-    "gaurav gogoi",
-    "pakistan links",
-    "himanta sarma",
-    "details on sept 10"
-  ].map(kw => kw.toLowerCase());
-
+  // Filter out articles that still contain the Unicode Replacement Character () after cleaning
   allArticles = allArticles.filter(article => {
-    const titleLower = article.title.toLowerCase();
-    const summaryLower = article.summary.toLowerCase();
-    
-    for (const keyword of keywordsToFilterOut) {
-      if (titleLower.includes(keyword) || summaryLower.includes(keyword)) {
-        // console.log(`Filtering out article: "${article.title}" due to keyword: "${keyword}"`);
-        return false; // Exclude this article
-      }
-    }
-    return true; // Keep this article
+    const hasGarbageTitle = article.title.includes('\uFFFD');
+    const hasGarbageSummary = article.summary.includes('\uFFFD');
+    // if (hasGarbageTitle || hasGarbageSummary) {
+      // console.log(`Filtering out article with persistent garbage characters: "${article.title}"`);
+    // }
+    return !hasGarbageTitle && !hasGarbageSummary;
   });
 
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return allArticles.slice(0, 150); 
 }
+
