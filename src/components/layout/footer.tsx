@@ -5,7 +5,7 @@ const Footer = () => {
   return (
     <footer className="bg-card border-t border-border py-8 text-center text-muted-foreground">
       <div className="container mx-auto px-4">
-        <p className="mb-4">&copy; {new Date().getFullYear()} NewsFlash. All rights reserved.</p>
+        <p className="mb-4">&copy; {new Date().getFullYear()} TrendingNewsFeed.in. All rights reserved.</p>
         <div className="flex justify-center space-x-4 mb-4">
           <Link href="#" aria-label="GitHub" className="hover:text-primary transition-colors">
             <Github size={24} />

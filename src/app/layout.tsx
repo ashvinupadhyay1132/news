@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NewsFlash - Your Daily News Digest',
-  description: 'Stay updated with the latest news from around the world, all in one place.',
+  title: 'TrendingNewsFeed.in - Your Daily News Digest',
+  description: 'Stay updated with the latest trending news from TrendingNewsFeed.in, all in one place.',
 };
 
 export default function RootLayout({
