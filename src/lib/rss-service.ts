@@ -6,7 +6,7 @@
 
 import { Parser } from 'xml2js';
 import type { Article } from './placeholder-data';
-import { slugify, getNestedValue, generateAiHintFromTitle } from './utils';
+import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
@@ -19,25 +19,19 @@ interface NewsSource {
 }
 
 const NEWS_SOURCES: NewsSource[] = [
-  // Existing feeds that were working
   { name: "TechCrunch", rssUrl: "https://techcrunch.com/feed/", defaultCategory: "Technology", fetchOgImageFallback: true },
-  { name: "BBC - World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News", fetchOgImageFallback: true },
-  { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
-
-  // Re-verified/Focused Reuters and NDTV feeds
   { name: "Reuters - Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Finance", fetchOgImageFallback: true },
-  { name: "NDTV - Movies", rssUrl: "https://movies.ndtv.com/rss", defaultCategory: "Entertainment", fetchOgImageFallback: true },
-  { name: "NDTV - Sports", rssUrl: "https://sports.ndtv.com/rss/all", defaultCategory: "Sports", fetchOgImageFallback: true },
+  { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
   
-  // New Times of India Feeds
+  // User Provided New List (India Focused & Finance)
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: true },
-  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms", defaultCategory: "India", fetchOgImageFallback: true },
-  { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: true },
-  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
-  { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: true },
-  { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business", fetchOgImageFallback: true },
-  { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: true },
-  { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Lifestyle", fetchOgImageFallback: true },
+  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India", fetchOgImageFallback: true },
+  { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India", fetchOgImageFallback: true },
+  { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India", fetchOgImageFallback: true },
+  { name: "BBC News - India", rssUrl: "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml", defaultCategory: "India", fetchOgImageFallback: true },
+  
+  { name: "Livemint - News", rssUrl: "https://www.livemint.com/rss/news", defaultCategory: "Finance", fetchOgImageFallback: true },
+  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business", fetchOgImageFallback: true },
 ];
 
 const parser = new Parser({ 
@@ -113,7 +107,7 @@ function normalizeContent(contentInput: any): string {
   } else if (typeof contentInput === 'object' && contentInput !== null) {
     const potentialTextKeys = ['_', '$t', '#text', '#cdata', 'p', 'span', 'div'];
     for (const key of potentialTextKeys) {
-        if (typeof contentInput[key] === 'string') {
+        if (contentInput[key] && typeof contentInput[key] === 'string') { // check if contentInput[key] exists
             text = contentInput[key];
             break;
         }
@@ -174,6 +168,13 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
+    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') // Remove figure tags and their content
+    .replace(/<img[^>]*?>/gi, '') // Remove img tags
+    .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '') // Remove table tags
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') // Remove iframe tags
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '') // Remove video tags
+    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '') // Remove audio tags
+    .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
     .replace(/<[^>]+>/g, ' ') 
     .replace(/\[link\]|\[comments\]/gi, '') 
     .replace(/&nbsp;/gi, ' ') 
@@ -184,6 +185,13 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') 
+        .replace(/<img[^>]*?>/gi, '') 
+        .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '')
+        .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+        .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
+        .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
         .replace(/<[^>]+>/g, ' ')
         .replace(/\[link\]|\[comments\]/gi, '')
         .replace(/&nbsp;/gi, ' ')
@@ -246,9 +254,10 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     if (imageUrl) break;
     const normalizedField = normalizeContent(field); 
     if (normalizedField && typeof normalizedField === 'string') {
-      const imgMatch = normalizedField.match(/<img[^>]+src="([^">]+)"/);
-      if (imgMatch && imgMatch[1]) {
-        imageUrl = imgMatch[1];
+      const $ = cheerioLoad(normalizedField);
+      const imgTag = $('img').first();
+      if (imgTag.length && imgTag.attr('src')) {
+        imageUrl = imgTag.attr('src');
         break;
       }
     }

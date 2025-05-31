@@ -49,37 +49,6 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // NDTV
-      {
-        protocol: 'https',
-        hostname: 'c.ndtvimg.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.ndtvimg.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'movies.ndtv.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'sports.ndtv.com',
-        port: '',
-        pathname: '/**',
-      },
-       {
-        protocol: 'https',
-        hostname: 'www.ndtv.com',
-        port: '',
-        pathname: '/**',
-      },
       // BBC
       {
         protocol: 'https',
@@ -140,6 +109,82 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '**.timesofindia.indiatimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Hindustan Times
+      {
+        protocol: 'https',
+        hostname: 'www.hindustantimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.hindustantimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.hindustantimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Indian Express
+      {
+        protocol: 'https',
+        hostname: 'indianexpress.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.indianexpress.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.indianexpress.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Livemint
+      {
+        protocol: 'https',
+        hostname: 'www.livemint.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.livemint.com', // A common one for Livemint
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.livemint.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Economic Times
+      {
+        protocol: 'https',
+        hostname: 'economictimes.indiatimes.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.etimg.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.economictimes.indiatimes.com',
         port: '',
         pathname: '/**',
       },
