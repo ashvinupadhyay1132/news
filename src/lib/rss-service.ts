@@ -1,4 +1,5 @@
 
+
 // @ts-nocheck
 // Disabling TypeScript checks for this file due to the dynamic nature of RSS feed structures
 // and the use of xml2js which can lead to complex type definitions.
@@ -120,19 +121,21 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
         return 'Science';
     }
     
-    // World News
+    // World News (specific keywords, avoid 'india')
     const worldKeywordsRaw = ['world', 'global', 'international', 'asia news', 'europe news', 'africa news', 'america news', 'un session', 'nato meeting', 'foreign affairs discussion'];
-    if (worldKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword)) && !lowerRawCategory.includes('india')) {
+    if (worldKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword) && !lowerRawCategory.includes('india') && !lowerRawCategory.includes('bharat'))) { // ensure not india specific
         return 'World News';
     }
-    if ((lowerTitle.includes('war in') || lowerTitle.includes('global summit on') || lowerTitle.includes('international relations update') || lowerTitle.includes('united nations resolution')) && !(lowerRawCategory.includes('india') || lowerTitle.includes('india'))) {
+    const worldKeywordsTitle = ['war in', 'global summit on', 'international relations update', 'united nations resolution', 'conflict between', 'treaty signing between', 'foreign minister meets'];
+    if (worldKeywordsTitle.some(keyword => lowerTitle.includes(keyword)) && 
+        !(lowerRawCategory.includes('india') || lowerTitle.includes('india') || lowerRawCategory.includes('bharat') || lowerTitle.includes('bharat'))) { // ensure not india specific
         return 'World News';
     }
     
     // India News
-    const indiaKeywordsRaw = ['india', 'national', 'delhi', 'mumbai', 'bengaluru', 'kolkata', 'chennai', 'hyderabad', 'pune', 'state news', 'indian affairs'];
+    const indiaKeywordsRaw = ['india', 'national', 'delhi', 'mumbai', 'bengaluru', 'kolkata', 'chennai', 'hyderabad', 'pune', 'state news', 'indian affairs', 'bharat'];
     if (indiaKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword))) return 'India News';
-    if (indiaKeywordsRaw.some(keyword => lowerTitle.includes(keyword)) && (lowerRawCategory.includes('news') || lowerRawCategory.includes('general') || lowerRawCategory.includes('headlines'))) return 'India News';
+    if (indiaKeywordsRaw.some(keyword => lowerTitle.includes(keyword)) && (lowerRawCategory.includes('news') || lowerRawCategory.includes('general') || lowerRawCategory.includes('headlines') || lowerRawCategory.includes('top stor') || lowerRawCategory === '')) return 'India News';
 
 
     // Life & Style (should be less aggressive than entertainment)
@@ -169,7 +172,7 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
   
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: true },
-  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: true }, // Updated TOI India specific
+  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: true },
   { name: "HT - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: true },
   { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: true },
   { name: "BBC News - India", rssUrl: "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml", defaultCategory: "India News", fetchOgImageFallback: true },
@@ -177,7 +180,6 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Livemint - News", rssUrl: "https://www.livemint.com/rss/news", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   
-  { name: "BBC World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News", fetchOgImageFallback: true },
   { name: "TOI - World", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: true },
   { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
   { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: true },
@@ -185,7 +187,7 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: true },
   { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
 
-  // Sports specific feeds
+  // Sports specific feeds from RSSHub
   { name: "RSSHub - BBC Sports", rssUrl: "https://rsshub.app/bbc/sport", defaultCategory: "Sports", fetchOgImageFallback: true },
   { name: "RSSHub - Bing Sports", rssUrl: "https://rsshub.app/bing/news/sports", defaultCategory: "Sports", fetchOgImageFallback: true },
   { name: "RSSHub - ESPN", rssUrl: "https://rsshub.app/espn/news", defaultCategory: "Sports", fetchOgImageFallback: true },

@@ -188,6 +188,39 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // RSSHub (generic, often used for proxying)
+      {
+        protocol: 'https',
+        hostname: 'rsshub.app',
+        port: '',
+        pathname: '/**',
+      },
+      // Bing (for RSSHub - Bing Sports)
+      {
+        protocol: 'https',
+        hostname: 'th.bing.com', // Common for Bing images
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.bing.com', // General Bing
+        port: '',
+        pathname: '/**',
+      },
+      // ESPN (for RSSHub - ESPN, though might be proxied by RSSHub directly)
+      {
+        protocol: 'https',
+        hostname: 'a.espncdn.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.espncdn.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
