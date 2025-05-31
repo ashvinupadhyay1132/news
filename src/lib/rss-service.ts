@@ -167,22 +167,22 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Reuters Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
   
-  // Times of India
-  { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: true },
-  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: true }, 
-  { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: true },
-  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
-  { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: true },
-  { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
-  { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: true },
-  { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: true },
+  // Times of India - Setting fetchOgImageFallback to false for most Indian sources
+  { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: false },
+  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: false }, 
+  { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: false },
+  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: false },
+  { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: false },
+  { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: false },
+  { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: false },
+  { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: false },
 
   // Other Indian News
-  { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: true },
-  { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: true },
+  { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: false },
+  { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: false },
   
   // Finance - Indian
-  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
+  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: false },
 ];
 
 
@@ -556,28 +556,14 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
 
       // ID generation
-      let guidValue = getNestedValue(item, 'guid');
-      if (typeof guidValue === 'object') { 
-          if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { 
-              guidValue = originalLink !== '#' ? originalLink : (title + source.name + index);
-          } else {
-              guidValue = normalizeContent(getNestedValue(guidValue, '_', getNestedValue(guidValue, '#text', originalLink)));
-          }
-      } else {
-          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); 
-      }
-      
-      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') 
-                      ? guidValue 
-                      : (originalLink !== "#" ? originalLink : (title + source.name + index) );
-
+      const idInput = (originalLink !== "#" ? originalLink : (title + source.name + index) );
       const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); 
       
-      let slugifiedIdInput = slugify(idInput);
+      let slugifiedIdInput = slugify(idInput); // Slugify the entire input first
 
-      const MAX_SLUG_BASE_LENGTH = 100;
+      const MAX_SLUG_BASE_LENGTH = 100; // Max length for the slugified part
       if (slugifiedIdInput.length > MAX_SLUG_BASE_LENGTH) {
-        slugifiedIdInput = slugifiedIdInput.substring(0, MAX_SLUG_BASE_LENGTH);
+        slugifiedIdInput = slugifiedIdInput.substring(0, MAX_SLUG_BASE_LENGTH); // Truncate if too long
       }
       
       const id = slugifiedIdInput + '-' + idSuffix;
