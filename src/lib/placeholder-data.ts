@@ -4,11 +4,21 @@
 import { fetchArticlesFromAllSources } from './rss-service';
 import { slugify } from './utils';
 import { adminDB } from './firebaseAdmin';
-import type { Article } from './placeholder-data'; // Self-referential type import is fine
 
-// Re-declaring interface here if it's not exported from a .d.ts file or shared differently
-// For this case, assuming Article is defined in this file itself or properly imported if from elsewhere.
-// export interface Article { ... } // Ensure Article interface is defined or imported
+// Define and export the Article interface
+export interface Article {
+  id: string;
+  title: string;
+  summary: string;
+  date: string; // ISO string
+  source: string;
+  category: string;
+  imageUrl: string | null; // Can be null
+  link: string; // Internal app link: /category/id
+  sourceLink: string; // Original article link from the RSS feed
+  content?: string; // Full content, often HTML from RSS
+  fetchedAt?: string; // ISO string, added when fetching/saving to Firestore
+}
 
 const FIRESTORE_STALE_THRESHOLD = 15 * 60 * 1000; // 15 minutes in milliseconds
 
@@ -39,9 +49,11 @@ export async function getArticles(searchTerm?: string, currentCategory?: string)
 
   if (isDBStale) {
     const liveArticles = await fetchArticlesFromAllSources(); 
+    // Directly return the filtered live articles. fetchArticlesFromAllSources already updates Firestore.
     return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
   }
 
+  // If using fresh data from DB, filter it.
   return filterAndSearchArticles(articlesFromDB, searchTerm, currentCategory);
 }
 
@@ -51,10 +63,9 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
     if (doc.exists) {
       return doc.data() as Article;
     } else {
-      // Fallback: if not found, fetch all, update Firestore, then try to find it.
-      // This ensures that if the article is very new and was missed by a previous fetch,
-      // or if Firestore was cleared, we attempt to get it.
-      const articles = await getArticles(); // This will trigger fetchArticlesFromAllSources if DB is stale/empty
+      // Fallback: if not found, maybe it's very new and DB hasn't synced.
+      // This could be slow if called often for non-existent IDs.
+      const articles = await getArticles(); // This ensures DB is populated if empty/stale
       return articles.find(article => article.id === id);
     }
   } catch (error) {
@@ -101,4 +112,3 @@ export async function filterAndSearchArticles(
   }
   return filtered;
 }
-
