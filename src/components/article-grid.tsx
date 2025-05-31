@@ -3,13 +3,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Article } from "@/lib/placeholder-data";
-// import { getArticles } from "@/lib/placeholder-data"; // Direct import removed
 import ArticleCard from "./article-card";
 import useIntersectionObserver from "@/hooks/use-intersection-observer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-// import type { ParsedUrlQuery } from 'querystring'; // No longer needed here
+import { Button } from "@/components/ui/button";
 
 
 interface ArticleGridProps {
@@ -56,25 +55,24 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       if (searchTerm) params.set('q', searchTerm);
       if (currentCategory && currentCategory !== "All") params.set('category', currentCategory);
       
-      // Removed: params.set('skipOg', 'true'); 
-      
       const response = await fetch(`/api/articles?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`API error! status: ${response.status}`);
       }
-      const fetchedArticles: Article[] = await response.json();
+      const fetchedArticlesFromApi: Article[] = await response.json();
 
-      setAllFetchedArticles(fetchedArticles);
-      setDisplayedArticles(fetchedArticles.slice(0, ARTICLES_PER_PAGE));
-      setHasMore(fetchedArticles.length > ARTICLES_PER_PAGE);
+      setAllFetchedArticles(fetchedArticlesFromApi);
+      setDisplayedArticles(fetchedArticlesFromApi.slice(0, ARTICLES_PER_PAGE));
+      setHasMore(fetchedArticlesFromApi.length > ARTICLES_PER_PAGE);
       setPage(2); 
     } catch (error) {
       console.error("Failed to fetch articles via API:", error);
       setAllFetchedArticles([]);
       setDisplayedArticles([]);
       setHasMore(false);
+    } finally {
+      setIsLoadingDataForFilter(false);
     }
-    setIsLoadingDataForFilter(false);
   }, [currentCategory, searchTerm]);
   
   useEffect(() => {
@@ -99,11 +97,15 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   }, [isFetchingMoreItems, isLoadingDataForFilter, hasMore, page, allFetchedArticles]);
 
+  const isAllCategoryView = currentCategory === "All" && (searchTerm === "" || !searchTerm);
+  const isInfiniteScrollTriggerActive = !isAllCategoryView && hasMore;
+
   useEffect(() => {
-    if (entry?.isIntersecting && hasMore && !isFetchingMoreItems && !isLoadingDataForFilter) {
+    // Infinite scroll only triggers if not "All" category view, has more, and not already fetching.
+    if (entry?.isIntersecting && isInfiniteScrollTriggerActive && !isFetchingMoreItems && !isLoadingDataForFilter) {
       loadMoreDisplayedArticles();
     }
-  }, [entry, loadMoreDisplayedArticles, hasMore, isFetchingMoreItems, isLoadingDataForFilter]);
+  }, [entry, loadMoreDisplayedArticles, isInfiniteScrollTriggerActive, isFetchingMoreItems, isLoadingDataForFilter]);
 
   if (isLoadingDataForFilter) { 
     return (
@@ -115,7 +117,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     );
   }
   
-  if (displayedArticles.length === 0 && !isLoadingDataForFilter) {
+  if (displayedArticles.length === 0) { // isLoadingDataForFilter is false here
     return (
       <Alert variant="default" className="mt-8">
         <AlertCircle className="h-4 w-4" />
@@ -135,16 +137,40 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
         ))}
       </div>
       <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4">
-        {isFetchingMoreItems && (
-           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
-            ))}
-          </div>
-        )}
-        {!isFetchingMoreItems && !isLoadingDataForFilter && !hasMore && displayedArticles.length > 0 && (
-          <p className="text-muted-foreground mt-4">You've reached the end!</p>
-        )}
+        {(() => {
+          // This rendering block is only reached if isLoadingDataForFilter is false.
+          if (isAllCategoryView) { // "All" category view (no search)
+            if (hasMore) {
+              return (
+                <Button onClick={loadMoreDisplayedArticles} disabled={isFetchingMoreItems}>
+                  {isFetchingMoreItems ? "Loading More..." : "View More Articles"}
+                </Button>
+              );
+            } else if (displayedArticles.length > 0) { // No more articles for "All" view, but some were displayed
+              return <p className="text-muted-foreground mt-4">You've reached the end!</p>;
+            }
+            // If "All" view, displayedArticles.length is 0, and no more, "No Articles Found" alert handles it.
+            return null; 
+          } else { // Not "All" category view (i.e., specific category or search is active)
+            if (hasMore) { // If there are more articles for this filtered view (infinite scroll mode)
+              if (isFetchingMoreItems) { // And we are currently fetching them (via infinite scroll)
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
+                    ))}
+                  </div>
+                );
+              }
+              // If hasMore, but not fetching, intersection observer will trigger loadMore. Show nothing here.
+              return null; 
+            } else if (displayedArticles.length > 0) { // No more articles for this filtered view, but some were shown
+              return <p className="text-muted-foreground mt-4">You've reached the end!</p>;
+            }
+            // If filtered view, displayedArticles.length is 0, and no more, "No Articles Found" alert handles it.
+            return null;
+          }
+        })()}
       </div>
     </>
   );
