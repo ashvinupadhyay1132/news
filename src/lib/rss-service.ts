@@ -10,7 +10,7 @@ import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
-import { adminDB } from './firebaseAdmin'; // Import Firestore admin instance
+// import { adminDB } from './firebaseAdmin'; // Firestore admin instance removed
 
 interface NewsSource {
   name: string;
@@ -21,8 +21,8 @@ interface NewsSource {
 
 // Define target display categories
 const TARGET_DISPLAY_CATEGORIES = [
-  'Technology', 'Business & Finance', 'Sports', 'Politics', 
-  'Entertainment', 'Science', 'World News', 'India News', 
+  'Technology', 'Business & Finance', 'Sports', 'Politics',
+  'Entertainment', 'Science', 'World News', 'India News',
   'Life & Style', 'Top News', 'General'
 ];
 
@@ -54,9 +54,9 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
     // Sports (make keywords more specific)
     const sportKeywordsRawStrict = ['sports', 'cricket', 'football', 'soccer', 'tennis', 'ipl', 'olympic', 'nba', 'mls', 'esports', 'f1', 'motogp', 'athletics', 'badminton', 'hockey', 'rugby', 'golf', 'wrestling', 'boxing', 'formula 1', 'e-sports', 'gaming competition'];
     const sportKeywordsTitleStrict = ['cricket score', 'ipl match', 'football game', 'tennis tournament', 'olympic medal', 'nba playoffs', 'world cup qualifier', 'grand slam event', 'batsman', 'bowler', 'goal', 'league table', 'championship game', 'fixture schedule', 'match report', 'final score', 'athlete', 'sports update', 'team lineup'];
-    
+
     if (sportKeywordsRawStrict.some(keyword => lowerRawCategory.includes(keyword))) return 'Sports';
-    if (sportKeywordsTitleStrict.some(keyword => lowerTitle.includes(keyword)) && 
+    if (sportKeywordsTitleStrict.some(keyword => lowerTitle.includes(keyword)) &&
         (lowerRawCategory.includes('news') || lowerRawCategory.includes('general') || lowerRawCategory.includes('headlines') || lowerRawCategory.includes('top stor') || lowerRawCategory === '' || lowerRawCategory.includes('sport'))) {
         if (lowerTitle.includes('match') && (techKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword)) || techKeywordsTitle.some(keyword => lowerTitle.includes(keyword)))) {
             // This is likely a tech article, let technology rule pass.
@@ -71,11 +71,11 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
     const bizKeywordsTitle = ['sensex', 'nifty', 'ipo', 'startup funding', 'quarterly result', 'profit', 'loss', 'gdp', 'inflation', 'interest rate', 'budget', 'fiscal policy', 'monetary policy', 'shares', 'stocks', 'commodities', 'forex', 'bull market', 'bear market', 'economic growth', 'recession', 'company shares', 'market trends'];
 
     if (bizKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword))) return 'Business & Finance';
-    if (bizKeywordsTitle.some(keyword => lowerTitle.includes(keyword)) && 
+    if (bizKeywordsTitle.some(keyword => lowerTitle.includes(keyword)) &&
         (lowerRawCategory.includes('news') || lowerRawCategory.includes('general') || lowerRawCategory.includes('headlines') || lowerRawCategory.includes('top stor') || lowerRawCategory === '' || lowerRawCategory.includes('business') || lowerRawCategory.includes('finance'))) {
        return 'Business & Finance';
     }
-    
+
     // Politics
     const politicsKeywordsRaw = ['politic', 'election', 'government', 'parliament', 'minister', 'democracy', 'legislature', 'ballot', 'campaign', 'diplomacy', 'geopolitics', 'public policy', 'political party'];
     const politicsKeywordsTitle = ['election result', 'prime minister', 'modi', 'rahul gandhi', 'parliament session', 'bill passed', 'policy debate', 'international summit', 'treaty negotiation', 'geopolitical tension', 'vote count', 'political rally', 'mp', 'mla', 'chief minister', 'cabinet meeting', 'government scheme'];
@@ -87,9 +87,9 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
     }
 
     // Entertainment
-    const entKeywordsRaw = ['entertainment', 'movie', 'film', 'music', 'bollywood', 'hollywood', 'celebrity', 'tv', 'web series', 'cinema', 'arts', 'culture', 'showbiz', 'box office', 'gossip', 'ott platform']; 
+    const entKeywordsRaw = ['entertainment', 'movie', 'film', 'music', 'bollywood', 'hollywood', 'celebrity', 'tv', 'web series', 'cinema', 'arts', 'culture', 'showbiz', 'box office', 'gossip', 'ott platform'];
     const entKeywordsTitle = ['box office collection', 'movie review', 'film trailer', 'album release', 'concert tour', 'award ceremony', 'actor interview', 'actress lifestyle', 'director announcement', 'series finale date', 'ott platform release', 'celebrity news', 'film release'];
-    
+
     if (entKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword))) {
         if(lowerRawCategory.includes('lifestyle') && (techKeywordsRaw.some(k => lowerRawCategory.includes(k)) || bizKeywordsRaw.some(k => lowerRawCategory.includes(k)))) {
             // let other rules handle if it's more tech/biz lifestyle
@@ -117,18 +117,18 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
         (lowerRawCategory.includes('news') || lowerRawCategory.includes('general') || lowerRawCategory.includes('headlines') || lowerRawCategory.includes('top stor') || lowerRawCategory === '' || lowerRawCategory.includes('science'))) {
         return 'Science';
     }
-    
+
     // World News (specific keywords, avoid 'india')
     const worldKeywordsRaw = ['world', 'global', 'international', 'asia news', 'europe news', 'africa news', 'america news', 'un session', 'nato meeting', 'foreign affairs discussion', 'international conflict'];
-    if (worldKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword) && !lowerRawCategory.includes('india') && !lowerRawCategory.includes('bharat'))) { 
+    if (worldKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword) && !lowerRawCategory.includes('india') && !lowerRawCategory.includes('bharat'))) {
         return 'World News';
     }
     const worldKeywordsTitle = ['war in', 'global summit on', 'international relations update', 'united nations resolution', 'conflict between', 'treaty signing between', 'foreign minister meets', 'ukraine crisis', 'middle east peace'];
-    if (worldKeywordsTitle.some(keyword => lowerTitle.includes(keyword)) && 
-        !(lowerRawCategory.includes('india') || lowerTitle.includes('india') || lowerRawCategory.includes('bharat') || lowerTitle.includes('bharat'))) { 
+    if (worldKeywordsTitle.some(keyword => lowerTitle.includes(keyword)) &&
+        !(lowerRawCategory.includes('india') || lowerTitle.includes('india') || lowerRawCategory.includes('bharat') || lowerTitle.includes('bharat'))) {
         return 'World News';
     }
-    
+
     // India News
     const indiaKeywordsRaw = ['india', 'national', 'delhi', 'mumbai', 'bengaluru', 'kolkata', 'chennai', 'hyderabad', 'pune', 'state news', 'indian affairs', 'bharat', 'indian government'];
     if (indiaKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword))) return 'India News';
@@ -138,7 +138,7 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
     // Life & Style (should be less aggressive than entertainment)
     const lifeKeywordsRaw = ['life', 'style', 'fashion', 'food', 'travel', 'wellness', 'horoscope', 'recipe', 'well-being', 'home decor', 'garden tips', 'parenting advice', 'relationships guide', 'beauty trends', 'health tips'];
     const lifeKeywordsTitle = ['fashion week highlights', 'easy recipe for', 'travel guide to', 'yoga benefits', 'meditation techniques', 'daily zodiac forecast', 'parenting hacks', 'home makeover ideas', 'latest beauty products', 'healthy eating habits'];
-    
+
     if (lifeKeywordsRaw.some(keyword => lowerRawCategory.includes(keyword))) {
         if (!(techKeywordsRaw.some(k => lowerRawCategory.includes(k)) || bizKeywordsRaw.some(k => lowerRawCategory.includes(k)))) {
             return 'Life & Style';
@@ -150,10 +150,10 @@ function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
             return 'Life & Style';
         }
     }
-    
+
     // Top News (usually from source)
     if (lowerRawCategory.includes('top stor') || lowerRawCategory.includes('latest news') || lowerRawCategory.includes('breaking news') || lowerRawCategory.includes('headlines')) return 'Top News';
-    
+
     // If rawCategory is already one of the target categories (case-insensitive check)
     const matchedTargetCategory = TARGET_DISPLAY_CATEGORIES.find(tc => tc.toLowerCase() === lowerRawCategory);
     if (matchedTargetCategory) return matchedTargetCategory;
@@ -167,9 +167,9 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "TechCrunch", rssUrl: "https://techcrunch.com/feed/", defaultCategory: "Technology", fetchOgImageFallback: true },
   { name: "Reuters Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
-  
+
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: false },
-  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: false }, 
+  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: false },
   { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: false },
   { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: false },
   { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: false },
@@ -179,16 +179,16 @@ const NEWS_SOURCES: NewsSource[] = [
 
   { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: false },
   { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: false },
-  
+
   { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: false },
 ];
 
 
-const parser = new Parser({ 
-  explicitArray: false, 
-  ignoreAttrs: false, 
+const parser = new Parser({
+  explicitArray: false,
+  ignoreAttrs: false,
   mergeAttrs: true,
-  trim: true 
+  trim: true
 });
 
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
@@ -204,21 +204,21 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
         },
         signal: AbortSignal.timeout(8000) // 8-second timeout
       });
-  
+
       if (!response.ok) {
         // console.warn(`[RSS Service] Failed to fetch OG image from ${articleUrl}, status: ${response.status}`);
         return null;
       }
-  
+
       const htmlContent = await response.text();
       const $ = cheerioLoad(htmlContent);
-  
-      let ogImageUrl = 
+
+      let ogImageUrl =
           $('meta[property="og:image"]').attr('content') ||
           $('meta[name="og:image"]').attr('content') ||
           $('meta[property="twitter:image"]').attr('content') ||
           $('meta[name="twitter:image"]').attr('content');
-      
+
       if (ogImageUrl && typeof ogImageUrl === 'string') {
           ogImageUrl = he.decode(ogImageUrl.trim()); // Decode HTML entities
           if (ogImageUrl.startsWith('/')) {
@@ -226,7 +226,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
               ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
           }
           if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
-              return null; 
+              return null;
           }
           return ogImageUrl;
       }
@@ -241,15 +241,15 @@ function normalizeContent(contentInput: any): string {
   let text = '';
   if (typeof contentInput === 'string') {
     text = contentInput;
-  } else if (contentInput && typeof contentInput._ === 'string') { 
+  } else if (contentInput && typeof contentInput._ === 'string') {
     text = contentInput._;
-  } else if (contentInput && typeof contentInput.$t === 'string') { 
+  } else if (contentInput && typeof contentInput.$t === 'string') {
     text = contentInput.$t;
-  } else if (contentInput && typeof contentInput['#'] === 'string') { 
+  } else if (contentInput && typeof contentInput['#'] === 'string') {
       text = contentInput['#'];
-  } else if (contentInput && typeof contentInput['#text'] === 'string') { 
+  } else if (contentInput && typeof contentInput['#text'] === 'string') {
       text = contentInput['#text'];
-  } else if (contentInput && contentInput['#name'] === '__cdata' && typeof contentInput._ === 'string') { 
+  } else if (contentInput && contentInput['#name'] === '__cdata' && typeof contentInput._ === 'string') {
      text = contentInput._;
   } else if (Array.isArray(contentInput)) {
     text = contentInput.map(segment => normalizeContent(segment)).join(' ');
@@ -261,7 +261,7 @@ function normalizeContent(contentInput: any): string {
             break;
         }
     }
-    if (!text) { 
+    if (!text) {
         const standardFields = [
             getNestedValue(contentInput, 'content:encoded'),
             getNestedValue(contentInput, 'content'),
@@ -269,7 +269,7 @@ function normalizeContent(contentInput: any): string {
             getNestedValue(contentInput, 'summary'),
         ];
         for (const val of standardFields) {
-            const normalizedVal = normalizeContent(val); 
+            const normalizedVal = normalizeContent(val);
             if (normalizedVal && normalizedVal.trim() !== '') {
                 text = normalizedVal;
                 break;
@@ -277,13 +277,13 @@ function normalizeContent(contentInput: any): string {
         }
     }
   }
-  
+
   if (text) {
     let decodedText = text.trim();
     try {
         decodedText = he.decode(decodedText);
         // Remove control characters, null bytes, and Unicode replacement characters
-        decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
+        decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
         return decodedText;
     } catch (e) {
         // Fallback if he.decode fails (should be rare)
@@ -295,8 +295,8 @@ function normalizeContent(contentInput: any): string {
 
 function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceName?: string): string {
   let textToSummarize = '';
-  const descriptionText = normalizeContent(descriptionInput); 
-  const fullContentText = normalizeContent(fullContentInput); 
+  const descriptionText = normalizeContent(descriptionInput);
+  const fullContentText = normalizeContent(fullContentInput);
 
   // Prefer full content if it's significantly longer than the description
   if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { // Arbitrary 50 char difference
@@ -306,7 +306,7 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   } else if (fullContentText) { // Fallback to full content if description is empty
     textToSummarize = fullContentText;
   }
-  
+
   // Source-specific cleaning (example for Reddit, can be expanded)
   if (sourceName && sourceName.toLowerCase().includes("reddit")) {
     textToSummarize = textToSummarize
@@ -333,14 +333,14 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
     .replace(/&nbsp;/gi, ' ') // Replace non-breaking spaces
     .replace(/\s+/g, ' ')    // Normalize whitespace (multiple spaces to single)
     .trim();
-    
+
   // Fallback if initial summary becomes empty after stripping (e.g., it was only an image)
   if (!plainText && fullContentText && fullContentText !== textToSummarize) { // Check if fullContent was different and not used
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') 
-        .replace(/<img[^>]*?>/gi, '') 
+        .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '')
+        .replace(/<img[^>]*?>/gi, '')
         .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '')
         .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
         .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
@@ -360,7 +360,7 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
 
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string, articleLink?: string): string | null {
   let imageUrl: string | null = null;
-  
+
   // Try standard media tags first
   if (item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
@@ -383,7 +383,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
       }
     }
   }
-  
+
   if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
     imageUrl = item.enclosure.url;
   }
@@ -391,17 +391,17 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
     imageUrl = item['media:thumbnail'].url;
   }
- 
+
   // Check for `image` tag (can be string or object with url)
   if (!imageUrl && item.image && item.image.url) {
     imageUrl = item.image.url;
   } else if (!imageUrl && item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
     imageUrl = item.image;
   }
-  
+
   // Fallback: Check content fields for embedded <img> tags
   const contentFieldsForImageSearch = [
-    getNestedValue(item, 'content:encoded'), 
+    getNestedValue(item, 'content:encoded'),
     getNestedValue(item, 'content'),
     getNestedValue(item, 'description'),
     getNestedValue(item, 'summary'), // Summary might contain simple HTML with an image
@@ -428,7 +428,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
       }
     }
   }
-  
+
   // Final URL cleaning and validation
   if (imageUrl && typeof imageUrl === 'string') {
     imageUrl = he.decode(imageUrl.trim());
@@ -455,9 +455,9 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
 async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 NewsAggregator/1.0 (+http://example.com/bot.html)', 
-        'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 NewsAggregator/1.0 (+http://example.com/bot.html)',
+        'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7'
       },
       signal: AbortSignal.timeout(15000), // 15-second timeout per feed
       next: { revalidate: 300 } // Revalidate cache every 5 minutes
@@ -470,7 +470,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
     const arrayBuffer = await fetchResponse.arrayBuffer();
     const rawDataBuffer = Buffer.from(arrayBuffer);
-    
+
     // Attempt to decode with UTF-8, fallback to Windows-1252 if too many replacement chars
     let feedXmlString: string;
     let utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
@@ -483,7 +483,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     } else {
       feedXmlString = utf8Decoded;
     }
-    
+
     // Final cleanup of any remaining replacement characters or control characters
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
@@ -492,10 +492,10 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
     let items = getNestedValue(result, 'rss.channel.item', []);
     if (!items || (Array.isArray(items) && items.length === 0)) { // Atom feeds use 'feed.entry'
-      items = getNestedValue(result, 'feed.entry', []); 
+      items = getNestedValue(result, 'feed.entry', []);
     }
      if (!items || (Array.isArray(items) && items.length === 0)) { // Some older RDF feeds
-      items = getNestedValue(result, 'rdf:RDF.item', []); 
+      items = getNestedValue(result, 'rdf:RDF.item', []);
     }
 
     // Ensure items is an array
@@ -527,16 +527,16 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.type === 'text/html' && l.href);
         const selfLink = linkField.find(l => typeof l === 'object' && l.rel === 'self' && l.href); // Less preferred, but a fallback
         const firstValidLink = linkField.find(l => (typeof l === 'object' && l.href && l.href.startsWith('http')) || (typeof l === 'string' && l.startsWith('http')) );
-        
-        let tempLink = alternateLink ? alternateLink.href : 
-                       ( (firstValidLink && typeof firstValidLink === 'object') ? firstValidLink.href : 
-                         (typeof firstValidLink === 'string' ? firstValidLink : 
+
+        let tempLink = alternateLink ? alternateLink.href :
+                       ( (firstValidLink && typeof firstValidLink === 'object') ? firstValidLink.href :
+                         (typeof firstValidLink === 'string' ? firstValidLink :
                            (selfLink && selfLink.href && selfLink.href.startsWith('http') ? selfLink.href : '#')
                          )
                        );
         originalLink = he.decode(String(tempLink).trim());
       }
-      
+
       // Fallback to guid if it's a permalink
       if (originalLink === '#' && item.guid && (typeof item.guid === 'string' || (typeof item.guid === 'object' && item.guid._)) ) {
           const guidContent = typeof item.guid === 'object' ? item.guid._ : item.guid;
@@ -546,7 +546,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       }
       // Fallback to <id> tag (common in Atom)
       if (originalLink === '#' && item.id && typeof item.id === 'string' && item.id.startsWith('http')) {
-        originalLink = he.decode(item.id.trim()); 
+        originalLink = he.decode(item.id.trim());
       }
 
       // Date extraction
@@ -556,14 +556,14 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       // ID generation
       const idInput = (originalLink !== "#" ? originalLink : (title + source.name + index) );
       const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); // Short, sanitized suffix from source name
-      
+
       let slugifiedIdInput = slugify(idInput); // Slugify the entire input first
 
       const MAX_SLUG_BASE_LENGTH = 100; // Max length for the slugified part
       if (slugifiedIdInput.length > MAX_SLUG_BASE_LENGTH) {
         slugifiedIdInput = slugifiedIdInput.substring(0, MAX_SLUG_BASE_LENGTH); // Truncate if too long
       }
-      
+
       const id = slugifiedIdInput + '-' + idSuffix;
 
 
@@ -578,12 +578,12 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
           rawCategoryFromFeed = rawCategoryFromFeed.term || rawCategoryFromFeed._ || rawCategoryFromFeed['#text'] || rawCategoryFromFeed.label || rawCategoryFromFeed.name || rawCategoryFromFeed.$;
       }
       rawCategoryFromFeed = typeof rawCategoryFromFeed === 'string' ? he.decode(rawCategoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General'); // Take first category if multiple, decode
-      
+
       const finalCategory = mapToDisplayCategory(rawCategoryFromFeed, title);
 
       // Image extraction
       let imageUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
-      
+
       // OG Image fallback if no image found and enabled for source
       if (!imageUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#') {
         try {
@@ -591,7 +591,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
           if (ogImage) imageUrl = ogImage;
         } catch (ogError) { /* error handled by fetchOgImageFromUrl */ }
       }
-      
+
       // Content and Summary
       let itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
       const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), itemContent, source.name);
@@ -614,15 +614,15 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       processedItems.push({
         id,
         title,
-        summary: summaryText, 
+        summary: summaryText,
         date,
         source: source.name,
-        category: finalCategory, 
+        category: finalCategory,
         imageUrl: imageUrl || null, // Ensure null if no image
-        link: internalArticleLink, 
-        sourceLink: originalLink, 
+        link: internalArticleLink,
+        sourceLink: originalLink,
         content: itemContent || summaryText, // Fallback content to summary
-        fetchedAt: new Date().toISOString(), // Add fetchedAt timestamp for Firestore
+        fetchedAt: new Date().toISOString(), // Add fetchedAt timestamp
       });
     }
     return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
@@ -640,13 +640,13 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     .filter(result => result.status === 'fulfilled')
     .map(result => (result as PromiseFulfilledResult<Article[]>).value)
     .flat();
-  
+
   // Filter out articles with persistent garbage characters (already done in fetchAndParseRSS, but good as a final check)
-  allArticles = allArticles.filter(article => 
-    !article.title.includes('\uFFFD') && 
+  allArticles = allArticles.filter(article =>
+    !article.title.includes('\uFFFD') &&
     !article.summary.includes('\uFFFD')
   );
-  
+
   // Filter out articles with very short or placeholder summaries
   allArticles = allArticles.filter(article => {
     const summaryLower = article.summary.toLowerCase();
@@ -660,7 +660,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   for (const article of allArticles) {
     if (!article.title || !article.sourceLink || article.sourceLink === '#') {
         // console.warn("[RSS Service] Skipping article due to missing title or sourceLink:", article.title, article.sourceLink);
-        continue; 
+        continue;
     }
 
     // Normalize the link for de-duplication key
@@ -671,7 +671,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
         const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk', 'spot_im_highlight_immediate', 'spot_im_platform', 'spot_im_story_after_action', 'spot_im_impression_id', 'si', 'ICID', 'ncid', 'ns_source', 'ns_mchannel', 'ns_campaign', 'ns_linkname', 'ns_fee', '_ga', 'oly_anon_id', 'oly_enc_id', 'otc_src', 'otc_tcat', 'otc_subtcat', 'otc_type', 'otc_ctry'];
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
-    } catch (e) { 
+    } catch (e) {
         // Fallback for invalid URLs
         normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
     }
@@ -699,7 +699,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
                 keepNew = true;
             } else if (!article.imageUrl && existingArticle.imageUrl) {
                 // keep existing
-            } 
+            }
             // Prioritize article with more detailed content (if available and significantly different)
             else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) {
                 keepNew = true;
@@ -710,7 +710,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
             else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.' && !article.summary.toLowerCase().startsWith("summary not available")) {
                 keepNew = true;
             }
-            
+
             if (keepNew) {
                 uniqueArticlesMap.set(normalizedLinkKey, article);
             }
@@ -726,21 +726,9 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   // Sort all unique articles by date, newest first
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const articlesToSave = allArticles.slice(0, 500); // Limit to top 500 newest articles
+  // Removed Firestore saving logic
+  // const articlesToSave = allArticles.slice(0, 500);
+  // console.log(`[RSS Service] Processed ${articlesToSave.length} articles. DB saving removed.`);
 
-  // Save to Firestore
-  const batch = adminDB.batch();
-  articlesToSave.forEach(article => {
-    const docRef = adminDB.collection('articles_rss_feed').doc(article.id);
-    batch.set(docRef, article, { merge: true }); // Use merge:true to upsert
-  });
-  try {
-    await batch.commit();
-    console.log(`[RSS Service] Successfully saved/updated ${articlesToSave.length} articles to Firestore.`);
-  } catch (error) {
-    console.error("[RSS Service] Error saving articles to Firestore:", error);
-  }
-
-  return articlesToSave;
+  return allArticles.slice(0, 500); // Return top 500 newest articles
 }
-    
