@@ -583,7 +583,7 @@ async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean
       const finalCategory = mapToDisplayCategory(rawCategoryFromFeed, title);
       
       let extractedImgUrl: string | null = null;
-      let itemContent: string | undefined = undefined;
+      let itemContentForPage: string | undefined = undefined;
       let summaryText: string;
 
       if (isForCategoriesOnly) {
@@ -596,8 +596,50 @@ async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean
             if (ogImage) extractedImgUrl = ogImage;
           } catch (ogError) { /* error handled by fetchOgImageFromUrl */ }
         }
-        itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
-        summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), itemContent, source.name);
+        
+        const rawFullContentFromFeed = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
+        itemContentForPage = rawFullContentFromFeed;
+
+        if (extractedImgUrl && itemContentForPage && itemContentForPage.length > 0) {
+            try {
+                const $ = cheerioLoad(itemContentForPage);
+                const firstImgElement = $('img').first();
+
+                if (firstImgElement.length) {
+                    let firstImgSrcInContent = firstImgElement.attr('src') || firstImgElement.attr('data-src');
+                    if (firstImgSrcInContent) {
+                        let resolvedFirstImgSrcInContent = '';
+                        let tempSrc = he.decode(firstImgSrcInContent.trim());
+
+                        if (tempSrc.startsWith('//')) {
+                            tempSrc = `https:${tempSrc}`;
+                        }
+
+                        if (tempSrc.startsWith('http')) {
+                            try {
+                                resolvedFirstImgSrcInContent = new URL(tempSrc).href;
+                            } catch (e) { /* invalid absolute URL */ }
+                        } else if (originalLink && originalLink.startsWith('http')) {
+                            try {
+                                resolvedFirstImgSrcInContent = new URL(tempSrc, originalLink).href;
+                            } catch (e) { /* invalid relative URL or base */ }
+                        }
+                        
+                        if (resolvedFirstImgSrcInContent && resolvedFirstImgSrcInContent === extractedImgUrl) {
+                            const imgHtml = $.html(firstImgElement);
+                            const indexOfImg = itemContentForPage.indexOf(imgHtml);
+                            if (indexOfImg !== -1 && indexOfImg < 300) { // Only remove if very early
+                                firstImgElement.remove();
+                                itemContentForPage = $.html();
+                            }
+                        }
+                    }
+                }
+            } catch (cheerioError) {
+                // console.warn(`[RSS Service] Cheerio error during image de-duplication for "${title}": ${cheerioError.message}`);
+            }
+        }
+        summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawFullContentFromFeed, source.name);
       }
 
 
@@ -624,7 +666,7 @@ async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean
         imageUrl: extractedImgUrl, 
         link: internalArticleLink,
         sourceLink: originalLink,
-        content: itemContent, 
+        content: itemContentForPage, 
         fetchedAt: new Date().toISOString(),
       });
     }
