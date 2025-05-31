@@ -22,24 +22,24 @@ export interface Article {
 export async function getArticles(
   searchTerm?: string,
   currentCategory?: string,
-  isForCategoriesOnly: boolean = false
+  isForCategoriesOnly: boolean = false,
+  fetchOgImagesParam: boolean = true // New parameter
 ): Promise<Article[]> {
-  const liveArticles = await fetchArticlesFromAllSources(isForCategoriesOnly);
-  // If it's for categories only, the articles might be lightweight (no summary/content for filtering)
-  // However, filterAndSearchArticles primarily uses title, category, source which should be present.
-  // Summary filtering will be ineffective for category-only runs, which is acceptable.
+  const liveArticles = await fetchArticlesFromAllSources(isForCategoriesOnly, fetchOgImagesParam);
   return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
-  // When fetching a single article, always get the full version
-  const articles = await getArticles(undefined, undefined, false); 
+  // When fetching a single article, always get the full version with OG images
+  const articles = await getArticles(undefined, undefined, false, true); 
   return articles.find(article => article.id === id);
 }
 
 export async function getCategories(): Promise<string[]> {
-  // Use the lightweight mode for fetching articles just for category names
-  const articles = await getArticles(undefined, undefined, true); 
+  // Use lightweight mode for categories; OG images are not needed here.
+  // `isForCategoriesOnly` already ensures OG images are skipped by fetchAndParseRSS,
+  // but explicit `fetchOgImagesParam: false` is clearer.
+  const articles = await getArticles(undefined, undefined, true, false); 
   const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
   return ["All", ...Array.from(uniqueCategories).sort()];
 }
@@ -66,7 +66,6 @@ export async function filterAndSearchArticles(
     filtered = filtered.filter(
       (article) =>
         article.title.toLowerCase().includes(lowerSearchTerm) ||
-        // Summary might be a placeholder in 'isForCategoriesOnly' mode, so this check might not be effective then.
         (article.summary && article.summary !== "For category generation" && article.summary.toLowerCase().includes(lowerSearchTerm)) ||
         (article.category && article.category.toLowerCase().includes(lowerSearchTerm)) ||
         (article.source && article.source.toLowerCase().includes(lowerSearchTerm))
@@ -74,3 +73,4 @@ export async function filterAndSearchArticles(
   }
   return filtered;
 }
+

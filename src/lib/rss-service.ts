@@ -225,15 +225,15 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
               const urlObject = new URL(articleUrl);
               ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
           }
-          if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
-              return null;
-          }
-          // Final validation
-          try {
-            const validatedUrl = new URL(ogImageUrl);
-            return validatedUrl.href; // Return normalized URL
-          } catch (e) {
-            return null;
+          
+          // Final validation: must be a valid absolute HTTP/HTTPS URL
+          if (ogImageUrl.startsWith('http')) {
+            try {
+                const validatedUrl = new URL(ogImageUrl);
+                return validatedUrl.href; // Return normalized URL
+            } catch (e) {
+                return null; // Invalid URL format
+            }
           }
       }
       return null;
@@ -444,18 +444,16 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
           src = new URL(src, base.href).href;
         }
       } catch (e) {
-        // console.warn(`[RSS Service] Failed to resolve relative URL "${src}" against base "${articleLink}": ${e.message}`);
-        continue; // Invalid base or relative path, skip this src
+        continue; 
       }
     }
 
-    // Final validation: must be a valid absolute HTTP/HTTPS URL
     if (src.startsWith('http')) {
       try {
-        const validatedUrl = new URL(src); // This also handles cases like "http://economictimes.indiatimes.comhttps//img.etimg.com/..."
+        const validatedUrl = new URL(src); 
         if (validatedUrl.protocol === 'http:' || validatedUrl.protocol === 'https:') {
-          imageUrl = validatedUrl.href; // Use the normalized href
-          break; // Found a valid image URL
+          imageUrl = validatedUrl.href; 
+          break; 
         }
       } catch (urlError) {
         // console.warn(`[RSS Service] Invalid URL constructed: "${src}". Error: ${urlError.message}`);
@@ -463,10 +461,10 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
 
-  return imageUrl; // This will be null if no valid image was found
+  return imageUrl; 
 }
 
-async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean = false): Promise<Article[]> {
+async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean = false, fetchOgImagesParam: boolean = true): Promise<Article[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
       headers: {
@@ -590,10 +588,9 @@ async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean
 
       if (isForCategoriesOnly) {
         summaryText = "For category generation"; // Lightweight placeholder
-        // title, date, source, category, link, sourceLink, id are still needed for structure
       } else {
         extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
-        if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#') {
+        if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#' && fetchOgImagesParam) {
           try {
             const ogImage = await fetchOgImageFromUrl(originalLink);
             if (ogImage) extractedImgUrl = ogImage;
@@ -607,13 +604,11 @@ async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
       if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD'))) {
-        // console.warn(`[RSS Service] Skipping article due to persistent garbage characters in title/summary: "${title}"`);
         continue;
       }
       if (!isForCategoriesOnly) {
         const summaryLower = summaryText.toLowerCase();
         if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
-          // console.warn(`[RSS Service] Skipping article due to short/invalid summary: "${title}"`);
           continue;
         }
       }
@@ -626,22 +621,21 @@ async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean
         date,
         source: source.name,
         category: finalCategory,
-        imageUrl: extractedImgUrl, // Will be null in isForCategoriesOnly mode
+        imageUrl: extractedImgUrl, 
         link: internalArticleLink,
         sourceLink: originalLink,
-        content: itemContent, // Will be undefined in isForCategoriesOnly mode
+        content: itemContent, 
         fetchedAt: new Date().toISOString(),
       });
     }
     return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
-    // console.error(`[RSS Service] Error processing ${source.name} RSS feed:`, error.message, error.stack);
     return [];
   }
 }
 
-export async function fetchArticlesFromAllSources(isForCategoriesOnly: boolean = false): Promise<Article[]> {
-  const allArticlesPromises = NEWS_SOURCES.map(source => fetchAndParseRSS(source, isForCategoriesOnly));
+export async function fetchArticlesFromAllSources(isForCategoriesOnly: boolean = false, fetchOgImagesParam: boolean = true): Promise<Article[]> {
+  const allArticlesPromises = NEWS_SOURCES.map(source => fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam));
   const results = await Promise.allSettled(allArticlesPromises);
 
   let allArticles: Article[] = results
@@ -713,15 +707,15 @@ export async function fetchArticlesFromAllSources(isForCategoriesOnly: boolean =
               if (keepNew) {
                   uniqueArticlesMap.set(normalizedLinkKey, article);
               }
-          } // If titles are not similar but link key is same, this is a problem - first one wins.
+          } 
       } else {
           uniqueArticlesMap.set(normalizedLinkKey, article);
       }
     }
     allArticles = Array.from(uniqueArticlesMap.values());
-  } // End of if(!isForCategoriesOnly) block for intensive processing
+  } 
 
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return allArticles.slice(0, 500); // Still limit to 500 overall
+  return allArticles.slice(0, 500); 
 }
     

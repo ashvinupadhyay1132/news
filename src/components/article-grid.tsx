@@ -56,6 +56,9 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       if (searchTerm) params.set('q', searchTerm);
       if (currentCategory && currentCategory !== "All") params.set('category', currentCategory);
       
+      // Always skip OG images for grid view for performance
+      params.set('skipOg', 'true');
+      
       const response = await fetch(`/api/articles?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`API error! status: ${response.status}`);
