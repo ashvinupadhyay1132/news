@@ -170,7 +170,13 @@ const NEWS_SOURCES: NewsSource[] = [
   // Times of India
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: true },
   { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: true }, 
-  
+  { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: true },
+  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
+  { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: true },
+  { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
+  { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: true },
+  { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: true },
+
   // Other Indian News
   { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: true },
   { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: true },
@@ -228,6 +234,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
       }
       return null;
     } catch (error) {
+      // console.error(`[RSS Service] Error fetching OG image for ${articleUrl}: ${error.message}`);
       return null;
     }
 }
@@ -277,9 +284,11 @@ function normalizeContent(contentInput: any): string {
     let decodedText = text.trim();
     try {
         decodedText = he.decode(decodedText);
+        // Remove control characters, null bytes, and Unicode replacement characters
         decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
         return decodedText;
     } catch (e) {
+        // Fallback if he.decode fails (should be rare)
         return text.trim().replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     }
   }
@@ -291,40 +300,44 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   const descriptionText = normalizeContent(descriptionInput); 
   const fullContentText = normalizeContent(fullContentInput); 
 
-  if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { 
+  // Prefer full content if it's significantly longer than the description
+  if (fullContentText && fullContentText.length > (descriptionText?.length || 0) + 50) { // Arbitrary 50 char difference
     textToSummarize = fullContentText;
   } else if (descriptionText) {
     textToSummarize = descriptionText;
-  } else if (fullContentText) { 
+  } else if (fullContentText) { // Fallback to full content if description is empty
     textToSummarize = fullContentText;
   }
   
+  // Source-specific cleaning (example for Reddit, can be expanded)
   if (sourceName && sourceName.toLowerCase().includes("reddit")) {
     textToSummarize = textToSummarize
-        .replace(/<p>submitted by.*?<\/p>/gi, '') 
-        .replace(/<a href="[^"]*">\[comments?\]<\/a>/gi, '') 
-        .replace(/<a href="[^"]*">\[link\]<\/a>/gi, '')     
-        .replace(/<a[^>]*?>\[\d+ comments?\]<\/a>/gi, '') 
-        .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, ''); 
+        .replace(/<p>submitted by.*?<\/p>/gi, '') // Removes "submitted by u/username"
+        .replace(/<a href="[^"]*">\[comments?\]<\/a>/gi, '') // Removes "[comments]" links
+        .replace(/<a href="[^"]*">\[link\]<\/a>/gi, '')     // Removes "[link]" links
+        .replace(/<a[^>]*?>\[\d+ comments?\]<\/a>/gi, '') // Removes "[N comments]" links
+        .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, ''); // Removes "read more" links if they are wrapped in <p>
   }
 
+  // General HTML stripping and text cleaning
   const plainText = textToSummarize
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') 
-    .replace(/<img[^>]*?>/gi, '') 
-    .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '') 
-    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') 
-    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '') 
-    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '') 
-    .replace(/<!--[\s\S]*?-->/g, '') 
-    .replace(/<[^>]+>/g, ' ') 
-    .replace(/\[link\]|\[comments\]/gi, '') 
-    .replace(/&nbsp;/gi, ' ') 
-    .replace(/\s+/g, ' ')    
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags and content
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags and content
+    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') // Remove figure tags and content
+    .replace(/<img[^>]*?>/gi, '') // Remove img tags
+    .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '') // Remove table tags and content
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') // Remove iframe tags
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '') // Remove video tags
+    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '') // Remove audio tags
+    .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
+    .replace(/<[^>]+>/g, ' ') // Remove all other HTML tags, leaving content
+    .replace(/\[link\]|\[comments\]/gi, '') // Remove common bracketed text like [link]
+    .replace(/&nbsp;/gi, ' ') // Replace non-breaking spaces
+    .replace(/\s+/g, ' ')    // Normalize whitespace (multiple spaces to single)
     .trim();
     
-  if (!plainText && fullContentText && fullContentText !== textToSummarize) { 
+  // Fallback if initial summary becomes empty after stripping (e.g., it was only an image)
+  if (!plainText && fullContentText && fullContentText !== textToSummarize) { // Check if fullContent was different and not used
       const plainFullContent = fullContentText
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -350,6 +363,7 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string, articleLink?: string): string | null {
   let imageUrl: string | null = null;
   
+  // Try standard media tags first
   if (item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
@@ -380,24 +394,26 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     imageUrl = item['media:thumbnail'].url;
   }
  
+  // Check for `image` tag (can be string or object with url)
   if (!imageUrl && item.image && item.image.url) {
     imageUrl = item.image.url;
   } else if (!imageUrl && item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
     imageUrl = item.image;
   }
   
+  // Fallback: Check content fields for embedded <img> tags
   const contentFieldsForImageSearch = [
     getNestedValue(item, 'content:encoded'), 
     getNestedValue(item, 'content'),
     getNestedValue(item, 'description'),
-    getNestedValue(item, 'summary'), 
+    getNestedValue(item, 'summary'), // Summary might contain simple HTML with an image
   ];
 
   for (const field of contentFieldsForImageSearch) {
     if (imageUrl) break;
-    const normalizedField = normalizeContent(field); 
+    const normalizedField = normalizeContent(field); // Ensure field is string
     if (normalizedField && typeof normalizedField === 'string') {
-      const $ = cheerioLoad(normalizedField);
+      const $ = cheerioLoad(normalizedField); // Load the HTML string into Cheerio
       const imgTag = $('img').first();
       if (imgTag.length && imgTag.attr('src')) {
         let srcCandidate = imgTag.attr('src');
@@ -405,9 +421,9 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
           try {
             const base = new URL(articleLink);
             srcCandidate = new URL(srcCandidate, base.origin).href;
-          } catch (e) { /* ignore */ }
+          } catch (e) { /* ignore parse errors for relative URLs if base is bad */ }
         }
-        if (srcCandidate && srcCandidate.startsWith('http')) { 
+        if (srcCandidate && srcCandidate.startsWith('http')) { // Ensure it's a full URL
             imageUrl = srcCandidate;
             break;
         }
@@ -415,26 +431,27 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     }
   }
   
+  // Final URL cleaning and validation
   if (imageUrl && typeof imageUrl === 'string') {
     imageUrl = he.decode(imageUrl.trim());
-    if (imageUrl.startsWith('//')) { 
+    if (imageUrl.startsWith('//')) { // Handle protocol-relative URLs
       return `https:${imageUrl}`;
     }
-    if (imageUrl.startsWith('/')) { 
+    if (imageUrl.startsWith('/')) { // Handle root-relative URLs
         if (articleLink && articleLink.startsWith('http')) {
             try {
                 const baseUrlObject = new URL(articleLink);
                 return new URL(imageUrl, baseUrlObject.origin).href;
-            } catch (e) { return null; } 
+            } catch (e) { return null; } // Invalid base or relative URL
         }
-        return null; 
+        return null; // Cannot resolve if no base articleLink
     }
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-        return null; 
+        return null; // Invalid scheme
     }
     return imageUrl;
   }
-  return null; 
+  return null; // No valid image URL found
 }
 
 async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
@@ -444,45 +461,52 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 NewsAggregator/1.0 (+http://example.com/bot.html)', 
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7' 
       },
-      signal: AbortSignal.timeout(15000), 
-      next: { revalidate: 300 } 
+      signal: AbortSignal.timeout(15000), // 15-second timeout per feed
+      next: { revalidate: 300 } // Revalidate cache every 5 minutes
     });
 
     if (!fetchResponse.ok) {
+      // console.warn(`[RSS Service] Failed to fetch ${source.name} (${source.rssUrl}): ${fetchResponse.status}`);
       return [];
     }
 
     const arrayBuffer = await fetchResponse.arrayBuffer();
     const rawDataBuffer = Buffer.from(arrayBuffer);
     
+    // Attempt to decode with UTF-8, fallback to Windows-1252 if too many replacement chars
     let feedXmlString: string;
     let utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
+    // Heuristic: if more than 5 replacement chars, or >1% of content, try fallback.
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
+      // console.warn(`[RSS Service] High UTF-8 replacement char count for ${source.name}. Trying Windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
     }
     
+    // Final cleanup of any remaining replacement characters or control characters
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
     const result = await parser.parseStringPromise(feedXmlString);
 
     let items = getNestedValue(result, 'rss.channel.item', []);
-    if (!items || (Array.isArray(items) && items.length === 0)) { 
+    if (!items || (Array.isArray(items) && items.length === 0)) { // Atom feeds use 'feed.entry'
       items = getNestedValue(result, 'feed.entry', []); 
     }
-     if (!items || (Array.isArray(items) && items.length === 0)) { 
+     if (!items || (Array.isArray(items) && items.length === 0)) { // Some older RDF feeds
       items = getNestedValue(result, 'rdf:RDF.item', []); 
     }
 
+    // Ensure items is an array
     if (!Array.isArray(items)) {
-      items = items ? [items] : []; 
+      items = items ? [items] : []; // If single item, wrap in array; if null/undefined, empty array
     }
 
     if (items.length === 0) {
+      // console.warn(`[RSS Service] No items found for ${source.name} (${source.rssUrl}) after parsing.`);
       return [];
     }
 
@@ -490,19 +514,20 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
     for (const [index, item] of items.entries()) {
       const rawTitle = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
-      const title = rawTitle; 
+      const title = rawTitle; // Already normalized by normalizeContent
 
+      // Link extraction logic (more robust)
       let originalLink = '#';
       const linkField = getNestedValue(item, 'link');
       if (typeof linkField === 'string') {
         originalLink = he.decode(linkField.trim());
-      } else if (typeof linkField === 'object' && linkField?.href) { 
+      } else if (typeof linkField === 'object' && linkField?.href) { // Atom <link href="...">
         originalLink = he.decode(linkField.href.trim());
-      } else if (typeof linkField === 'object' && !linkField?.href && linkField?._) { 
+      } else if (typeof linkField === 'object' && !linkField?.href && linkField?._) { // XML JS object with text content
         originalLink = he.decode(linkField._.trim());
-      } else if (Array.isArray(linkField)) { 
+      } else if (Array.isArray(linkField)) { // Multiple link tags (Atom)
         const alternateLink = linkField.find(l => typeof l === 'object' && l.rel === 'alternate' && l.type === 'text/html' && l.href);
-        const selfLink = linkField.find(l => typeof l === 'object' && l.rel === 'self' && l.href); 
+        const selfLink = linkField.find(l => typeof l === 'object' && l.rel === 'self' && l.href); // Less preferred, but a fallback
         const firstValidLink = linkField.find(l => (typeof l === 'object' && l.href && l.href.startsWith('http')) || (typeof l === 'string' && l.startsWith('http')) );
         
         let tempLink = alternateLink ? alternateLink.href : 
@@ -514,51 +539,59 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         originalLink = he.decode(String(tempLink).trim());
       }
       
+      // Fallback to guid if it's a permalink
       if (originalLink === '#' && item.guid && (typeof item.guid === 'string' || (typeof item.guid === 'object' && item.guid._)) ) {
           const guidContent = typeof item.guid === 'object' ? item.guid._ : item.guid;
-          if (typeof guidContent === 'string' && guidContent.startsWith('http') && (getNestedValue(item.guid, 'isPermaLink', 'true') !== 'false') ) { 
+          if (typeof guidContent === 'string' && guidContent.startsWith('http') && (getNestedValue(item.guid, 'isPermaLink', 'true') !== 'false') ) { // Ensure it's a permalink
             originalLink = he.decode(guidContent.trim());
           }
       }
+      // Fallback to <id> tag (common in Atom)
       if (originalLink === '#' && item.id && typeof item.id === 'string' && item.id.startsWith('http')) {
         originalLink = he.decode(item.id.trim()); 
       }
 
+      // Date extraction
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
       const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
 
+      // ID generation
+      // Use GUID if available and suitable, otherwise link, fallback to title+source+index
       let guidValue = getNestedValue(item, 'guid');
-      if (typeof guidValue === 'object') { 
-          if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { 
-              guidValue = originalLink !== '#' ? originalLink : (title + source.name + index); 
+      if (typeof guidValue === 'object') { // Handle object GUIDs, check isPermaLink
+          if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { // If not a permalink, don't use it as primary ID string
+              guidValue = originalLink !== '#' ? originalLink : (title + source.name + index); // Fallback strategy for non-permalink GUID
           } else {
               guidValue = normalizeContent(getNestedValue(guidValue, '_', getNestedValue(guidValue, '#text', originalLink)));
           }
       } else {
-          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); 
+          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); // Use item.id if guid is not string/object
       }
       
       const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink !== "#" ? originalLink : (title + source.name + index) );
-      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); 
-      const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput; 
+      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); // Create a short, safe suffix from source name
+      const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput; // Truncate long base IDs
       const id = slugify(idBase) + '-' + idSuffix;
 
 
+      // Category extraction and mapping
       let rawCategoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
       if (Array.isArray(rawCategoryFromFeed)) {
           rawCategoryFromFeed = rawCategoryFromFeed.map(cat => {
-            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$; 
+            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$; // Handle object categories
             return cat;
           }).filter(Boolean).join(', ') || source.defaultCategory || 'General';
       } else if (typeof rawCategoryFromFeed === 'object') {
           rawCategoryFromFeed = rawCategoryFromFeed.term || rawCategoryFromFeed._ || rawCategoryFromFeed['#text'] || rawCategoryFromFeed.label || rawCategoryFromFeed.name || rawCategoryFromFeed.$;
       }
-      rawCategoryFromFeed = typeof rawCategoryFromFeed === 'string' ? he.decode(rawCategoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General'); 
+      rawCategoryFromFeed = typeof rawCategoryFromFeed === 'string' ? he.decode(rawCategoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General'); // Take first category if multiple, decode
       
       const finalCategory = mapToDisplayCategory(rawCategoryFromFeed, title);
 
+      // Image extraction
       let imageUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
       
+      // OG Image fallback if no image found and enabled for source
       if (!imageUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#') {
         try {
           const ogImage = await fetchOgImageFromUrl(originalLink);
@@ -566,16 +599,21 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         } catch (ogError) { /* error handled by fetchOgImageFromUrl */ }
       }
       
+      // Content and Summary
       let itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
       const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), itemContent, source.name);
 
+      // Link to the article detail page within the app
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
+      // Skip articles with persistent garbage characters or very short/no summary
       if (title.includes('\uFFFD') || summaryText.includes('\uFFFD')) {
+        // console.warn(`[RSS Service] Skipping article from ${source.name} due to persistent garbage characters: "${title}"`);
         continue;
       }
       const summaryLower = summaryText.toLowerCase();
       if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
+        // console.warn(`[RSS Service] Skipping article from ${source.name} due to insufficient summary: "${title}"`);
         continue;
       }
 
@@ -587,32 +625,35 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         date,
         source: source.name,
         category: finalCategory, 
-        imageUrl: imageUrl || null, 
+        imageUrl: imageUrl || null, // Ensure null if no image
         link: internalArticleLink, 
         sourceLink: originalLink, 
-        content: itemContent || summaryText, 
+        content: itemContent || summaryText, // Fallback content to summary
       });
     }
     return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
-    return []; 
+    // console.error(`[RSS Service] Error fetching/parsing ${source.name} (${source.rssUrl}):`, error.message);
+    return []; // Return empty array on error for this source
   }
 }
 
 export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   const allArticlesPromises = NEWS_SOURCES.map(source => fetchAndParseRSS(source));
-  const results = await Promise.allSettled(allArticlesPromises); 
+  const results = await Promise.allSettled(allArticlesPromises); // Use allSettled to continue if some feeds fail
 
   let allArticles: Article[] = results
     .filter(result => result.status === 'fulfilled')
     .map(result => (result as PromiseFulfilledResult<Article[]>).value)
     .flat();
   
+  // Filter out articles with persistent garbage characters (already done in fetchAndParseRSS, but good as a final check)
   allArticles = allArticles.filter(article => 
     !article.title.includes('\uFFFD') && 
     !article.summary.includes('\uFFFD')
   );
   
+  // Filter out articles with very short or placeholder summaries
   allArticles = allArticles.filter(article => {
     const summaryLower = article.summary.toLowerCase();
     return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
@@ -624,16 +665,20 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   for (const article of allArticles) {
     if (!article.title || !article.sourceLink || article.sourceLink === '#') {
+        // console.warn("[RSS Service] Skipping article due to missing title or sourceLink:", article.title, article.sourceLink);
         continue; 
     }
 
+    // Normalize the link for de-duplication key
     let normalizedLinkKey = article.sourceLink;
     try {
         const url = new URL(article.sourceLink);
+        // Common tracking parameters to remove for better de-duplication
         const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk', 'spot_im_highlight_immediate', 'spot_im_platform', 'spot_im_story_after_action', 'spot_im_impression_id', 'si', 'ICID', 'ncid', 'ns_source', 'ns_mchannel', 'ns_campaign', 'ns_linkname', 'ns_fee', '_ga', 'oly_anon_id', 'oly_enc_id', 'otc_src', 'otc_tcat', 'otc_subtcat', 'otc_type', 'otc_ctry'];
         paramsToRemove.forEach(param => url.searchParams.delete(param));
         normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
     } catch (e) { 
+        // Fallback for invalid URLs
         normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
     }
 
@@ -655,21 +700,27 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
         if (titlesAreSimilar) {
             let keepNew = false;
+            // Prioritize article with image over one without
             if (article.imageUrl && !existingArticle.imageUrl) {
                 keepNew = true;
             } else if (!article.imageUrl && existingArticle.imageUrl) {
                 // keep existing
-            } else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) {
+            } 
+            // Prioritize article with more detailed content (if available and significantly different)
+            else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) {
                 keepNew = true;
             } else if (!article.content && existingArticle.content) {
                // keep existing
-            } else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.' && !article.summary.toLowerCase().startsWith("summary not available")) {
+            }
+            // Prioritize article with longer, non-placeholder summary
+            else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.' && !article.summary.toLowerCase().startsWith("summary not available")) {
                 keepNew = true;
             }
             
             if (keepNew) {
                 uniqueArticlesMap.set(normalizedLinkKey, article);
             }
+            // If not explicitly better, the first one encountered (already in map) is kept.
         }
         // If links are the same but titles aren't similar enough by the above logic, the first one encountered is kept.
     } else {
@@ -678,8 +729,9 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   }
   allArticles = Array.from(uniqueArticlesMap.values());
 
+  // Sort all unique articles by date, newest first
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return allArticles.slice(0, 200); // Increased limit slightly
+  return allArticles.slice(0, 500); // Return top 500 newest articles
 }
     
