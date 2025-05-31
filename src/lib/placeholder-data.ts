@@ -23,7 +23,7 @@ export async function getArticles(
   searchTerm?: string,
   currentCategory?: string,
   isForCategoriesOnly: boolean = false,
-  fetchOgImagesParam: boolean = false // Default changed to false
+  fetchOgImagesParam: boolean = true // Default changed back to true
 ): Promise<Article[]> {
   const liveArticles = await fetchArticlesFromAllSources(isForCategoriesOnly, fetchOgImagesParam);
   return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
