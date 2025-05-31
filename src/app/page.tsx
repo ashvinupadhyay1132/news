@@ -3,22 +3,22 @@
 
 import ArticleGrid from "@/components/article-grid";
 import CategoryFilter from "@/components/category-filter";
-import { useSearchParams, useRouter } from "next/navigation"; // Added useRouter
+import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import PageLoading from "./loading";
-import { Button } from "@/components/ui/button"; // Added Button import
+import { Button } from "@/components/ui/button";
 
 function NewsPageContent() {
   const searchParams = useSearchParams();
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
   const searchTerm = searchParams.get('q') || "";
   const currentCategory = searchParams.get('category') || "All";
 
   const handleViewAllNews = () => {
-    // Navigate to the base URL, effectively clearing category and search query params
-    // and making the ArticleGrid show all news.
     router.push('/');
   };
+
+  const areFiltersActive = searchTerm || currentCategory !== "All";
 
   return (
     <div className="space-y-8">
@@ -30,18 +30,25 @@ function NewsPageContent() {
         </h2>
         <ArticleGrid searchTerm={searchTerm} currentCategory={currentCategory} />
 
-        {/* Button to reset to 'All News' view - always visible after the grid */}
-        <div className="mt-12 py-8 text-center border-t border-border"> {/* Added padding, border-top for separation */}
-          <h3 className="text-xl font-semibold mb-4 text-foreground">Want to see more?</h3>
-          <Button
-            onClick={handleViewAllNews}
-            size="lg"
-            variant="default" 
-            className="shadow-md hover:shadow-lg transition-shadow"
-          >
-            View All Latest News
-          </Button>
-        </div>
+        {/* Conditionally show the 'View All News' button if filters are active */}
+        {areFiltersActive && (
+          <div className="mt-12 py-8 text-center border-t border-border">
+            <h3 className="text-xl font-semibold mb-4 text-foreground">
+              Finished with this view?
+            </h3>
+            <p className="text-muted-foreground mb-6">
+              You're viewing a filtered set of articles.
+            </p>
+            <Button
+              onClick={handleViewAllNews}
+              size="lg"
+              variant="default"
+              className="shadow-md hover:shadow-lg transition-shadow"
+            >
+              View All Latest News
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -49,10 +56,6 @@ function NewsPageContent() {
 
 export default function HomePage() {
   return (
-    // Suspense key helps re-trigger when searchParams change for NewsPageContent
-    // if NewsPageContent itself were doing top-level data fetching.
-    // However, data fetching is now deeper in ArticleGrid/CategoryFilter with their own loading states.
-    // The main PageLoading is for the initial shell.
     <Suspense fallback={<PageLoading />}>
       <NewsPageContent />
     </Suspense>
