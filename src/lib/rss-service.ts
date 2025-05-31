@@ -556,22 +556,31 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
 
       // ID generation
-      // Use GUID if available and suitable, otherwise link, fallback to title+source+index
       let guidValue = getNestedValue(item, 'guid');
-      if (typeof guidValue === 'object') { // Handle object GUIDs, check isPermaLink
-          if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { // If not a permalink, don't use it as primary ID string
-              guidValue = originalLink !== '#' ? originalLink : (title + source.name + index); // Fallback strategy for non-permalink GUID
+      if (typeof guidValue === 'object') { 
+          if (guidValue.isPermaLink === 'false' || guidValue.ispermalink === 'false') { 
+              guidValue = originalLink !== '#' ? originalLink : (title + source.name + index);
           } else {
               guidValue = normalizeContent(getNestedValue(guidValue, '_', getNestedValue(guidValue, '#text', originalLink)));
           }
       } else {
-          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); // Use item.id if guid is not string/object
+          guidValue = normalizeContent(guidValue || getNestedValue(item, 'id')); 
       }
       
-      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') ? guidValue : (originalLink !== "#" ? originalLink : (title + source.name + index) );
-      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); // Create a short, safe suffix from source name
-      const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput; // Truncate long base IDs
-      const id = slugify(idBase) + '-' + idSuffix;
+      const idInput = (typeof guidValue === 'string' && guidValue.trim() !== '' && guidValue.trim() !== '#') 
+                      ? guidValue 
+                      : (originalLink !== "#" ? originalLink : (title + source.name + index) );
+
+      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); 
+      
+      let slugifiedIdInput = slugify(idInput);
+
+      const MAX_SLUG_BASE_LENGTH = 100;
+      if (slugifiedIdInput.length > MAX_SLUG_BASE_LENGTH) {
+        slugifiedIdInput = slugifiedIdInput.substring(0, MAX_SLUG_BASE_LENGTH);
+      }
+      
+      const id = slugifiedIdInput + '-' + idSuffix;
 
 
       // Category extraction and mapping
@@ -735,3 +744,4 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   return allArticles.slice(0, 500); // Return top 500 newest articles
 }
     
+
