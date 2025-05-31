@@ -49,11 +49,9 @@ export async function getArticles(searchTerm?: string, currentCategory?: string)
 
   if (isDBStale) {
     const liveArticles = await fetchArticlesFromAllSources(); 
-    // Directly return the filtered live articles. fetchArticlesFromAllSources already updates Firestore.
     return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
   }
 
-  // If using fresh data from DB, filter it.
   return filterAndSearchArticles(articlesFromDB, searchTerm, currentCategory);
 }
 
@@ -63,21 +61,17 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
     if (doc.exists) {
       return doc.data() as Article;
     } else {
-      // Fallback: if not found, maybe it's very new and DB hasn't synced.
-      // This could be slow if called often for non-existent IDs.
-      const articles = await getArticles(); // This ensures DB is populated if empty/stale
+      const articles = await getArticles(); 
       return articles.find(article => article.id === id);
     }
   } catch (error) {
     console.error(`[Placeholder Data] Error fetching article ${id} from Firestore:`, error);
-    // Fallback to fetching all and finding it
     const articles = await getArticles();
     return articles.find(article => article.id === id);
   }
 }
 
 export async function getCategories(): Promise<string[]> {
-  // Fetch articles (this will use Firestore-backed data or refresh if stale)
   const articles = await getArticles(); 
   const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
   return ["All", ...Array.from(uniqueCategories).sort()];
