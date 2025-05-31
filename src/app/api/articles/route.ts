@@ -7,11 +7,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const searchTerm = searchParams.get('q') || undefined;
     const category = searchParams.get('category') || undefined;
-    const skipOg = searchParams.get('skipOg') === 'true';
+    // Removed: const skipOg = searchParams.get('skipOg') === 'true';
 
-    // Pass !skipOg as fetchOgImagesParam to getArticles
-    // isForCategoriesOnly is false here because we need full article data for the grid
-    const articles: Article[] = await getArticles(searchTerm, category, false, !skipOg);
+    // Pass false for isForCategoriesOnly, and getArticles will default to fetchOgImagesParam: true
+    const articles: Article[] = await getArticles(searchTerm, category, false);
     return NextResponse.json(articles);
   } catch (error) {
     console.error("Error in /api/articles:", error);
