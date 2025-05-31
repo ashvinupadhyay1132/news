@@ -125,25 +125,6 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Livemint
-      {
-        protocol: 'https',
-        hostname: 'www.livemint.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.livemint.com', 
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.livemint.com',
-        port: '',
-        pathname: '/**',
-      },
       // Economic Times
       {
         protocol: 'https',
