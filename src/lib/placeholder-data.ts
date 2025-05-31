@@ -35,35 +35,62 @@ export async function updateArticlesFromRss(): Promise<void> {
   // console.log("[Data Service] RSS fetch and MongoDB update process completed.");
 }
 
+// Helper function to safely format date strings
+function safeFormatDateString(dateInput: any): string {
+  if (!dateInput) return new Date(0).toISOString(); // Default to Epoch if null/undefined
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) {
+      // console.warn(`Invalid date value encountered: ${dateInput} in safeFormatDateString. Defaulting to Epoch.`);
+      return new Date(0).toISOString(); // Default to Epoch for invalid dates
+    }
+    return d.toISOString();
+  } catch (e) {
+    // console.warn(`Error parsing date value '${dateInput}' in safeFormatDateString: ${e}. Defaulting to Epoch.`);
+    return new Date(0).toISOString();
+  }
+}
+
+// Helper function to safely create Date objects
+function safeCreateDateObject(dateInput: any): Date | undefined {
+  if (!dateInput) return undefined;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) {
+      // console.warn(`Invalid date value encountered: ${dateInput} in safeCreateDateObject. Returning undefined.`);
+      return undefined;
+    }
+    return d;
+  } catch (e) {
+    // console.warn(`Error parsing date value '${dateInput}' in safeCreateDateObject: ${e}. Returning undefined.`);
+    return undefined;
+  }
+}
+
 
 export async function getArticles(
   searchTerm?: string,
   currentCategory?: string,
-  isForCategoriesOnly: boolean = false, // This param might be less relevant if categories are derived from DB
-  fetchOgImagesParam: boolean = true // This now controls if rss-service attempts OG fetch during its DB update
+  isForCategoriesOnly: boolean = false, 
+  fetchOgImagesParam: boolean = true 
 ): Promise<Article[]> {
   const articlesCollection = await getArticlesCollection();
 
-  // Check if MongoDB is empty or data is considered "stale" and needs an update from RSS
-  // For simplicity, we can check if the collection is empty or if the latest article is too old.
-  // A more robust approach might involve a separate "last_updated" tracker.
   const count = await articlesCollection.countDocuments();
   let needsRssUpdate = count === 0;
 
   if (count > 0 && !isForCategoriesOnly) {
     const latestArticle = await articlesCollection.findOne({}, { sort: { date: -1 } });
     if (latestArticle && latestArticle.createdAt) {
-      if ((Date.now() - new Date(latestArticle.createdAt).getTime()) > FIRESTORE_STALE_THRESHOLD) {
-        // console.log("[Data Service] MongoDB data is stale. Triggering RSS update.");
+       const createdAtDate = safeCreateDateObject(latestArticle.createdAt);
+       if (createdAtDate && (Date.now() - createdAtDate.getTime()) > FIRESTORE_STALE_THRESHOLD) {
         needsRssUpdate = true;
       }
     } else {
-      needsRssUpdate = true; // No createdAt, assume stale
+      needsRssUpdate = true; 
     }
   }
   
-  // Trigger RSS fetch and MongoDB update if needed
-  // This runs in the background and does not block the current request from using existing DB data
   if (needsRssUpdate && !isForCategoriesOnly) {
      updateArticlesFromRss().catch(error => console.error("Background RSS update failed:", error));
   }
@@ -72,8 +99,6 @@ export async function getArticles(
   const query: any = {};
   if (currentCategory && currentCategory !== "All") {
     query.category = { $regex: new RegExp(`^${slugify(currentCategory)}$`, 'i') };
-    // If your category in DB is not slugified, use:
-    // query.category = currentCategory;
   }
 
   if (searchTerm) {
@@ -87,17 +112,16 @@ export async function getArticles(
   }
 
   const articlesFromDB = await articlesCollection.find(query)
-    .sort({ date: -1 }) // Sort by original article date
-    .limit(500) // Limit results for performance
+    .sort({ date: -1 }) 
+    .limit(500) 
     .toArray();
 
-  // Map MongoDB document to Article type, ensuring all fields are present
   return articlesFromDB.map(doc => ({
     ...doc,
-    _id: undefined, // Remove MongoDB's _id if it was fetched
-    id: doc.id || (doc as any)._id?.toString(), // Ensure `id` is the one we use in the app
-    date: typeof doc.date === 'string' ? doc.date : new Date(doc.date).toISOString(),
-    createdAt: doc.createdAt ? new Date(doc.createdAt) : undefined,
+    _id: undefined, 
+    id: doc.id || (doc as any)._id?.toString(), 
+    date: safeFormatDateString(doc.date),
+    createdAt: safeCreateDateObject(doc.createdAt),
   })) as Article[];
 }
 
@@ -110,36 +134,27 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
       ...articleDoc,
       _id: undefined,
       id: articleDoc.id || (articleDoc as any)._id?.toString(),
-      date: typeof articleDoc.date === 'string' ? articleDoc.date : new Date(articleDoc.date).toISOString(),
-      createdAt: articleDoc.createdAt ? new Date(articleDoc.createdAt) : undefined,
+      date: safeFormatDateString(articleDoc.date),
+      createdAt: safeCreateDateObject(articleDoc.createdAt),
     } as Article;
   }
-  // Optional: Fallback to trigger an RSS update if article not found, then re-query.
-  // This might be too slow for a direct response.
-  // await updateArticlesFromRss();
-  // const freshArticleDoc = await articlesCollection.findOne({ id: id });
-  // if (freshArticleDoc) return freshArticleDoc as Article;
-
   return undefined;
 }
 
 export async function getCategories(): Promise<string[]> {
   const articlesCollection = await getArticlesCollection();
   
-  // Efficiently get distinct categories from MongoDB
   const distinctCategories = await articlesCollection.distinct('category') as string[];
   
   const uniqueCategories = new Set(distinctCategories.filter(Boolean));
   const sortedCategories = ["All", ...Array.from(uniqueCategories).sort()];
 
-  // If categories are sparse or empty, consider a quick RSS update check
-  if (sortedCategories.length <= 1) { // Only "All"
-    // console.log("[Data Service] Categories list is sparse. Triggering RSS update for categories.");
-    // This specific call to fetchFromRss is for category generation, so it's lightweight.
-    const articlesForCategories = await fetchFromRss(true, false, true); // isForCategoriesOnly = true, fetchOgImages = false, saveToDb = true (to populate categories)
+  if (sortedCategories.length <= 1) { 
+    const articlesForCategories = await fetchFromRss(true, false, true); 
     const newDistinctCategories = new Set(articlesForCategories.map(a => a.category).filter(Boolean));
     return ["All", ...Array.from(newDistinctCategories).sort()];
   }
 
   return sortedCategories;
 }
+

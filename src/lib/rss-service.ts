@@ -546,7 +546,11 @@ async function fetchAndParseRSS(
       }
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
-      const date = pubDateSource ? new Date(normalizeContent(pubDateSource)).toISOString() : new Date().toISOString();
+      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date();
+      if (isNaN(parsedDateFromFeed.getTime())) { // Check if date is invalid
+        parsedDateFromFeed = new Date(); // Default to now if parsing failed
+      }
+      const date = parsedDateFromFeed.toISOString();
 
       const idInput = (originalLink !== "#" ? originalLink : (title + source.name + index) );
       const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10);
@@ -671,7 +675,7 @@ async function fetchAndParseRSS(
               { $set: articleForProcessing },
               { upsert: true }
             );
-          } catch (dbError) {
+          } catch (dbError: any) {
             // console.error(`[RSS Service] MongoDB upsert error for "${title}":`, dbError.message);
             // If it's a duplicate key error on sourceLink, it's fine (already handled by upsert logic implicitly).
             // For other errors, log them.
@@ -747,3 +751,4 @@ export async function fetchArticlesFromAllSources(
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return allArticles.slice(0, 500); 
 }
+
