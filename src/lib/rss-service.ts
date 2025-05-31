@@ -412,14 +412,24 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     if (normalizedField && typeof normalizedField === 'string') {
       const $ = cheerioLoad(normalizedField);
       $('img').each((_i, el) => { // Iterate over all img tags
-        let srcCandidate = $(el).attr('src');
+        let srcCandidate = $(el).attr('src') || $(el).attr('data-src'); // Check src, then data-src
+        
         if (srcCandidate) {
+          srcCandidate = srcCandidate.trim(); // Trim whitespace
+
           // Resolve relative URLs if articleLink is available
           if (articleLink && !srcCandidate.startsWith('http')) {
             try {
-              const base = new URL(articleLink);
-              srcCandidate = new URL(srcCandidate, base.origin).href;
+              const base = new URL(articleLink); // articleLink should be a full URL
+              if (srcCandidate.startsWith('//')) { // Protocol-relative
+                srcCandidate = `${base.protocol}${srcCandidate}`;
+              } else if (srcCandidate.startsWith('/')) { // Root-relative
+                srcCandidate = new URL(srcCandidate, base.origin).href;
+              } else { // Path-relative (e.g., 'image.jpg' or '../image.jpg')
+                srcCandidate = new URL(srcCandidate, base.href).href;
+              }
             } catch (e) {
+              // console.warn(`[RSS Service] Failed to resolve relative image URL '${srcCandidate}' with base '${articleLink}': ${e.message}`);
               srcCandidate = null; // Invalidate if resolution fails
             }
           }
@@ -731,5 +741,6 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return allArticles.slice(0, 500); // Return top 500 newest articles
 }
+
 
 
