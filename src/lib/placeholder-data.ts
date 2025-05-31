@@ -8,7 +8,7 @@ import { slugify } from './utils';
 export interface Article {
   id: string;
   title: string;
-  summary: string;
+  summary:string;
   date: string; // ISO string
   source: string;
   category: string;
@@ -23,7 +23,7 @@ export async function getArticles(
   searchTerm?: string,
   currentCategory?: string,
   isForCategoriesOnly: boolean = false,
-  fetchOgImagesParam: boolean = true // New parameter
+  fetchOgImagesParam: boolean = false // Default changed to false
 ): Promise<Article[]> {
   const liveArticles = await fetchArticlesFromAllSources(isForCategoriesOnly, fetchOgImagesParam);
   return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
@@ -37,8 +37,6 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
 
 export async function getCategories(): Promise<string[]> {
   // Use lightweight mode for categories; OG images are not needed here.
-  // `isForCategoriesOnly` already ensures OG images are skipped by fetchAndParseRSS,
-  // but explicit `fetchOgImagesParam: false` is clearer.
   const articles = await getArticles(undefined, undefined, true, false); 
   const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
   return ["All", ...Array.from(uniqueCategories).sort()];
