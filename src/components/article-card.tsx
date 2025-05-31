@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
 
 interface ArticleCardProps {
   article: Article;
@@ -21,6 +22,16 @@ interface ArticleCardProps {
 
 const ArticleCard = ({ article }: ArticleCardProps) => {
   const { toast } = useToast();
+  const [siteOrigin, setSiteOrigin] = useState("");
+
+  useEffect(() => {
+    // Ensure this runs only on the client where window is available
+    if (typeof window !== "undefined") {
+      setSiteOrigin(window.location.origin);
+    }
+  }, []);
+
+
   const formattedDate = new Date(article.date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -31,14 +42,16 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   const placeholderImageSrc = `https://placehold.co/600x400.png`;
 
   const handleShare = (platform: 'twitter' | 'facebook' | 'linkedin' | 'whatsapp' | 'copy') => {
-    // Ensure sourceLink is a full URL before sharing
-    let urlToShare = article.sourceLink;
-    if (urlToShare && !urlToShare.startsWith('http')) {
-      urlToShare = `https://${urlToShare}`;
+    if (!siteOrigin) {
+      toast({ title: "Error", description: "Cannot determine website URL for sharing.", variant: "destructive" });
+      return;
     }
     
-    if (!urlToShare || urlToShare === '#') {
-        toast({ title: "Error", description: "Source link is not available for sharing.", variant: "destructive" });
+    const internalArticleUrl = `${siteOrigin}${article.link}`;
+    const urlToShare = internalArticleUrl;
+
+    if (!urlToShare || urlToShare === `${siteOrigin}/#` || !article.link || article.link === '#') {
+        toast({ title: "Error", description: "Article link is not available for sharing.", variant: "destructive" });
         return;
     }
 
@@ -60,7 +73,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
         break;
       case 'copy':
         navigator.clipboard.writeText(urlToShare).then(() => {
-          toast({ title: "Link Copied!", description: "Original article link copied to clipboard." });
+          toast({ title: "Article Link Copied!", description: "Link to this article on our site copied to clipboard." });
         }).catch(err => {
           toast({ title: "Error", description: "Could not copy link.", variant: "destructive" });
           console.error('Failed to copy: ', err);
@@ -122,7 +135,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9">
+              <Button variant="ghost" size="icon" className="h-9 w-9" disabled={!siteOrigin}>
                 <Share2 className="h-4 w-4" />
                 <span className="sr-only">Share article</span>
               </Button>
@@ -132,7 +145,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
               <DropdownMenuItem onClick={() => handleShare('facebook')}>Facebook</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('linkedin')}>LinkedIn</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleShare('whatsapp')}>WhatsApp</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleShare('copy')}>Copy Original Link</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('copy')}>Copy Article Link</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
