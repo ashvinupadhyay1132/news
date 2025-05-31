@@ -10,7 +10,6 @@ import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
-// import { adminDB } from './firebaseAdmin'; // Firestore admin instance removed
 
 interface NewsSource {
   name: string;
@@ -409,23 +408,28 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
 
   for (const field of contentFieldsForImageSearch) {
     if (imageUrl) break;
-    const normalizedField = normalizeContent(field); // Ensure field is string
+    const normalizedField = normalizeContent(field);
     if (normalizedField && typeof normalizedField === 'string') {
-      const $ = cheerioLoad(normalizedField); // Load the HTML string into Cheerio
-      const imgTag = $('img').first();
-      if (imgTag.length && imgTag.attr('src')) {
-        let srcCandidate = imgTag.attr('src');
-        if (srcCandidate && !srcCandidate.startsWith('http') && articleLink) {
-          try {
-            const base = new URL(articleLink);
-            srcCandidate = new URL(srcCandidate, base.origin).href;
-          } catch (e) { /* ignore parse errors for relative URLs if base is bad */ }
-        }
-        if (srcCandidate && srcCandidate.startsWith('http')) { // Ensure it's a full URL
+      const $ = cheerioLoad(normalizedField);
+      $('img').each((_i, el) => { // Iterate over all img tags
+        let srcCandidate = $(el).attr('src');
+        if (srcCandidate) {
+          // Resolve relative URLs if articleLink is available
+          if (articleLink && !srcCandidate.startsWith('http')) {
+            try {
+              const base = new URL(articleLink);
+              srcCandidate = new URL(srcCandidate, base.origin).href;
+            } catch (e) {
+              srcCandidate = null; // Invalidate if resolution fails
+            }
+          }
+
+          if (srcCandidate && srcCandidate.startsWith('http')) {
             imageUrl = srcCandidate;
-            break;
+            return false; // Break .each loop once a valid http/s image is found
+          }
         }
-      }
+      });
     }
   }
 
@@ -725,10 +729,7 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   // Sort all unique articles by date, newest first
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  // Removed Firestore saving logic
-  // const articlesToSave = allArticles.slice(0, 500);
-  // console.log(`[RSS Service] Processed ${articlesToSave.length} articles. DB saving removed.`);
-
   return allArticles.slice(0, 500); // Return top 500 newest articles
 }
+
+
