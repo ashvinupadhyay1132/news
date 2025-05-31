@@ -18,21 +18,83 @@ interface NewsSource {
   fetchOgImageFallback?: boolean;
 }
 
+// Define target display categories
+const TARGET_DISPLAY_CATEGORIES = [
+  'Technology', 'Business & Finance', 'Sports', 'Politics', 
+  'Entertainment', 'Science', 'World News', 'India News', 
+  'Life & Style', 'Top News', 'General'
+];
+
+
+function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
+    const lowerRawCategory = rawCategory.toLowerCase();
+    const lowerTitle = title.toLowerCase();
+
+    // Sports
+    if (lowerRawCategory.includes('sport') || lowerRawCategory.includes('cricket') || lowerRawCategory.includes('football') || lowerRawCategory.includes('tennis') || lowerRawCategory.includes('ipl') || lowerRawCategory.includes('olympic')) return 'Sports';
+    if (lowerTitle.includes('cricket') || lowerTitle.includes('ipl') || lowerTitle.includes('football') || lowerTitle.includes('tennis') || lowerTitle.includes('olympic') || lowerTitle.includes('batsman') || lowerTitle.includes('bowler') || lowerTitle.includes('match') && (lowerRawCategory.includes('news') || lowerRawCategory.includes('general')) ) return 'Sports';
+
+    // Business & Finance
+    if (lowerRawCategory.includes('business') || lowerRawCategory.includes('finance') || lowerRawCategory.includes('stock') || lowerRawCategory.includes('market') || lowerRawCategory.includes('economic') || lowerRawCategory.includes('economy') || lowerRawCategory.includes('compan') || lowerRawCategory.includes('industr') || lowerRawCategory.includes('bank') || lowerRawCategory.includes('invest')) return 'Business & Finance';
+    if (lowerTitle.includes('sensex') || lowerTitle.includes('nifty') || lowerTitle.includes('ipo') || lowerTitle.includes('startup funding') || lowerTitle.includes('quarterly result') || lowerTitle.includes('profit') || lowerTitle.includes('loss') && (lowerRawCategory.includes('news') || lowerRawCategory.includes('general'))) return 'Business & Finance';
+    
+    // Politics
+    if (lowerRawCategory.includes('politic') || lowerRawCategory.includes('election') || lowerRawCategory.includes('government') || lowerRawCategory.includes('parliament') || lowerRawCategory.includes('minister') || lowerRawCategory.includes('democracy')) return 'Politics';
+    if (lowerTitle.includes('election') || lowerTitle.includes('prime minister') || lowerTitle.includes('modi') || lowerTitle.includes('rahul gandhi') || lowerTitle.includes('parliament') || lowerTitle.includes('bill pass') || lowerTitle.includes('policy') && (lowerRawCategory.includes('news') || lowerRawCategory.includes('general'))) return 'Politics';
+
+    // Technology
+    if (lowerRawCategory.includes('tech') || lowerRawCategory.includes('gadget') || lowerRawCategory.includes('internet') || lowerRawCategory.includes('software') || lowerRawCategory.includes('hardware') || lowerRawCategory.includes('ai') || lowerRawCategory.includes('artificial intelligence') || lowerRawCategory.includes('crypto') || lowerRawCategory.includes('digital')) return 'Technology';
+
+    // Entertainment
+    if (lowerRawCategory.includes('entertainment') || lowerRawCategory.includes('movie') || lowerRawCategory.includes('film') || lowerRawCategory.includes('music') || lowerRawCategory.includes('bollywood') || lowerRawCategory.includes('hollywood') || lowerRawCategory.includes('celebrity') || lowerRawCategory.includes('tv') || lowerRawCategory.includes('web series')) return 'Entertainment';
+
+    // Science
+    if (lowerRawCategory.includes('science') || lowerRawCategory.includes('space') || (lowerRawCategory.includes('health') && !(lowerRawCategory.includes('business') || lowerRawCategory.includes('finance'))) || lowerRawCategory.includes('research') || lowerRawCategory.includes('discover')) return 'Science';
+
+    // World News
+    if (lowerRawCategory.includes('world') || (lowerRawCategory.includes('global') && !lowerRawCategory.includes('india')) || (lowerRawCategory.includes('international') && !lowerRawCategory.includes('india')) || (lowerRawCategory.includes('news') && !(lowerRawCategory.includes('india') || TARGET_DISPLAY_CATEGORIES.some(cat => lowerRawCategory.includes(cat.toLowerCase()) && cat !== 'World News')) )) return 'World News';
+    
+    // India News
+    if (lowerRawCategory.includes('india') || lowerRawCategory.includes('national')) return 'India News';
+    if (lowerRawCategory.includes('delhi') || lowerRawCategory.includes('mumbai') || lowerRawCategory.includes('bengaluru') || lowerRawCategory.includes('kolkata') || lowerRawCategory.includes('chennai') || lowerRawCategory.includes('hyderabad') || lowerRawCategory.includes('pune')) return 'India News';
+    
+    // Life & Style
+    if (lowerRawCategory.includes('life') || lowerRawCategory.includes('style') || lowerRawCategory.includes('fashion') || lowerRawCategory.includes('food') || lowerRawCategory.includes('travel') || lowerRawCategory.includes('wellness') || lowerRawCategory.includes('horoscope') || lowerRawCategory.includes('recipe')) return 'Life & Style';
+
+    // Top News
+    if (lowerRawCategory.includes('top stor') || lowerRawCategory.includes('latest news') || lowerRawCategory.includes('breaking news') || lowerRawCategory.includes('headlines')) return 'Top News';
+    
+    // If rawCategory is already one of the target categories (case-insensitive check)
+    const matchedTargetCategory = TARGET_DISPLAY_CATEGORIES.find(tc => tc.toLowerCase() === lowerRawCategory);
+    if (matchedTargetCategory) return matchedTargetCategory;
+
+    return 'General'; // Default fallback
+}
+
+
 const NEWS_SOURCES: NewsSource[] = [
   { name: "TechCrunch", rssUrl: "https://techcrunch.com/feed/", defaultCategory: "Technology", fetchOgImageFallback: true },
-  { name: "Reuters - Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Finance", fetchOgImageFallback: true },
+  { name: "Reuters - Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
   
-  // User Provided New List (India Focused & Finance)
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: true },
-  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India", fetchOgImageFallback: true },
-  { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India", fetchOgImageFallback: true },
-  { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India", fetchOgImageFallback: true },
-  { name: "BBC News - India", rssUrl: "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml", defaultCategory: "India", fetchOgImageFallback: true },
+  { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: true },
+  { name: "HT - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: true },
+  { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: true },
+  { name: "BBC News - India", rssUrl: "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml", defaultCategory: "India News", fetchOgImageFallback: true },
+
+  { name: "Livemint - News", rssUrl: "https://www.livemint.com/rss/news", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
+  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   
-  { name: "Livemint - News", rssUrl: "https://www.livemint.com/rss/news", defaultCategory: "Finance", fetchOgImageFallback: true },
-  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business", fetchOgImageFallback: true },
+  { name: "BBC World News", rssUrl: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultCategory: "World News", fetchOgImageFallback: true },
+  // Adding a few more for category variety as discussed previously
+  { name: "TOI - World", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: true },
+  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
+  { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: true },
+  { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: true },
+  { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: true },
 ];
+
 
 const parser = new Parser({ 
   explicitArray: false, 
@@ -43,7 +105,6 @@ const parser = new Parser({
 
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
     if (!articleUrl || !articleUrl.startsWith('http')) {
-      // console.warn(`[RSS Service] Invalid article URL for meta image fetching: ${articleUrl}`);
       return null;
     }
     try {
@@ -56,7 +117,6 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
       });
   
       if (!response.ok) {
-        // console.error(`[RSS Service] Failed to fetch HTML for meta image from ${articleUrl}: ${response.status}`);
         return null;
       }
   
@@ -76,14 +136,12 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
               ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
           }
           if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
-              // console.warn(`[RSS Service] Invalid og:image URL scheme from meta: ${ogImageUrl}`);
               return null; 
           }
           return ogImageUrl;
       }
       return null;
     } catch (error) {
-      // console.error(`[RSS Service] Error fetching/parsing HTML for meta image from ${articleUrl}:`, error.message || error);
       return null;
     }
 }
@@ -107,7 +165,7 @@ function normalizeContent(contentInput: any): string {
   } else if (typeof contentInput === 'object' && contentInput !== null) {
     const potentialTextKeys = ['_', '$t', '#text', '#cdata', 'p', 'span', 'div'];
     for (const key of potentialTextKeys) {
-        if (contentInput[key] && typeof contentInput[key] === 'string') { // check if contentInput[key] exists
+        if (contentInput[key] && typeof contentInput[key] === 'string') {
             text = contentInput[key];
             break;
         }
@@ -133,6 +191,7 @@ function normalizeContent(contentInput: any): string {
     let decodedText = text.trim();
     try {
         decodedText = he.decode(decodedText);
+        // Remove \uFFFD (garbage char) and other common control characters
         decodedText = decodedText.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); 
         return decodedText;
     } catch (e) {
@@ -168,13 +227,13 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
   const plainText = textToSummarize
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') 
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') 
-    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') // Remove figure tags and their content
-    .replace(/<img[^>]*?>/gi, '') // Remove img tags
-    .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '') // Remove table tags
-    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') // Remove iframe tags
-    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '') // Remove video tags
-    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '') // Remove audio tags
-    .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
+    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '') 
+    .replace(/<img[^>]*?>/gi, '') 
+    .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '') 
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') 
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '') 
+    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '') 
+    .replace(/<!--[\s\S]*?-->/g, '') 
     .replace(/<[^>]+>/g, ' ') 
     .replace(/\[link\]|\[comments\]/gi, '') 
     .replace(/&nbsp;/gi, ' ') 
@@ -257,8 +316,18 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
       const $ = cheerioLoad(normalizedField);
       const imgTag = $('img').first();
       if (imgTag.length && imgTag.attr('src')) {
-        imageUrl = imgTag.attr('src');
-        break;
+        let srcCandidate = imgTag.attr('src');
+        // Attempt to make relative URLs absolute
+        if (srcCandidate && !srcCandidate.startsWith('http') && articleLink) {
+          try {
+            const base = new URL(articleLink);
+            srcCandidate = new URL(srcCandidate, base.origin).href;
+          } catch (e) { /* ignore, keep relative if fails */ }
+        }
+        if (srcCandidate && srcCandidate.startsWith('http')) { // Only accept absolute URLs
+            imageUrl = srcCandidate;
+            break;
+        }
       }
     }
   }
@@ -273,7 +342,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
             try {
                 const baseUrlObject = new URL(articleLink);
                 return new URL(imageUrl, baseUrlObject.origin).href;
-            } catch (e) { /* console.warn(`[RSS Service] Could not construct absolute URL for relative image ${imageUrl} from base ${articleLink}`); */ return null; }
+            } catch (e) { return null; }
         }
         return null; 
     }
@@ -297,7 +366,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     });
 
     if (!fetchResponse.ok) {
-      // console.error(`[RSS Service] Failed to fetch RSS from ${source.name} (${source.rssUrl}): ${fetchResponse.status} ${fetchResponse.statusText}`);
       return [];
     }
 
@@ -309,7 +377,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
-      // console.warn(`[RSS Service] UTF-8 decoding for ${source.name} resulted in ${utf8ReplacementCharCount} replacement characters. Trying Windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
@@ -333,7 +400,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     }
 
     if (items.length === 0) {
-      // console.warn(`[RSS Service] No items found in RSS feed for ${source.name} (${source.rssUrl}) after parsing.`);
       return [];
     }
 
@@ -394,16 +460,18 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       const idBase = idInput.length > 75 ? idInput.substring(0, 75) : idInput; 
       const id = slugify(idBase) + '-' + idSuffix;
 
-      let categoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
-      if (Array.isArray(categoryFromFeed)) {
-          categoryFromFeed = categoryFromFeed.map(cat => {
+      let rawCategoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
+      if (Array.isArray(rawCategoryFromFeed)) {
+          rawCategoryFromFeed = rawCategoryFromFeed.map(cat => {
             if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$; 
             return cat;
           }).filter(Boolean).join(', ') || source.defaultCategory || 'General';
-      } else if (typeof categoryFromFeed === 'object') {
-          categoryFromFeed = categoryFromFeed.term || categoryFromFeed._ || categoryFromFeed['#text'] || categoryFromFeed.label || categoryFromFeed.name || categoryFromFeed.$;
+      } else if (typeof rawCategoryFromFeed === 'object') {
+          rawCategoryFromFeed = rawCategoryFromFeed.term || rawCategoryFromFeed._ || rawCategoryFromFeed['#text'] || rawCategoryFromFeed.label || rawCategoryFromFeed.name || rawCategoryFromFeed.$;
       }
-      const finalCategory = typeof categoryFromFeed === 'string' ? he.decode(categoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General');
+      rawCategoryFromFeed = typeof rawCategoryFromFeed === 'string' ? he.decode(rawCategoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General');
+      
+      const finalCategory = mapToDisplayCategory(rawCategoryFromFeed, title);
 
       let imageUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
       
@@ -411,7 +479,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         try {
           const ogImage = await fetchOgImageFromUrl(originalLink);
           if (ogImage) imageUrl = ogImage;
-        } catch (ogError) { /* error already logged by fetchOgImageFromUrl */ }
+        } catch (ogError) { /* error logged by fetchOgImageFromUrl if necessary */ }
       }
       
       let itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
@@ -422,7 +490,8 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       if (title.includes('\uFFFD') || summaryText.includes('\uFFFD')) {
         continue;
       }
-      if (!summaryText || summaryText.length < 20 || summaryText.toLowerCase() === "no summary available." || summaryText.toLowerCase() === "...") {
+      const summaryLower = summaryText.toLowerCase();
+      if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
         continue;
       }
 
@@ -433,7 +502,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         summary: summaryText, 
         date,
         source: source.name,
-        category: finalCategory,
+        category: finalCategory, // Use the mapped category
         imageUrl: imageUrl || null, 
         link: internalArticleLink, 
         sourceLink: originalLink, 
@@ -442,7 +511,6 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     }
     return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
-    // console.error(`[RSS Service] Error processing RSS feed for ${source.name} (${source.rssUrl}):`, error);
     return [];
   }
 }
@@ -453,16 +521,16 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
 
   let allArticles: Article[] = results.flat();
   
-  // Filter out articles with garbage characters in title or summary
+  // Filter out articles that STILL have garbage characters in title or summary after normalization
   allArticles = allArticles.filter(article => 
     !article.title.includes('\uFFFD') && 
     !article.summary.includes('\uFFFD')
   );
   
-  // Filter out articles with insufficient summaries
+  // Filter out articles with insufficient summaries (already done in fetchAndParseRSS, but as a safeguard)
   allArticles = allArticles.filter(article => {
     const summaryLower = article.summary.toLowerCase();
-    return article.summary.length >= 20 && summaryLower !== "no summary available." && summaryLower !== "...";
+    return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
   });
 
 
