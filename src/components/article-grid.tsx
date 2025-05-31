@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Article } from "@/lib/placeholder-data";
-import { getArticles, filterAndSearchArticles } from "@/lib/placeholder-data"; // Import getArticles and filterAndSearchArticles
+import { getArticles } from "@/lib/placeholder-data"; 
 import ArticleCard from "./article-card";
 import useIntersectionObserver from "@/hooks/use-intersection-observer";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,45 +40,49 @@ const ArticleCardSkeleton = () => (
 const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   const [allFetchedArticles, setAllFetchedArticles] = useState<Article[]>([]);
   const [displayedArticles, setDisplayedArticles] = useState<Article[]>([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(1); // Next page to fetch for pagination
   const [hasMore, setHasMore] = useState(true);
-  const [isLoading, setIsLoading] = useState(true); // Start with loading true
-  const [isFetchingInitial, setIsFetchingInitial] = useState(true);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
+  // isLoadingDataForFilter is true when fetching for a new category/search (initial or subsequent)
+  const [isLoadingDataForFilter, setIsLoadingDataForFilter] = useState(true); 
+  // isFetchingMoreItems is true only when loading more items via infinite scroll for the current filter
+  const [isFetchingMoreItems, setIsFetchingMoreItems] = useState(false); 
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const entry = useIntersectionObserver(loadMoreRef, { threshold: 0.5 });
 
-  const fetchAndFilterArticles = useCallback(async () => {
-    setIsLoading(true);
+  // Fetches articles when the filter (category/search) changes or on initial load
+  const fetchArticlesForCurrentFilter = useCallback(async () => {
+    setIsLoadingDataForFilter(true); 
     try {
-      // Construct query for getArticles
       const query: ParsedUrlQuery = {};
       if (searchTerm) query.q = searchTerm;
       if (currentCategory && currentCategory !== "All") query.category = currentCategory;
       
-      const fetchedArticles = await getArticles(query); // Pass query to fetch filtered articles
-      setAllFetchedArticles(fetchedArticles); // Store all *filtered* articles based on current search/category
+      const fetchedArticles = await getArticles(query);
+      setAllFetchedArticles(fetchedArticles);
       setDisplayedArticles(fetchedArticles.slice(0, ARTICLES_PER_PAGE));
       setHasMore(fetchedArticles.length > ARTICLES_PER_PAGE);
-      setPage(2); // Next page to load will be 2
+      setPage(2); // Reset to page 2 for the next set of items to load
     } catch (error) {
       console.error("Failed to fetch articles:", error);
       setAllFetchedArticles([]);
       setDisplayedArticles([]);
       setHasMore(false);
     }
-    setIsLoading(false);
-    setIsFetchingInitial(false);
+    setIsLoadingDataForFilter(false);
   }, [currentCategory, searchTerm]);
   
   useEffect(() => {
-    setIsFetchingInitial(true);
-    fetchAndFilterArticles();
-  }, [fetchAndFilterArticles]); // Rerun when searchTerm or currentCategory changes
+    fetchArticlesForCurrentFilter();
+  }, [fetchArticlesForCurrentFilter]); // Re-run when currentCategory or searchTerm changes
 
+  // Loads more articles for the current filter (infinite scroll)
   const loadMoreDisplayedArticles = useCallback(() => {
-    if (isLoading || !hasMore || isFetchingInitial) return;
-    setIsLoading(true); 
+    // Prevent loading more if already fetching more, or if a new filter is being loaded, or no more articles
+    if (isFetchingMoreItems || isLoadingDataForFilter || !hasMore) return;
+    
+    setIsFetchingMoreItems(true); 
     
     // Simulate network delay for seeing the skeleton loaders
     setTimeout(() => {
@@ -89,28 +93,30 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       setDisplayedArticles((prev) => [...prev, ...nextPageArticles]);
       setHasMore(allFetchedArticles.length > nextPageEndIndex);
       setPage((prev) => prev + 1);
-      setIsLoading(false);
-    }, 750); // 750ms delay
+      setIsFetchingMoreItems(false);
+    }, 750);
 
-  }, [isLoading, hasMore, page, allFetchedArticles, isFetchingInitial]);
+  }, [isFetchingMoreItems, isLoadingDataForFilter, hasMore, page, allFetchedArticles]);
 
   useEffect(() => {
-    if (entry?.isIntersecting && hasMore && !isLoading && !isFetchingInitial) {
+    if (entry?.isIntersecting && hasMore && !isFetchingMoreItems && !isLoadingDataForFilter) {
       loadMoreDisplayedArticles();
     }
-  }, [entry, loadMoreDisplayedArticles, hasMore, isLoading, isFetchingInitial]);
+  }, [entry, loadMoreDisplayedArticles, hasMore, isFetchingMoreItems, isLoadingDataForFilter]);
 
-  if (isFetchingInitial) { // Initial loading state for the entire grid
+  // Show full grid skeleton if loading data for a new filter (initial or subsequent filter change)
+  if (isLoadingDataForFilter) { 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
-          <ArticleCardSkeleton key={`initial-skeleton-${index}`} />
+          <ArticleCardSkeleton key={`filter-load-skeleton-${index}`} />
         ))}
       </div>
     );
   }
   
-  if (displayedArticles.length === 0 && !isLoading) {
+  // If not loading and no articles are found for the current filter
+  if (displayedArticles.length === 0 && !isLoadingDataForFilter) {
     return (
       <Alert variant="default" className="mt-8">
         <AlertCircle className="h-4 w-4" />
@@ -126,18 +132,20 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
         {displayedArticles.map((article) => (
-          <ArticleCard key={article.id + article.source} article={article} /> // Added source to key for more uniqueness
+          <ArticleCard key={article.id + article.source} article={article} />
         ))}
       </div>
       <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4">
-        {isLoading && !isFetchingInitial && (
+        {/* Show 3 skeletons only when fetching more items for infinite scroll */}
+        {isFetchingMoreItems && (
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             {Array.from({ length: 3 }).map((_, index) => (
-              <ArticleCardSkeleton key={`loading-skeleton-${index}`} />
+              <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
             ))}
           </div>
         )}
-        {!isLoading && !hasMore && displayedArticles.length > 0 && (
+        {/* Show "end" message only if not loading more, not loading new filter, no more articles, and some articles were displayed */}
+        {!isFetchingMoreItems && !isLoadingDataForFilter && !hasMore && displayedArticles.length > 0 && (
           <p className="text-muted-foreground mt-4">You've reached the end!</p>
         )}
       </div>
