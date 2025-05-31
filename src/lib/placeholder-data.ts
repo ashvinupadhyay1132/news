@@ -1,30 +1,18 @@
 
 'use server';
 
-import type { ParsedUrlQuery } from 'querystring';
 import { fetchArticlesFromAllSources } from './rss-service';
 import { slugify } from './utils';
-import { adminDB } from './firebaseAdmin'; // Import Firestore admin instance
-import type { Timestamp } from 'firebase-admin/firestore';
+import { adminDB } from './firebaseAdmin';
+import type { Article } from './placeholder-data'; // Self-referential type import is fine
 
-
-export interface Article {
-  id: string;
-  title: string;
-  summary: string;
-  date: string; // ISO string
-  source: string;
-  category: string;
-  imageUrl: string | null; // Can be null
-  link: string; // Internal app link: /category/id
-  sourceLink: string; // Original article link from the RSS feed
-  content?: string; // Full content, often HTML from RSS
-  fetchedAt?: string; // ISO string, added when fetching/saving to Firestore
-}
+// Re-declaring interface here if it's not exported from a .d.ts file or shared differently
+// For this case, assuming Article is defined in this file itself or properly imported if from elsewhere.
+// export interface Article { ... } // Ensure Article interface is defined or imported
 
 const FIRESTORE_STALE_THRESHOLD = 15 * 60 * 1000; // 15 minutes in milliseconds
 
-export async function getArticles(query?: ParsedUrlQuery): Promise<Article[]> {
+export async function getArticles(searchTerm?: string, currentCategory?: string): Promise<Article[]> {
   let articlesFromDB: Article[] = [];
   let isDBStale = true;
 
@@ -51,10 +39,10 @@ export async function getArticles(query?: ParsedUrlQuery): Promise<Article[]> {
 
   if (isDBStale) {
     const liveArticles = await fetchArticlesFromAllSources(); 
-    return filterAndSearchArticles(liveArticles, query);
+    return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
   }
 
-  return filterAndSearchArticles(articlesFromDB, query);
+  return filterAndSearchArticles(articlesFromDB, searchTerm, currentCategory);
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
@@ -63,31 +51,37 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
     if (doc.exists) {
       return doc.data() as Article;
     } else {
-      const articles = await getArticles(); 
+      // Fallback: if not found, fetch all, update Firestore, then try to find it.
+      // This ensures that if the article is very new and was missed by a previous fetch,
+      // or if Firestore was cleared, we attempt to get it.
+      const articles = await getArticles(); // This will trigger fetchArticlesFromAllSources if DB is stale/empty
       return articles.find(article => article.id === id);
     }
   } catch (error) {
     console.error(`[Placeholder Data] Error fetching article ${id} from Firestore:`, error);
+    // Fallback to fetching all and finding it
     const articles = await getArticles();
     return articles.find(article => article.id === id);
   }
 }
 
 export async function getCategories(): Promise<string[]> {
+  // Fetch articles (this will use Firestore-backed data or refresh if stale)
   const articles = await getArticles(); 
   const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
   return ["All", ...Array.from(uniqueCategories).sort()];
 }
 
-export function filterAndSearchArticles(
+export async function filterAndSearchArticles(
   articles: Article[],
-  query?: ParsedUrlQuery
-): Article[] {
-  if (!query) return articles;
+  searchTerm?: string,
+  currentCategory?: string
+): Promise<Article[]> {
+  if (!searchTerm && (!currentCategory || currentCategory === "All")) {
+    return articles;
+  }
 
   let filtered = articles;
-  const currentCategory = query.category as string | undefined;
-  const searchTerm = query.q as string | undefined;
 
   if (currentCategory && currentCategory !== "All") {
     filtered = filtered.filter(
