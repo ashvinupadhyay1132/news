@@ -56,8 +56,8 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
       <CardContent className="p-4 pt-1 flex-grow">
         <p className="text-sm text-muted-foreground line-clamp-4">{article.summary}</p>
       </CardContent>
-      <CardFooter className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
-        <div className="text-xs text-muted-foreground space-y-1">
+      <CardFooter className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-3">
+        <div className="text-xs text-muted-foreground space-y-1 self-start sm:self-center">
           <div className="flex items-center">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
             {formattedDate}
@@ -67,8 +67,8 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
             {article.source}
           </div>
         </div>
-        <Button asChild variant="link" size="sm" className="p-0 h-auto text-primary hover:underline self-end sm:self-center">
-          <Link href={article.link}>Read More &rarr;</Link>
+        <Button asChild variant="outline" size="sm" className="self-end sm:self-center whitespace-nowrap mt-2 sm:mt-0">
+          <Link href={article.link}>Read More</Link>
         </Button>
       </CardFooter>
     </Card>

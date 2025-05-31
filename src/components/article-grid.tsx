@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -17,6 +18,24 @@ interface ArticleGridProps {
 }
 
 const ARTICLES_PER_PAGE = 9;
+
+const ArticleCardSkeleton = () => (
+  <div className="flex flex-col space-y-3 p-4 border rounded-lg bg-card">
+    <Skeleton className="h-48 w-full rounded-md" />
+    <Skeleton className="h-4 w-20 mt-2" />
+    <Skeleton className="h-6 w-full" />
+    <Skeleton className="h-4 w-full" />
+    <Skeleton className="h-4 w-3/4" />
+    <div className="flex justify-between items-center pt-2 mt-auto">
+      <div className="space-y-1">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+      <Skeleton className="h-9 w-24" />
+    </div>
+  </div>
+);
+
 
 const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   const [allFetchedArticles, setAllFetchedArticles] = useState<Article[]>([]);
@@ -61,14 +80,18 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     if (isLoading || !hasMore || isFetchingInitial) return;
     setIsLoading(true); 
     
-    const nextPageStartIndex = (page - 1) * ARTICLES_PER_PAGE;
-    const nextPageEndIndex = page * ARTICLES_PER_PAGE;
-    const nextPageArticles = allFetchedArticles.slice(nextPageStartIndex, nextPageEndIndex);
-    
-    setDisplayedArticles((prev) => [...prev, ...nextPageArticles]);
-    setHasMore(allFetchedArticles.length > nextPageEndIndex);
-    setPage((prev) => prev + 1);
-    setIsLoading(false);
+    // Simulate network delay for seeing the skeleton loaders
+    setTimeout(() => {
+      const nextPageStartIndex = (page - 1) * ARTICLES_PER_PAGE;
+      const nextPageEndIndex = page * ARTICLES_PER_PAGE;
+      const nextPageArticles = allFetchedArticles.slice(nextPageStartIndex, nextPageEndIndex);
+      
+      setDisplayedArticles((prev) => [...prev, ...nextPageArticles]);
+      setHasMore(allFetchedArticles.length > nextPageEndIndex);
+      setPage((prev) => prev + 1);
+      setIsLoading(false);
+    }, 750); // 750ms delay
+
   }, [isLoading, hasMore, page, allFetchedArticles, isFetchingInitial]);
 
   useEffect(() => {
@@ -81,17 +104,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
-          <div key={index} className="flex flex-col space-y-3 p-4 border rounded-lg bg-card">
-            <Skeleton className="h-48 w-full rounded-md" />
-            <Skeleton className="h-4 w-20 mt-2" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-            <div className="flex justify-between items-center pt-2 mt-auto">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-8 w-20" />
-            </div>
-          </div>
+          <ArticleCardSkeleton key={`initial-skeleton-${index}`} />
         ))}
       </div>
     );
@@ -116,18 +129,16 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
           <ArticleCard key={article.id + article.source} article={article} /> // Added source to key for more uniqueness
         ))}
       </div>
-      <div ref={loadMoreRef} className="h-10 flex justify-center items-center mt-8">
-        {isLoading && !isFetchingInitial && ( // Show spinner only for subsequent loads
-           <div className="flex items-center space-x-2 text-muted-foreground">
-            <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Loading more articles...</span>
+      <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4">
+        {isLoading && !isFetchingInitial && (
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <ArticleCardSkeleton key={`loading-skeleton-${index}`} />
+            ))}
           </div>
         )}
-        {!hasMore && displayedArticles.length > 0 && (
-          <p className="text-muted-foreground">You've reached the end!</p>
+        {!isLoading && !hasMore && displayedArticles.length > 0 && (
+          <p className="text-muted-foreground mt-4">You've reached the end!</p>
         )}
       </div>
     </>
