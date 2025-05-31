@@ -2,11 +2,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-// import { getCategories } from "@/lib/placeholder-data"; // Direct import removed
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { Skeleton } from "./ui/skeleton";
+import { slugify } from "@/lib/utils"; // Added import for slugify
 
 interface CategoryFilterProps {
   // currentCategory is derived from URL, no longer passed as prop
@@ -56,27 +56,13 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
     }
   };
   
-  function slugify(text: string): string {
-    if (!text) return '';
-    return text
-      .toString()
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/[^\w-]+/g, '')
-      .replace(/--+/g, '-')
-      .replace(/^-+/, '')
-      .replace(/-+$/, '');
-  }
-
-
   if (isLoading) {
     return (
       <div className="mb-8">
-        <Skeleton className="h-7 w-48 mb-3" />
-        <div className="flex space-x-2 p-2 border rounded-md">
+        <Skeleton className="h-6 w-40 mb-2" /> {/* Adjusted skeleton size */}
+        <div className="flex space-x-3 p-3 border rounded-lg bg-muted/30 dark:bg-muted/20">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-24" />
+            <Skeleton key={i} className="h-9 w-24 rounded-md" />
           ))}
         </div>
       </div>
@@ -85,15 +71,16 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
 
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-semibold mb-3 text-foreground">Filter by Category</h2>
-      <ScrollArea className="w-full whitespace-nowrap rounded-md border">
-        <div className="flex space-x-2 p-2">
+      <h2 className="text-lg font-medium mb-3 text-foreground">Filter by Category</h2>
+      <ScrollArea className="w-full whitespace-nowrap rounded-lg border bg-muted/30 dark:bg-muted/20">
+        <div className="flex space-x-3 p-3">
           {categories.map((category) => (
             <Button
               key={category}
-              variant={activeCategory === category ? "default" : "outline"} // Changed "primary" to "default" for better theme adherence
+              variant={activeCategory === category ? "default" : "outline"}
               onClick={() => handleCategoryChange(category)}
-              className="shrink-0"
+              className="shrink-0 shadow-sm hover:shadow-md transition-shadow"
+              size="default" // Explicitly setting default, could be "sm" for smaller
             >
               {category}
             </Button>
