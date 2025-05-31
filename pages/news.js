@@ -1,142 +1,128 @@
+import type { ParsedUrlQuery } from 'querystring';
+import { fetchArticlesFromAllSources } from './rss-service';
+import { slugify } from './utils';
+import { adminDB } from './firebaseAdmin'; // Import Firestore admin instance
+import type { Timestamp } from 'firebase-admin/firestore';
 
-import Head from 'next/head';
-import { useEffect, useState } from 'react';
-// Note: This page uses client-side fetching. For SSR/SSG, consider `getServerSideProps` or `getStaticProps`.
 
-export default function NewsPage() {
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export interface Article {
+  id: string;
+  title: string;
+  summary: string;
+  date: string; // ISO string
+  source: string;
+  category: string;
+  imageUrl: string | null; // Can be null
+  link: string; // Internal app link: /category/id
+  sourceLink: string; // Original article link from the RSS feed
+  content?: string; // Full content, often HTML from RSS
+  fetchedAt?: string; // ISO string, added when fetching/saving to Firestore
+}
 
-  useEffect(() => {
-    async function fetchNews() {
-      try {
-        setLoading(true);
-        const res = await fetch('/api/mint');
-        if (!res.ok) {
-          throw new Error(`Failed to fetch news: ${res.status}`);
+const FIRESTORE_STALE_THRESHOLD = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+export async function getArticles(query?: ParsedUrlQuery): Promise<Article[]> {
+  let articlesFromDB: Article[] = [];
+  let isDBStale = true;
+
+  try {
+    const articlesSnapshot = await adminDB.collection('articles_rss_feed')
+                                       .orderBy('date', 'desc')
+                                       .limit(500) // Fetch a good number for filtering
+                                       .get();
+    
+    if (!articlesSnapshot.empty) {
+      articlesFromDB = articlesSnapshot.docs.map(doc => doc.data() as Article);
+      
+      // Check freshness based on the 'fetchedAt' timestamp of the newest article from DB
+      // If articlesFromDB is not empty and has items with fetchedAt
+      if (articlesFromDB.length > 0 && articlesFromDB[0].fetchedAt) {
+        const mostRecentFetchTime = new Date(articlesFromDB[0].fetchedAt).getTime();
+        if ((Date.now() - mostRecentFetchTime) < FIRESTORE_STALE_THRESHOLD) {
+          isDBStale = false;
+          // console.log("[Placeholder Data] Using fresh data from Firestore.");
+        } else {
+          // console.log("[Placeholder Data] Firestore data is stale.");
         }
-        const data = await res.json();
-        setArticles(data);
-      } catch (err) {
-        setError(err.message);
-        console.error("Error fetching news:", err);
-      } finally {
-        setLoading(false);
+      } else {
+         // console.log("[Placeholder Data] No 'fetchedAt' field found or DB empty, considering stale.");
       }
+    } else {
+      // console.log("[Placeholder Data] Firestore is empty.");
     }
-    fetchNews();
-  }, []);
+  } catch (error) {
+    console.error("[Placeholder Data] Error fetching articles from Firestore:", error);
+    // Proceed as if DB is stale/empty
+    isDBStale = true;
+  }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Date not available';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch (e) {
-      return 'Invalid date';
+  if (isDBStale) {
+    // console.log("[Placeholder Data] Fetching live articles and updating Firestore...");
+    // This function now also writes to Firestore
+    const liveArticles = await fetchArticlesFromAllSources(); 
+    // After fetchArticlesFromAllSources updates Firestore, we should re-fetch from DB to ensure consistency
+    // or directly use liveArticles if we trust the immediate write.
+    // For simplicity in this step, we'll use the liveArticles directly for this response,
+    // assuming the next call will benefit from the updated DB.
+    // A more robust approach would be to re-query Firestore here.
+    // However, fetchArticlesFromAllSources itself returns the articles it processed and saved.
+    return filterAndSearchArticles(liveArticles, query);
+  }
+
+  return filterAndSearchArticles(articlesFromDB, query);
+}
+
+export async function getArticleById(id: string): Promise<Article | undefined> {
+  try {
+    const doc = await adminDB.collection('articles_rss_feed').doc(id).get();
+    if (doc.exists) {
+      return doc.data() as Article;
+    } else {
+      // console.warn(`[Placeholder Data] Article with ID ${id} not found in Firestore. Fetching all to check.`);
+      // Fallback: if not found, maybe it's very new and DB hasn't synced.
+      // This could be slow if called often for non-existent IDs.
+      const articles = await getArticles(); // This ensures DB is populated if empty/stale
+      return articles.find(article => article.id === id);
     }
-  };
+  } catch (error) {
+    console.error(`[Placeholder Data] Error fetching article ${id} from Firestore:`, error);
+    // Fallback to fetching all and finding it
+    const articles = await getArticles();
+    return articles.find(article => article.id === id);
+  }
+}
 
-  const placeholderImageSrc = 'https://placehold.co/600x400.png';
+export async function getCategories(): Promise<string[]> {
+  const articles = await getArticles(); // This will use Firestore-backed data
+  const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
+  return ["All", ...Array.from(uniqueCategories).sort()];
+}
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6 text-center">Loading Mint News...</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="bg-white dark:bg-neutral-800 shadow-lg rounded-lg p-4 animate-pulse">
-              <div className="w-full h-48 bg-neutral-300 dark:bg-neutral-700 rounded mb-4"></div>
-              <div className="h-6 bg-neutral-300 dark:bg-neutral-700 rounded mb-2 w-3/4"></div>
-              <div className="h-4 bg-neutral-300 dark:bg-neutral-700 rounded mb-1 w-full"></div>
-              <div className="h-4 bg-neutral-300 dark:bg-neutral-700 rounded mb-1 w-5/6"></div>
-              <div className="h-4 bg-neutral-300 dark:bg-neutral-700 rounded w-1/2 mt-2"></div>
-            </div>
-          ))}
-        </div>
-      </div>
+export function filterAndSearchArticles(
+  articles: Article[],
+  query?: ParsedUrlQuery
+): Article[] {
+  if (!query) return articles;
+
+  let filtered = articles;
+  const currentCategory = query.category as string | undefined;
+  const searchTerm = query.q as string | undefined;
+
+  if (currentCategory && currentCategory !== "All") {
+    filtered = filtered.filter(
+      (article) => slugify(article.category) === slugify(currentCategory)
     );
   }
 
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-3xl font-bold mb-4 text-red-600">Error</h1>
-        <p className="text-neutral-700 dark:text-neutral-300">Could not load news: {error}</p>
-      </div>
+  if (searchTerm) {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    filtered = filtered.filter(
+      (article) =>
+        article.title.toLowerCase().includes(lowerSearchTerm) ||
+        article.summary.toLowerCase().includes(lowerSearchTerm) ||
+        article.category.toLowerCase().includes(lowerSearchTerm) ||
+        article.source.toLowerCase().includes(lowerSearchTerm)
     );
   }
-
-  return (
-    <>
-      <Head>
-        <title>Mint News Feed</title>
-        <meta name="description" content="Latest news from Mint, processed and cleaned." />
-      </Head>
-      <div className="bg-neutral-100 dark:bg-neutral-900 min-h-screen py-8">
-        <div className="container mx-auto px-4">
-          <header className="mb-8 text-center">
-            <h1 className="text-4xl font-bold text-neutral-800 dark:text-neutral-100">
-              Mint News Feed
-            </h1>
-          </header>
-
-          {articles.length === 0 && !loading && (
-            <p className="text-center text-neutral-600 dark:text-neutral-400 text-xl">
-              No articles found or unable to fetch the feed at this moment.
-            </p>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {articles.map((article, index) => (
-              <div 
-                key={article.link || index} 
-                className="bg-white dark:bg-neutral-800 shadow-xl rounded-lg overflow-hidden flex flex-col transform transition-all duration-300 hover:scale-105"
-              >
-                {article.image ? (
-                  <img 
-                    src={article.image} 
-                    alt={article.title || 'Article image'} 
-                    className="w-full h-56 object-cover" 
-                    data-ai-hint="news article image"
-                    onError={(e) => {
-                        e.currentTarget.onerror = null; // prevents looping
-                        e.currentTarget.src = placeholderImageSrc;
-                        e.currentTarget.alt = 'Placeholder image';
-                    }}
-                  />
-                ) : (
-                  <img 
-                    src={placeholderImageSrc} 
-                    alt="Placeholder image" 
-                    className="w-full h-56 object-cover bg-neutral-200 dark:bg-neutral-700"
-                    data-ai-hint="news placeholder"
-                  />
-                )}
-                <div className="p-6 flex flex-col flex-grow">
-                  <h2 className="text-xl font-semibold mb-3 text-neutral-800 dark:text-neutral-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                    <a href={article.link} target="_blank" rel="noopener noreferrer">
-                      {article.title || 'Untitled Article'}
-                    </a>
-                  </h2>
-                  <p className="text-neutral-600 dark:text-neutral-300 text-sm mb-4 flex-grow line-clamp-4">
-                    {article.description || 'No description available.'}
-                  </p>
-                  <div className="mt-auto pt-3 border-t border-neutral-200 dark:border-neutral-700">
-                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                       Published: {formatDate(article.pubDate)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
-  );
+  return filtered;
 }

@@ -10,6 +10,7 @@ import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
+import { adminDB } from './firebaseAdmin'; // Import Firestore admin instance
 
 interface NewsSource {
   name: string;
@@ -167,7 +168,6 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Reuters Business", rssUrl: "https://feeds.reuters.com/reuters/businessNews", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
   { name: "Live Science", rssUrl: "https://www.livescience.com/home/feed/site.xml", defaultCategory: "Science", fetchOgImageFallback: true },
   
-  // Times of India - Setting fetchOgImageFallback to false for most Indian sources
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: false },
   { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: false }, 
   { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: false },
@@ -177,11 +177,9 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: false },
   { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: false },
 
-  // Other Indian News
   { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: false },
   { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: false },
   
-  // Finance - Indian
   { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: false },
 ];
 
@@ -557,7 +555,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
 
       // ID generation
       const idInput = (originalLink !== "#" ? originalLink : (title + source.name + index) );
-      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); 
+      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10); // Short, sanitized suffix from source name
       
       let slugifiedIdInput = slugify(idInput); // Slugify the entire input first
 
@@ -624,6 +622,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         link: internalArticleLink, 
         sourceLink: originalLink, 
         content: itemContent || summaryText, // Fallback content to summary
+        fetchedAt: new Date().toISOString(), // Add fetchedAt timestamp for Firestore
       });
     }
     return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
@@ -727,7 +726,21 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
   // Sort all unique articles by date, newest first
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return allArticles.slice(0, 500); // Return top 500 newest articles
+  const articlesToSave = allArticles.slice(0, 500); // Limit to top 500 newest articles
+
+  // Save to Firestore
+  const batch = adminDB.batch();
+  articlesToSave.forEach(article => {
+    const docRef = adminDB.collection('articles_rss_feed').doc(article.id);
+    batch.set(docRef, article, { merge: true }); // Use merge:true to upsert
+  });
+  try {
+    await batch.commit();
+    console.log(`[RSS Service] Successfully saved/updated ${articlesToSave.length} articles to Firestore.`);
+  } catch (error) {
+    console.error("[RSS Service] Error saving articles to Firestore:", error);
+  }
+
+  return articlesToSave;
 }
     
-
