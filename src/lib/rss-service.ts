@@ -179,7 +179,7 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: false },
   { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: false },
 
-  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: false },
+  { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
 ];
 
 
@@ -225,7 +225,13 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
           if (!ogImageUrl.startsWith('http://') && !ogImageUrl.startsWith('https://')) {
               return null;
           }
-          return ogImageUrl;
+          // Final validation
+          try {
+            const validatedUrl = new URL(ogImageUrl);
+            return validatedUrl.href; // Return normalized URL
+          } catch (e) {
+            return null;
+          }
       }
       return null;
     } catch (error) {
@@ -356,114 +362,104 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
 
 function extractImageUrl(item: any, articleTitle: string, articleCategory?: string, sourceName?: string, articleLink?: string): string | null {
   let imageUrl: string | null = null;
+  const potentialImageSources: string[] = [];
 
   // 1. Try standard media tags first
   if (item['media:content']) {
     const mediaContents = Array.isArray(item['media:content']) ? item['media:content'] : [item['media:content']];
     for (const content of mediaContents) {
       if (content && content.url && (content.medium === 'image' || (String(getNestedValue(content, 'type', '')).startsWith('image/')) || (getNestedValue(content, 'type', '').includes('image')))) {
-        imageUrl = content.url;
-        break;
+        potentialImageSources.push(content.url);
       }
     }
   }
 
-  if (!imageUrl && item['media:group'] && item['media:group']['media:content']) {
+  if (item['media:group'] && item['media:group']['media:content']) {
     const mediaContents = Array.isArray(item['media:group']['media:content'])
       ? item['media:group']['media:content']
       : [item['media:group']['media:content']];
     for (const content of mediaContents) {
       if (content && content.url && (content.medium === 'image' || (getNestedValue(content, 'type', '').startsWith('image/')))) {
-        imageUrl = content.url;
-        break;
+        potentialImageSources.push(content.url);
       }
     }
   }
 
-  if (!imageUrl && item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
-    imageUrl = item.enclosure.url;
+  if (item.enclosure && item.enclosure.url && item.enclosure.type && String(item.enclosure.type).startsWith('image/')) {
+    potentialImageSources.push(item.enclosure.url);
   }
 
-  if (!imageUrl && item['media:thumbnail'] && item['media:thumbnail'].url) {
-    imageUrl = item['media:thumbnail'].url;
+  if (item['media:thumbnail'] && item['media:thumbnail'].url) {
+    potentialImageSources.push(item['media:thumbnail'].url);
   }
 
   // 2. Check for `image` tag (can be string or object with url)
-  if (!imageUrl && item.image && item.image.url) {
-    imageUrl = item.image.url;
-  } else if (!imageUrl && item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
-    imageUrl = item.image;
+  if (item.image && item.image.url) {
+    potentialImageSources.push(item.image.url);
+  } else if (item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
+    potentialImageSources.push(item.image);
   }
 
   // 3. Fallback: Check content fields for embedded <img> tags
-  if (!imageUrl) {
-    const contentFieldsForImageSearch = [
-      getNestedValue(item, 'content:encoded'),
-      getNestedValue(item, 'content'),
-      getNestedValue(item, 'description'),
-      getNestedValue(item, 'summary'),
-    ];
+  const contentFieldsForImageSearch = [
+    getNestedValue(item, 'content:encoded'),
+    getNestedValue(item, 'content'),
+    getNestedValue(item, 'description'),
+    getNestedValue(item, 'summary'),
+  ];
 
-    for (const field of contentFieldsForImageSearch) {
-      if (imageUrl) break; // Found image in a previous field
-      const normalizedField = normalizeContent(field);
-      if (normalizedField && typeof normalizedField === 'string') {
-        const $ = cheerioLoad(normalizedField);
-        $('img').each((_i, el) => {
-          let srcCandidate = $(el).attr('src') || $(el).attr('data-src');
-          if (srcCandidate) {
-            srcCandidate = srcCandidate.trim();
+  for (const field of contentFieldsForImageSearch) {
+    const normalizedField = normalizeContent(field);
+    if (normalizedField && typeof normalizedField === 'string') {
+      const $ = cheerioLoad(normalizedField);
+      $('img').each((_i, el) => {
+        let srcCandidate = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-original') || $(el).attr('data-lazy-src');
+        if (srcCandidate) {
+          potentialImageSources.push(srcCandidate.trim());
+        }
+      });
+    }
+  }
+  
+  // Process potential image sources to find a valid one
+  for (let src of potentialImageSources) {
+    if (typeof src !== 'string') continue;
+    src = he.decode(src.trim());
 
-            // First, handle protocol-relative URLs (e.g., //example.com/image.jpg)
-            if (srcCandidate.startsWith('//')) {
-              srcCandidate = `https:${srcCandidate}`; // Assume https
-            }
+    // Handle protocol-relative URLs
+    if (src.startsWith('//')) {
+      src = `https:${src}`;
+    }
 
-            // If not an absolute URL, try to resolve it using articleLink
-            if (!srcCandidate.startsWith('http') && articleLink && articleLink.startsWith('http')) {
-              try {
-                const base = new URL(articleLink);
-                if (srcCandidate.startsWith('/')) { // Root-relative (e.g., /image.jpg)
-                  srcCandidate = new URL(srcCandidate, base.origin).href;
-                } else { // Path-relative (e.g., image.jpg or ../image.jpg)
-                  srcCandidate = new URL(srcCandidate, base.href).href;
-                }
-              } catch (e) {
-                srcCandidate = null; // Invalidate if resolution fails
-              }
-            }
+    // If not an absolute URL, try to resolve it using articleLink
+    if (!src.startsWith('http') && articleLink && articleLink.startsWith('http')) {
+      try {
+        const base = new URL(articleLink);
+        if (src.startsWith('/')) { // Root-relative
+          src = new URL(src, base.origin).href;
+        } else { // Path-relative
+          src = new URL(src, base.href).href;
+        }
+      } catch (e) {
+        continue; // Invalid base or relative path, skip this src
+      }
+    }
 
-            // Check if we have a valid, absolute HTTP/HTTPS URL
-            if (srcCandidate && srcCandidate.startsWith('http')) {
-              try {
-                // Final validation by attempting to construct a URL object
-                const validatedUrl = new URL(srcCandidate);
-                imageUrl = validatedUrl.href; // Use the href from the validated URL object
-                return false; // Break .each loop once a valid image is found
-              } catch (urlError) {
-                imageUrl = null; // Ensure it's null if validation attempt fails
-              }
-            }
-          }
-        });
+    // Final validation: must be a valid absolute HTTP/HTTPS URL
+    if (src.startsWith('http')) {
+      try {
+        const validatedUrl = new URL(src);
+        if (validatedUrl.protocol === 'http:' || validatedUrl.protocol === 'https:') {
+          imageUrl = validatedUrl.href;
+          break; // Found a valid image URL
+        }
+      } catch (urlError) {
+        // Invalid URL, continue to next potential source
       }
     }
   }
 
-  // Final URL cleaning and validation
-  if (imageUrl && typeof imageUrl === 'string') {
-    imageUrl = he.decode(imageUrl.trim());
-    try {
-      const finalUrlCheck = new URL(imageUrl);
-      if (finalUrlCheck.protocol !== 'http:' && finalUrlCheck.protocol !== 'https:') {
-        return null;
-      }
-      return finalUrlCheck.href; // Return the normalized href
-    } catch (e) {
-      return null; // Not a valid URL
-    }
-  }
-  return null; // No valid image URL found
+  return imageUrl; // This will be null if no valid image was found
 }
 
 async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
