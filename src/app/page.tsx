@@ -1,29 +1,47 @@
-"use client"; 
+
+"use client";
 
 import ArticleGrid from "@/components/article-grid";
 import CategoryFilter from "@/components/category-filter";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation"; // Added useRouter
 import { Suspense } from "react";
-import PageLoading from "./loading"; 
+import PageLoading from "./loading";
+import { Button } from "@/components/ui/button"; // Added Button import
 
 function NewsPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter(); // Initialize router
   const searchTerm = searchParams.get('q') || "";
   const currentCategory = searchParams.get('category') || "All";
 
-  // The actual data fetching and primary filtering (if done server-side via getArticles)
-  // now happens within ArticleGrid and CategoryFilter (for categories list).
-  // This component mainly orchestrates the UI based on search params.
+  const handleViewAllNews = () => {
+    // Navigate to the base URL, effectively clearing category and search query params
+    // and making the ArticleGrid show all news.
+    router.push('/');
+  };
 
   return (
     <div className="space-y-8">
-      <CategoryFilter /> 
+      <CategoryFilter />
       <div>
         <h2 className="text-2xl font-bold mb-6 text-foreground">
-          {searchTerm ? `Search results for "${searchTerm}"` : 
+          {searchTerm ? `Search results for "${searchTerm}"` :
            currentCategory !== "All" ? `${currentCategory} News` : "Latest Articles"}
         </h2>
         <ArticleGrid searchTerm={searchTerm} currentCategory={currentCategory} />
+
+        {/* Button to reset to 'All News' view - always visible after the grid */}
+        <div className="mt-12 py-8 text-center border-t border-border"> {/* Added padding, border-top for separation */}
+          <h3 className="text-xl font-semibold mb-4 text-foreground">Want to see more?</h3>
+          <Button
+            onClick={handleViewAllNews}
+            size="lg"
+            variant="default" 
+            className="shadow-md hover:shadow-lg transition-shadow"
+          >
+            View All Latest News
+          </Button>
+        </div>
       </div>
     </div>
   );
