@@ -19,20 +19,27 @@ export interface Article {
   fetchedAt?: string; // ISO string, can be added by rss-service
 }
 
-export async function getArticles(searchTerm?: string, currentCategory?: string): Promise<Article[]> {
-  // console.log("[Placeholder Data] Fetching live articles as DB is removed.");
-  const liveArticles = await fetchArticlesFromAllSources();
+export async function getArticles(
+  searchTerm?: string,
+  currentCategory?: string,
+  isForCategoriesOnly: boolean = false
+): Promise<Article[]> {
+  const liveArticles = await fetchArticlesFromAllSources(isForCategoriesOnly);
+  // If it's for categories only, the articles might be lightweight (no summary/content for filtering)
+  // However, filterAndSearchArticles primarily uses title, category, source which should be present.
+  // Summary filtering will be ineffective for category-only runs, which is acceptable.
   return filterAndSearchArticles(liveArticles, searchTerm, currentCategory);
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
-  // console.log(`[Placeholder Data] Fetching all articles to find ID: ${id} (DB removed).`);
-  const articles = await getArticles(); // This will fetch all live articles
+  // When fetching a single article, always get the full version
+  const articles = await getArticles(undefined, undefined, false); 
   return articles.find(article => article.id === id);
 }
 
 export async function getCategories(): Promise<string[]> {
-  const articles = await getArticles(); // This will fetch all live articles
+  // Use the lightweight mode for fetching articles just for category names
+  const articles = await getArticles(undefined, undefined, true); 
   const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
   return ["All", ...Array.from(uniqueCategories).sort()];
 }
@@ -59,7 +66,8 @@ export async function filterAndSearchArticles(
     filtered = filtered.filter(
       (article) =>
         article.title.toLowerCase().includes(lowerSearchTerm) ||
-        article.summary.toLowerCase().includes(lowerSearchTerm) ||
+        // Summary might be a placeholder in 'isForCategoriesOnly' mode, so this check might not be effective then.
+        (article.summary && article.summary !== "For category generation" && article.summary.toLowerCase().includes(lowerSearchTerm)) ||
         (article.category && article.category.toLowerCase().includes(lowerSearchTerm)) ||
         (article.source && article.source.toLowerCase().includes(lowerSearchTerm))
     );

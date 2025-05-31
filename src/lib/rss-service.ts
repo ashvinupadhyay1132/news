@@ -218,6 +218,9 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
 
       if (ogImageUrl && typeof ogImageUrl === 'string') {
           ogImageUrl = he.decode(ogImageUrl.trim()); // Decode HTML entities
+          if (ogImageUrl.startsWith('//')) {
+              ogImageUrl = `https:${ogImageUrl}`;
+          }
           if (ogImageUrl.startsWith('/')) {
               const urlObject = new URL(articleUrl);
               ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
@@ -426,7 +429,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     if (typeof src !== 'string') continue;
     src = he.decode(src.trim());
 
-    // Handle protocol-relative URLs
+    // Handle protocol-relative URLs first
     if (src.startsWith('//')) {
       src = `https:${src}`;
     }
@@ -441,6 +444,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
           src = new URL(src, base.href).href;
         }
       } catch (e) {
+        // console.warn(`[RSS Service] Failed to resolve relative URL "${src}" against base "${articleLink}": ${e.message}`);
         continue; // Invalid base or relative path, skip this src
       }
     }
@@ -448,13 +452,13 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     // Final validation: must be a valid absolute HTTP/HTTPS URL
     if (src.startsWith('http')) {
       try {
-        const validatedUrl = new URL(src);
+        const validatedUrl = new URL(src); // This also handles cases like "http://economictimes.indiatimes.comhttps//img.etimg.com/..."
         if (validatedUrl.protocol === 'http:' || validatedUrl.protocol === 'https:') {
-          imageUrl = validatedUrl.href;
+          imageUrl = validatedUrl.href; // Use the normalized href
           break; // Found a valid image URL
         }
       } catch (urlError) {
-        // Invalid URL, continue to next potential source
+        // console.warn(`[RSS Service] Invalid URL constructed: "${src}". Error: ${urlError.message}`);
       }
     }
   }
@@ -462,7 +466,7 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   return imageUrl; // This will be null if no valid image was found
 }
 
-async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
+async function fetchAndParseRSS(source: NewsSource, isForCategoriesOnly: boolean = false): Promise<Article[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
       headers: {
@@ -474,6 +478,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     });
 
     if (!fetchResponse.ok) {
+      // console.warn(`[RSS Service] Failed to fetch ${source.name}: ${fetchResponse.status}`);
       return [];
     }
 
@@ -485,6 +490,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
+      // console.warn(`[RSS Service] High UTF-8 replacement char count for ${source.name}. Trying Windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
@@ -508,6 +514,7 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
     }
 
     if (items.length === 0) {
+      // console.warn(`[RSS Service] No items found for ${source.name}`);
       return [];
     }
 
@@ -576,28 +583,41 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
       rawCategoryFromFeed = typeof rawCategoryFromFeed === 'string' ? he.decode(rawCategoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General');
 
       const finalCategory = mapToDisplayCategory(rawCategoryFromFeed, title);
+      
+      let extractedImgUrl: string | null = null;
+      let itemContent: string | undefined = undefined;
+      let summaryText: string;
 
-      let extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
-
-      if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#') {
-        try {
-          const ogImage = await fetchOgImageFromUrl(originalLink);
-          if (ogImage) extractedImgUrl = ogImage;
-        } catch (ogError) { /* error handled by fetchOgImageFromUrl */ }
+      if (isForCategoriesOnly) {
+        summaryText = "For category generation"; // Lightweight placeholder
+        // title, date, source, category, link, sourceLink, id are still needed for structure
+      } else {
+        extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
+        if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#') {
+          try {
+            const ogImage = await fetchOgImageFromUrl(originalLink);
+            if (ogImage) extractedImgUrl = ogImage;
+          } catch (ogError) { /* error handled by fetchOgImageFromUrl */ }
+        }
+        itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
+        summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), itemContent, source.name);
       }
 
-      let itemContent = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
-      const summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), itemContent, source.name);
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
-      if (title.includes('\uFFFD') || summaryText.includes('\uFFFD')) {
+      if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD'))) {
+        // console.warn(`[RSS Service] Skipping article due to persistent garbage characters in title/summary: "${title}"`);
         continue;
       }
-      const summaryLower = summaryText.toLowerCase();
-      if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
-        continue;
+      if (!isForCategoriesOnly) {
+        const summaryLower = summaryText.toLowerCase();
+        if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
+          // console.warn(`[RSS Service] Skipping article due to short/invalid summary: "${title}"`);
+          continue;
+        }
       }
+
 
       processedItems.push({
         id,
@@ -606,21 +626,22 @@ async function fetchAndParseRSS(source: NewsSource): Promise<Article[]> {
         date,
         source: source.name,
         category: finalCategory,
-        imageUrl: extractedImgUrl || null,
+        imageUrl: extractedImgUrl, // Will be null in isForCategoriesOnly mode
         link: internalArticleLink,
         sourceLink: originalLink,
-        content: itemContent || summaryText,
+        content: itemContent, // Will be undefined in isForCategoriesOnly mode
         fetchedAt: new Date().toISOString(),
       });
     }
     return processedItems.filter(article => article.title && article.title !== 'Untitled Article' && article.sourceLink && article.sourceLink !== '#');
   } catch (error) {
+    // console.error(`[RSS Service] Error processing ${source.name} RSS feed:`, error.message, error.stack);
     return [];
   }
 }
 
-export async function fetchArticlesFromAllSources(): Promise<Article[]> {
-  const allArticlesPromises = NEWS_SOURCES.map(source => fetchAndParseRSS(source));
+export async function fetchArticlesFromAllSources(isForCategoriesOnly: boolean = false): Promise<Article[]> {
+  const allArticlesPromises = NEWS_SOURCES.map(source => fetchAndParseRSS(source, isForCategoriesOnly));
   const results = await Promise.allSettled(allArticlesPromises);
 
   let allArticles: Article[] = results
@@ -628,77 +649,79 @@ export async function fetchArticlesFromAllSources(): Promise<Article[]> {
     .map(result => (result as PromiseFulfilledResult<Article[]>).value)
     .flat();
 
-  allArticles = allArticles.filter(article =>
-    !article.title.includes('\uFFFD') &&
-    !article.summary.includes('\uFFFD')
-  );
+  if (!isForCategoriesOnly) {
+    allArticles = allArticles.filter(article =>
+      !article.title.includes('\uFFFD') &&
+      !article.summary.includes('\uFFFD')
+    );
 
-  allArticles = allArticles.filter(article => {
-    const summaryLower = article.summary.toLowerCase();
-    return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
-  });
+    allArticles = allArticles.filter(article => {
+      const summaryLower = article.summary.toLowerCase();
+      return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
+    });
 
 
-  const uniqueArticlesMap = new Map<string, Article>();
+    const uniqueArticlesMap = new Map<string, Article>();
 
-  for (const article of allArticles) {
-    if (!article.title || !article.sourceLink || article.sourceLink === '#') {
-        continue;
+    for (const article of allArticles) {
+      if (!article.title || !article.sourceLink || article.sourceLink === '#') {
+          continue;
+      }
+
+      let normalizedLinkKey = article.sourceLink;
+      try {
+          const url = new URL(article.sourceLink);
+          const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk', 'spot_im_highlight_immediate', 'spot_im_platform', 'spot_im_story_after_action', 'spot_im_impression_id', 'si', 'ICID', 'ncid', 'ns_source', 'ns_mchannel', 'ns_campaign', 'ns_linkname', 'ns_fee', '_ga', 'oly_anon_id', 'oly_enc_id', 'otc_src', 'otc_tcat', 'otc_subtcat', 'otc_type', 'otc_ctry'];
+          paramsToRemove.forEach(param => url.searchParams.delete(param));
+          normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
+      } catch (e) {
+          normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
+      }
+
+      const currentArticleCleanTitle = article.title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
+      const existingArticle = uniqueArticlesMap.get(normalizedLinkKey);
+
+      if (existingArticle) {
+          const existingArticleCleanTitle = existingArticle.title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
+          const MIN_TITLE_LEN_FOR_SUBSTRING_CHECK = 20;
+          let titlesAreSimilar = false;
+
+          if (currentArticleCleanTitle === existingArticleCleanTitle) {
+              titlesAreSimilar = true;
+          } else if (currentArticleCleanTitle.length >= MIN_TITLE_LEN_FOR_SUBSTRING_CHECK && existingArticleCleanTitle.length > currentArticleCleanTitle.length && existingArticleCleanTitle.includes(currentArticleCleanTitle)) {
+              titlesAreSimilar = true;
+          } else if (existingArticleCleanTitle.length >= MIN_TITLE_LEN_FOR_SUBSTRING_CHECK && currentArticleCleanTitle.length > existingArticleCleanTitle.length && currentArticleCleanTitle.includes(existingArticleCleanTitle)) {
+              titlesAreSimilar = true;
+          }
+
+          if (titlesAreSimilar) {
+              let keepNew = false;
+              if (article.imageUrl && !existingArticle.imageUrl) {
+                  keepNew = true;
+              } else if (!article.imageUrl && existingArticle.imageUrl) {
+                  // keep existing
+              }
+              else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) {
+                  keepNew = true;
+              } else if (!article.content && existingArticle.content) {
+                 // keep existing
+              }
+              else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.' && !article.summary.toLowerCase().startsWith("summary not available")) {
+                  keepNew = true;
+              }
+
+              if (keepNew) {
+                  uniqueArticlesMap.set(normalizedLinkKey, article);
+              }
+          } // If titles are not similar but link key is same, this is a problem - first one wins.
+      } else {
+          uniqueArticlesMap.set(normalizedLinkKey, article);
+      }
     }
-
-    let normalizedLinkKey = article.sourceLink;
-    try {
-        const url = new URL(article.sourceLink);
-        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'rssfeed', 'source', 'medium', 'campaign', 'ref', 'oc', '_gl', 'ftcamp', 'ft_orig', 'assetType', 'variant', 'trc', 'trk', 'spot_im_highlight_immediate', 'spot_im_platform', 'spot_im_story_after_action', 'spot_im_impression_id', 'si', 'ICID', 'ncid', 'ns_source', 'ns_mchannel', 'ns_campaign', 'ns_linkname', 'ns_fee', '_ga', 'oly_anon_id', 'oly_enc_id', 'otc_src', 'otc_tcat', 'otc_subtcat', 'otc_type', 'otc_ctry'];
-        paramsToRemove.forEach(param => url.searchParams.delete(param));
-        normalizedLinkKey = `${url.hostname}${url.pathname}${url.search}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
-    } catch (e) {
-        normalizedLinkKey = article.sourceLink.toLowerCase().replace(/^www\./, '').replace(/\/$/, '').trim();
-    }
-
-    const currentArticleCleanTitle = article.title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
-    const existingArticle = uniqueArticlesMap.get(normalizedLinkKey);
-
-    if (existingArticle) {
-        const existingArticleCleanTitle = existingArticle.title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
-        const MIN_TITLE_LEN_FOR_SUBSTRING_CHECK = 20;
-        let titlesAreSimilar = false;
-
-        if (currentArticleCleanTitle === existingArticleCleanTitle) {
-            titlesAreSimilar = true;
-        } else if (currentArticleCleanTitle.length >= MIN_TITLE_LEN_FOR_SUBSTRING_CHECK && existingArticleCleanTitle.length > currentArticleCleanTitle.length && existingArticleCleanTitle.includes(currentArticleCleanTitle)) {
-            titlesAreSimilar = true;
-        } else if (existingArticleCleanTitle.length >= MIN_TITLE_LEN_FOR_SUBSTRING_CHECK && currentArticleCleanTitle.length > existingArticleCleanTitle.length && currentArticleCleanTitle.includes(existingArticleCleanTitle)) {
-            titlesAreSimilar = true;
-        }
-
-        if (titlesAreSimilar) {
-            let keepNew = false;
-            if (article.imageUrl && !existingArticle.imageUrl) {
-                keepNew = true;
-            } else if (!article.imageUrl && existingArticle.imageUrl) {
-                // keep existing
-            }
-            else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) {
-                keepNew = true;
-            } else if (!article.content && existingArticle.content) {
-               // keep existing
-            }
-            else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.' && !article.summary.toLowerCase().startsWith("summary not available")) {
-                keepNew = true;
-            }
-
-            if (keepNew) {
-                uniqueArticlesMap.set(normalizedLinkKey, article);
-            }
-        }
-    } else {
-        uniqueArticlesMap.set(normalizedLinkKey, article);
-    }
-  }
-  allArticles = Array.from(uniqueArticlesMap.values());
+    allArticles = Array.from(uniqueArticlesMap.values());
+  } // End of if(!isForCategoriesOnly) block for intensive processing
 
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return allArticles.slice(0, 500);
+  return allArticles.slice(0, 500); // Still limit to 500 overall
 }
     
