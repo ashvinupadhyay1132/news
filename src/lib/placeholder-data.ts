@@ -1,4 +1,6 @@
 
+'use server';
+
 import type { ParsedUrlQuery } from 'querystring';
 import { fetchArticlesFromAllSources } from './rss-service';
 import { slugify } from './utils';
@@ -35,38 +37,20 @@ export async function getArticles(query?: ParsedUrlQuery): Promise<Article[]> {
     if (!articlesSnapshot.empty) {
       articlesFromDB = articlesSnapshot.docs.map(doc => doc.data() as Article);
       
-      // Check freshness based on the 'fetchedAt' timestamp of the newest article from DB
-      // If articlesFromDB is not empty and has items with fetchedAt
       if (articlesFromDB.length > 0 && articlesFromDB[0].fetchedAt) {
         const mostRecentFetchTime = new Date(articlesFromDB[0].fetchedAt).getTime();
         if ((Date.now() - mostRecentFetchTime) < FIRESTORE_STALE_THRESHOLD) {
           isDBStale = false;
-          // console.log("[Placeholder Data] Using fresh data from Firestore.");
-        } else {
-          // console.log("[Placeholder Data] Firestore data is stale.");
         }
-      } else {
-         // console.log("[Placeholder Data] No 'fetchedAt' field found or DB empty, considering stale.");
       }
-    } else {
-      // console.log("[Placeholder Data] Firestore is empty.");
     }
   } catch (error) {
     console.error("[Placeholder Data] Error fetching articles from Firestore:", error);
-    // Proceed as if DB is stale/empty
     isDBStale = true;
   }
 
   if (isDBStale) {
-    // console.log("[Placeholder Data] Fetching live articles and updating Firestore...");
-    // This function now also writes to Firestore
     const liveArticles = await fetchArticlesFromAllSources(); 
-    // After fetchArticlesFromAllSources updates Firestore, we should re-fetch from DB to ensure consistency
-    // or directly use liveArticles if we trust the immediate write.
-    // For simplicity in this step, we'll use the liveArticles directly for this response,
-    // assuming the next call will benefit from the updated DB.
-    // A more robust approach would be to re-query Firestore here.
-    // However, fetchArticlesFromAllSources itself returns the articles it processed and saved.
     return filterAndSearchArticles(liveArticles, query);
   }
 
@@ -79,22 +63,18 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
     if (doc.exists) {
       return doc.data() as Article;
     } else {
-      // console.warn(`[Placeholder Data] Article with ID ${id} not found in Firestore. Fetching all to check.`);
-      // Fallback: if not found, maybe it's very new and DB hasn't synced.
-      // This could be slow if called often for non-existent IDs.
-      const articles = await getArticles(); // This ensures DB is populated if empty/stale
+      const articles = await getArticles(); 
       return articles.find(article => article.id === id);
     }
   } catch (error) {
     console.error(`[Placeholder Data] Error fetching article ${id} from Firestore:`, error);
-    // Fallback to fetching all and finding it
     const articles = await getArticles();
     return articles.find(article => article.id === id);
   }
 }
 
 export async function getCategories(): Promise<string[]> {
-  const articles = await getArticles(); // This will use Firestore-backed data
+  const articles = await getArticles(); 
   const uniqueCategories = new Set(articles.map(a => a.category).filter(Boolean));
   return ["All", ...Array.from(uniqueCategories).sort()];
 }
@@ -127,3 +107,4 @@ export function filterAndSearchArticles(
   }
   return filtered;
 }
+

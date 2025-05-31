@@ -3,7 +3,8 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getArticleById, type Article } from '@/lib/placeholder-data';
+// import { getArticleById, type Article } from '@/lib/placeholder-data'; // Direct import removed
+import type { Article } from '@/lib/placeholder-data'; // Type import is fine
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,8 +19,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { generateAiHintFromTitle } from '@/lib/utils';
-// IMPORTANT: For production, you MUST install and use an HTML sanitizer like DOMPurify.
-// import DOMPurify from 'dompurify';
 
 export default function ArticlePage() {
   const params = useParams();
@@ -34,13 +33,23 @@ export default function ArticlePage() {
       const fetchArticle = async () => {
         setLoading(true);
         try {
-          const fetchedArticle = await getArticleById(articleIdParam as string);
-          setArticle(fetchedArticle || null); 
-          if (!fetchedArticle) {
-            console.warn(`Article with ID ${articleIdParam} not found.`);
+          const response = await fetch(`/api/articles/${articleIdParam as string}`);
+          if (!response.ok) {
+            if (response.status === 404) {
+              console.warn(`Article with ID ${articleIdParam} not found via API.`);
+              setArticle(null);
+            } else {
+              throw new Error(`API error! status: ${response.status}`);
+            }
+          } else {
+            const fetchedArticle: Article = await response.json();
+            setArticle(fetchedArticle || null);
+            if (!fetchedArticle) {
+              console.warn(`Article with ID ${articleIdParam} not found (API returned null/undefined).`);
+            }
           }
         } catch (error) {
-          console.error("Error fetching article:", error);
+          console.error("Error fetching article via API:", error);
           setArticle(null);
         } finally {
           setLoading(false);
@@ -183,15 +192,6 @@ export default function ArticlePage() {
         )}
         
         <div className="prose dark:prose-invert max-w-none mb-8 text-lg leading-relaxed text-foreground/90">
-          {/* 
-            SECURITY WARNING: Rendering HTML from RSS feeds (article.content) via dangerouslySetInnerHTML 
-            is a significant XSS (Cross-Site Scripting) risk if the content is not sanitized.
-            For a production application, you MUST use a library like DOMPurify to sanitize
-            this HTML before rendering it. Example:
-            // import DOMPurify from 'dompurify';
-            // const cleanHtml = DOMPurify.sanitize(article.content || article.summary);
-            // <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />
-          */}
           <div dangerouslySetInnerHTML={{ __html: article.content || article.summary }} />
           {(!article.content || article.content.trim() === article.summary.trim() || article.summary.includes('No summary available.')) && (
             <p className="mt-6 text-muted-foreground italic">Full content could not be loaded for this article from the RSS feed. Please use the link below to read the full article on the source's website.</p>

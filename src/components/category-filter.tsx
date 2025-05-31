@@ -1,7 +1,8 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { getCategories } from "@/lib/placeholder-data";
+// import { getCategories } from "@/lib/placeholder-data"; // Direct import removed
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
@@ -14,17 +15,14 @@ interface CategoryFilterProps {
 const CategoryFilter = ({}: CategoryFilterProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const params = useParams(); // Use this to get category from URL path if applicable
+  const params = useParams(); 
 
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Determine current category from URL query first, then path
   let currentCategoryQuery = searchParams.get('category') || "All";
   const categoryFromPath = Array.isArray(params.category) ? params.category[0] : params.category;
   
-  // If on a category page like /technology, that should be the active category
-  // otherwise, use the query param.
   const activeCategory = categoryFromPath ? categories.find(c => slugify(c) === slugify(categoryFromPath)) || "All" : currentCategoryQuery;
 
 
@@ -32,11 +30,15 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
     const fetchCategories = async () => {
       setIsLoading(true);
       try {
-        const fetchedCategories = await getCategories();
+        const response = await fetch('/api/categories');
+        if (!response.ok) {
+          throw new Error(`API error! status: ${response.status}`);
+        }
+        const fetchedCategories: string[] = await response.json();
         setCategories(fetchedCategories);
       } catch (error) {
-        console.error("Failed to fetch categories:", error);
-        setCategories(["All"]); // Fallback
+        console.error("Failed to fetch categories via API:", error);
+        setCategories(["All"]); 
       }
       setIsLoading(false);
     };
@@ -50,9 +52,6 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
       router.push(`/?${newParams.toString()}`);
     } else {
       newParams.set('category', category);
-      // Navigate to homepage with category query param
-      // Or, if you want to navigate to /category/[categoryName]
-      // router.push(`/${slugify(category)}?${newParams.toString()}`);
       router.push(`/?${newParams.toString()}`);
     }
   };
@@ -92,7 +91,7 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
           {categories.map((category) => (
             <Button
               key={category}
-              variant={activeCategory === category ? "primary" : "outline"}
+              variant={activeCategory === category ? "default" : "outline"} // Changed "primary" to "default" for better theme adherence
               onClick={() => handleCategoryChange(category)}
               className="shrink-0"
             >
