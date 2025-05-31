@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
       },
       { 
         protocol: 'https',
-        hostname: '**.wp.com', // e.g., i0.wp.com, s.w.org 
+        hostname: '**.wp.com', // e.g., i0.wp.com, s.w.org (often used by TechCrunch)
         port: '',
         pathname: '/**',
       },
@@ -46,31 +46,6 @@ const nextConfig: NextConfig = {
       { // Reuters media cdn
         protocol: 'https',
         hostname: 'static.reuters.com',
-        port: '',
-        pathname: '/**',
-      },
-      // BBC
-      {
-        protocol: 'https',
-        hostname: 'ichef.bbci.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-      { 
-        protocol: 'http', 
-        hostname: 'ichef.bbci.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-      { 
-        protocol: 'https',
-        hostname: 'news.bbcimg.co.uk',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'http',
-        hostname: 'news.bbcimg.co.uk',
         port: '',
         pathname: '/**',
       },
@@ -159,7 +134,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'images.livemint.com', // A common one for Livemint
+        hostname: 'images.livemint.com', 
         port: '',
         pathname: '/**',
       },
