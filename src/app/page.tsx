@@ -20,13 +20,24 @@ function NewsPageContent() {
 
   const areFiltersActive = searchTerm || currentCategory !== "All";
 
+  let pageTitle = "Latest Articles";
+  if (searchTerm) {
+    pageTitle = `Search results for "${searchTerm}"`;
+  } else if (currentCategory !== "All") {
+    // Check if currentCategory already ends with " News" (case-insensitive)
+    if (currentCategory.toLowerCase().endsWith(" news")) {
+      pageTitle = currentCategory;
+    } else {
+      pageTitle = `${currentCategory} News`;
+    }
+  }
+
   return (
     <div className="space-y-8">
       <CategoryFilter />
       <div>
         <h2 className="text-2xl font-bold mb-6 text-foreground">
-          {searchTerm ? `Search results for "${searchTerm}"` :
-           currentCategory !== "All" ? `${currentCategory} News` : "Latest Articles"}
+          {pageTitle}
         </h2>
         <ArticleGrid searchTerm={searchTerm} currentCategory={currentCategory} />
 
