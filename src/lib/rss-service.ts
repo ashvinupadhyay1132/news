@@ -5,12 +5,11 @@
 'use server';
 
 import { Parser } from 'xml2js';
-import type { Article } from './placeholder-data'; // Article type includes createdAt?
+import type { Article } from './placeholder-data';
 import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
-import { getArticlesCollection } from './mongodb'; // Import MongoDB utility
 
 interface NewsSource {
   name: string;
@@ -456,7 +455,7 @@ async function fetchAndParseRSS(
     source: NewsSource, 
     isForCategoriesOnly: boolean = false, 
     fetchOgImagesParam: boolean = true,
-    saveToDb: boolean = true // New parameter to control DB saving
+    saveToDb: boolean = false // This parameter is now effectively always false for this service's direct actions
   ): Promise<Article[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
@@ -507,7 +506,6 @@ async function fetchAndParseRSS(
     }
 
     const processedArticles: Article[] = [];
-    const articlesCollection = saveToDb ? await getArticlesCollection() : null;
 
     for (const [index, item] of items.entries()) {
       const rawTitle = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
@@ -581,9 +579,9 @@ async function fetchAndParseRSS(
       let itemContentForPage: string | undefined = undefined;
       let summaryText: string;
 
-      if (isForCategoriesOnly && !saveToDb) { // if only for category generation AND not saving to DB, keep it light
+      if (isForCategoriesOnly) { 
         summaryText = "For category generation"; 
-      } else { // Fetch full details if not for categories only OR if saving to DB (need full data for DB)
+      } else { 
         extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
         if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#' && fetchOgImagesParam) {
           try {
@@ -639,10 +637,10 @@ async function fetchAndParseRSS(
 
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
-      if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD') && saveToDb)) {
+      if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD'))) {
         continue;
       }
-      if (!isForCategoriesOnly && saveToDb) { // Stricter validation if saving to DB
+      if (!isForCategoriesOnly) {
         const summaryLower = summaryText.toLowerCase();
         if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
           continue;
@@ -661,29 +659,10 @@ async function fetchAndParseRSS(
         sourceLink: originalLink,
         content: itemContentForPage, 
         fetchedAt: new Date().toISOString(),
-        createdAt: new Date(), // MongoDB createdAt timestamp
       };
 
       if (title && title !== 'Untitled Article' && originalLink && originalLink !== '#') {
         processedArticles.push(articleForProcessing);
-
-        if (saveToDb && articlesCollection && (!isForCategoriesOnly || (isForCategoriesOnly && summaryText !== "For category generation") ) ) { // Only save if full details are processed or it's for category and we have some summary
-          try {
-            // Use sourceLink as the unique identifier for upsert
-            await articlesCollection.updateOne(
-              { sourceLink: articleForProcessing.sourceLink },
-              { $set: articleForProcessing },
-              { upsert: true }
-            );
-          } catch (dbError: any) {
-            // console.error(`[RSS Service] MongoDB upsert error for "${title}":`, dbError.message);
-            // If it's a duplicate key error on sourceLink, it's fine (already handled by upsert logic implicitly).
-            // For other errors, log them.
-            if (!(dbError.code === 11000 && dbError.message.includes('sourceLink_1'))) {
-                 console.error(`[RSS Service] Non-duplicate MongoDB error:`, dbError);
-            }
-          }
-        }
       }
     }
     return processedArticles;
@@ -695,7 +674,7 @@ async function fetchAndParseRSS(
 export async function fetchArticlesFromAllSources(
   isForCategoriesOnly: boolean = false, 
   fetchOgImagesParam: boolean = true,
-  saveToDb: boolean = true // Added to control if articles are saved to DB
+  saveToDb: boolean = false // Parameter kept for signature consistency, but no longer used for DB saving in this service
 ): Promise<Article[]> {
   const allArticlesPromises = NEWS_SOURCES.map(source => 
     fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam, saveToDb)
@@ -707,7 +686,7 @@ export async function fetchArticlesFromAllSources(
     .map(result => (result as PromiseFulfilledResult<Article[]>).value)
     .flat();
 
-  if (!isForCategoriesOnly && saveToDb) { // Apply stricter filtering only if saving full articles
+  if (!isForCategoriesOnly) {
     allArticles = allArticles.filter(article =>
       !article.title.includes('\uFFFD') &&
       article.summary && !article.summary.includes('\uFFFD')
@@ -718,20 +697,16 @@ export async function fetchArticlesFromAllSources(
       return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
     });
 
-
-    // Deduplication based on normalizedLinkKey (if saving to DB, this is handled by upsert, but good for direct return if needed)
     const uniqueArticlesMap = new Map<string, Article>();
     for (const article of allArticles) {
       if (!article.title || !article.sourceLink || article.sourceLink === '#') {
           continue;
       }
       let normalizedLinkKey = article.sourceLink;
-      // Simplified normalization for map key, DB upsert handles true uniqueness
       try {
         const url = new URL(article.sourceLink);
         normalizedLinkKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
       } catch(e) { /* no-op */ }
-
 
       const existingArticle = uniqueArticlesMap.get(normalizedLinkKey);
       if (existingArticle) {
@@ -751,4 +726,3 @@ export async function fetchArticlesFromAllSources(
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return allArticles.slice(0, 500); 
 }
-

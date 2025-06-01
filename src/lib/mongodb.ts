@@ -1,4 +1,3 @@
-
 import { MongoClient, type Db, type Collection } from 'mongodb';
 import type { Article } from './placeholder-data';
 
@@ -35,7 +34,11 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
     throw new Error('MONGODB_DB_NAME environment variable is not defined.');
   }
 
-  const client = new MongoClient(MONGODB_URI);
+  const client = new MongoClient(MONGODB_URI, {
+    tls: true,
+    tlsAllowInvalidCertificates: false,
+    tlsAllowInvalidHostnames: false,
+  });
 
   await client.connect();
   const db = client.db(MONGODB_DB_NAME);
