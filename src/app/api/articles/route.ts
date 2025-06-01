@@ -7,14 +7,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const searchTerm = searchParams.get('q') || undefined;
     const category = searchParams.get('category') || undefined;
-    // Removed: const skipOg = searchParams.get('skipOg') === 'true';
 
-    // Pass false for isForCategoriesOnly, and getArticles will default to fetchOgImagesParam: true
-    const articles: Article[] = await getArticles(searchTerm, category, false);
+    // Use the centralized getArticles function from placeholder-data.ts
+    // This function handles fetching from MongoDB, including necessary query logic and error handling.
+    const articles: Article[] = await getArticles(searchTerm, category);
+
     return NextResponse.json(articles);
   } catch (error) {
     console.error("Error in /api/articles:", error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: 'Failed to fetch articles', details: errorMessage }, { status: 500 });
+    // Log the full error object for better debugging
+    console.error("Full error details:", error);
+    return NextResponse.json({ error: 'Failed to fetch articles', details: 'An internal server error occurred.' }, { status: 500 });
   }
 }
