@@ -80,7 +80,7 @@ export async function getArticles(
   let needsRssUpdate = count === 0;
 
   if (count > 0 && !isForCategoriesOnly) {
-    const latestArticle = await articlesCollection.findOne({}, { sort: { date: -1 } });
+    const latestArticle = await articlesCollection.findOne({}, { sort: { createdAt: -1 } }); // Sort by createdAt for staleness check
     if (latestArticle && latestArticle.createdAt) {
        const createdAtDate = safeCreateDateObject(latestArticle.createdAt);
        if (createdAtDate && (Date.now() - createdAtDate.getTime()) > FIRESTORE_STALE_THRESHOLD) {
@@ -92,7 +92,8 @@ export async function getArticles(
   }
   
   if (needsRssUpdate && !isForCategoriesOnly) {
-     updateArticlesFromRss().catch(error => console.error("Background RSS update failed:", error));
+     // Intentionally not awaiting this to allow the API to respond faster
+     updateArticlesFromRss().catch(error => console.error("[getArticles] Background RSS update failed:", error));
   }
 
 
@@ -106,10 +107,17 @@ export async function getArticles(
     query.$or = [
       { title: { $regex: lowerSearchTerm, $options: 'i' } },
       { summary: { $regex: lowerSearchTerm, $options: 'i' } },
-      { category: { $regex: lowerSearchTerm, $options: 'i' } },
+      // { category: { $regex: lowerSearchTerm, $options: 'i' } }, // Searching category by text already handled by currentCategory
       { source: { $regex: lowerSearchTerm, $options: 'i' } },
     ];
+     // If searching and a specific category is also selected, combine them with $and
+    if (query.category && query.$or) {
+        query.$and = [{ category: query.category }, { $or: query.$or }];
+        delete query.category; // Remove top-level category as it's now in $and
+        delete query.$or; // Remove top-level $or as it's now in $and
+    }
   }
+
 
   const articlesFromDB = await articlesCollection.find(query)
     .sort({ date: -1 }) 
@@ -121,7 +129,7 @@ export async function getArticles(
     _id: undefined, 
     id: doc.id || (doc as any)._id?.toString(), 
     date: safeFormatDateString(doc.date),
-    createdAt: safeCreateDateObject(doc.createdAt),
+    createdAt: safeCreateDateObject(doc.createdAt), // Ensure createdAt is a Date object or undefined
   })) as Article[];
 }
 
@@ -135,26 +143,38 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
       _id: undefined,
       id: articleDoc.id || (articleDoc as any)._id?.toString(),
       date: safeFormatDateString(articleDoc.date),
-      createdAt: safeCreateDateObject(articleDoc.createdAt),
+      createdAt: safeCreateDateObject(articleDoc.createdAt), // Ensure createdAt is a Date object or undefined
     } as Article;
   }
   return undefined;
 }
 
 export async function getCategories(): Promise<string[]> {
-  const articlesCollection = await getArticlesCollection();
-  
-  const distinctCategories = await articlesCollection.distinct('category') as string[];
-  
-  const uniqueCategories = new Set(distinctCategories.filter(Boolean));
-  const sortedCategories = ["All", ...Array.from(uniqueCategories).sort()];
+  try {
+    const articlesCollection = await getArticlesCollection();
+    const distinctCategoriesFromDB = await articlesCollection.distinct('category') as string[];
+    const uniqueDbCategories = new Set(distinctCategoriesFromDB.filter(Boolean));
 
-  if (sortedCategories.length <= 1) { 
-    const articlesForCategories = await fetchFromRss(true, false, true); 
+    if (uniqueDbCategories.size > 0) {
+      return ["All", ...Array.from(uniqueDbCategories).sort()];
+    }
+
+    // If DB has no categories, try fetching from RSS to populate/discover them
+    // console.log("[getCategories] No categories in DB, attempting RSS fallback to discover categories.");
+    const articlesForCategories = await fetchFromRss(true, false, true); // saveToDb is true to populate
     const newDistinctCategories = new Set(articlesForCategories.map(a => a.category).filter(Boolean));
-    return ["All", ...Array.from(newDistinctCategories).sort()];
+    
+    if (newDistinctCategories.size > 0) {
+      return ["All", ...Array.from(newDistinctCategories).sort()];
+    }
+    
+    return ["All"]; // No categories in DB and none from RSS fallback
+
+  } catch (error) {
+    console.error("[getCategories] Critical error occurred while fetching categories:", error);
+    // If any error occurs (DB connection, distinct call, or unhandled in RSS path), 
+    // return a minimal default set of categories.
+    // This makes the /api/categories endpoint more resilient.
+    return ["All", "General"];
   }
-
-  return sortedCategories;
 }
-
