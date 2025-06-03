@@ -1,10 +1,13 @@
 
 'use server';
 
-import { fetchArticlesFromAllSources } from './rss-service';
+import { getArticlesCollection } from './mongodb';
 import { slugify } from './utils';
+import type { Article as RssArticle } from './rss-service'; // Keep for potential future use or type reference
+import { fetchArticlesFromAllSources } from './rss-service'; // For fallback category population if DB is empty
 
-// Article interface without MongoDB specific fields
+// Article interface as expected by the application components
+// Dates should be ISO strings when returned to the client.
 export interface Article {
   id: string;
   title: string;
@@ -16,84 +19,117 @@ export interface Article {
   link: string; // Internal app link: /category/id
   sourceLink: string; // Original article link
   content?: string;
-  fetchedAt?: string; // ISO string from rss-service
+  fetchedAt?: string; // ISO string from rss-service, can be useful
 }
 
-// Simple in-memory cache to avoid hitting RSS feeds too frequently on every API call
-let allArticlesCache: Article[] = [];
-let categoriesCache: string[] = [];
-let lastFetchTimestamp: number = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-async function ensureCacheIsPopulated(forceRefresh: boolean = false): Promise<void> {
-  const now = Date.now();
-  if (forceRefresh || !lastFetchTimestamp || (now - lastFetchTimestamp > CACHE_TTL_MS) || allArticlesCache.length === 0) {
-    // The 'saveToDb' parameter in fetchArticlesFromAllSources will effectively be false as rss-service won't save
-    // We fetch full articles (isForCategoriesOnly=false, fetchOgImagesParam=true) for the cache
-    const fetchedArticles = await fetchArticlesFromAllSources(false, true, false);
-    
-    // Ensure dates are valid ISO strings, default to epoch if not, and sort
-    allArticlesCache = fetchedArticles.map(article => {
-        let validatedDate = new Date(0).toISOString(); // Default to epoch
-        try {
-            const d = new Date(article.date);
-            if (!isNaN(d.getTime())) {
-                validatedDate = d.toISOString();
-            } else {
-                 // console.warn(`Invalid date encountered for article "${article.title}": ${article.date}. Defaulting to epoch.`);
-            }
-        } catch (e) {
-            // console.warn(`Error parsing date for article "${article.title}": ${article.date}. Error: ${e}. Defaulting to epoch.`);
-        }
-        return { ...article, date: validatedDate };
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    const uniqueCategories = new Set(allArticlesCache.map(a => a.category).filter(Boolean));
-    categoriesCache = ["All", ...Array.from(uniqueCategories).sort()];
-    lastFetchTimestamp = now;
-  }
+// Helper to map MongoDB document to Article type
+// Ensure date fields are converted to ISO strings.
+function mapMongoDocToArticle(doc: any): Article {
+  return {
+    id: doc.id,
+    title: doc.title,
+    summary: doc.summary,
+    // Ensure date is an ISO string, handle cases where it might be null or invalid
+    date: doc.date ? new Date(doc.date).toISOString() : new Date(0).toISOString(),
+    source: doc.source,
+    category: doc.category,
+    imageUrl: doc.imageUrl,
+    link: doc.link,
+    sourceLink: doc.sourceLink,
+    content: doc.content,
+    fetchedAt: doc.fetchedAt ? new Date(doc.fetchedAt).toISOString() : undefined,
+  };
 }
 
 export async function getArticles(
   searchTerm?: string,
   currentCategory?: string
 ): Promise<Article[]> {
-  await ensureCacheIsPopulated();
-  let articlesToReturn = [...allArticlesCache];
+  try {
+    const articlesCollection = await getArticlesCollection();
+    const query: any = {};
 
-  if (currentCategory && currentCategory !== "All") {
-    articlesToReturn = articlesToReturn.filter(article =>
-      slugify(article.category) === slugify(currentCategory)
-    );
-  }
+    if (currentCategory && currentCategory !== "All") {
+      // Attempt to match the slugified category or the direct category name
+      // This assumes category in DB is the non-slugified version.
+      // If categories are stored slugified, this needs adjustment.
+      query.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
+    }
 
-  if (searchTerm) {
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    articlesToReturn = articlesToReturn.filter(article =>
-      (article.title && article.title.toLowerCase().includes(lowerSearchTerm)) ||
-      (article.summary && article.summary.toLowerCase().includes(lowerSearchTerm)) ||
-      (article.source && article.source.toLowerCase().includes(lowerSearchTerm))
-    );
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      query.$or = [
+        { title: { $regex: lowerSearchTerm, $options: 'i' } },
+        { summary: { $regex: lowerSearchTerm, $options: 'i' } },
+        { source: { $regex: lowerSearchTerm, $options: 'i' } },
+      ];
+    }
+
+    const articlesFromDb = await articlesCollection
+      .find(query)
+      .sort({ date: -1 }) // Sort by BSON Date object
+      .limit(200) // Limiting to 200 articles for performance, adjust as needed
+      .toArray();
+
+    return articlesFromDb.map(mapMongoDocToArticle);
+  } catch (error) {
+    console.error("[DB PlaceholderData] Error fetching articles from MongoDB:", error);
+    return []; // Return empty array on error to prevent app crash
   }
-  // Sorting is already done in ensureCacheIsPopulated
-  return articlesToReturn;
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
-  // For fetching a single article, ensure the cache is populated.
-  // A more aggressive refresh (forceRefresh=true) could be used here if stale data is a concern for direct links.
-  await ensureCacheIsPopulated(); 
-  return allArticlesCache.find(article => article.id === id);
+  try {
+    const articlesCollection = await getArticlesCollection();
+    const articleDoc = await articlesCollection.findOne({ id: id });
+
+    if (articleDoc) {
+      return mapMongoDocToArticle(articleDoc);
+    }
+    return undefined;
+  } catch (error) {
+    console.error(`[DB PlaceholderData] Error fetching article by ID (${id}) from MongoDB:`, error);
+    return undefined;
+  }
 }
 
 export async function getCategories(): Promise<string[]> {
-  await ensureCacheIsPopulated();
-  return categoriesCache.length > 1 ? categoriesCache : ["All", "General"]; // Fallback if cache is somehow empty
+  try {
+    const articlesCollection = await getArticlesCollection();
+    const distinctCategories = await articlesCollection.distinct('category');
+    
+    const categories = distinctCategories.filter((category): category is string => typeof category === 'string' && category.trim() !== '');
+
+    if (categories.length === 0) {
+      // Fallback: If DB is empty, try to get categories from RSS service (for initial population idea)
+      // This is a temporary measure; ideally, DB populates categories.
+      console.warn("[DB PlaceholderData] No categories found in DB. Attempting to fetch from RSS for category list.");
+      const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false); // isForCategoriesOnly = true
+      if (rssArticlesForCategories.length > 0) {
+        const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
+        const sortedRssCategories = ["All", ...Array.from(uniqueRssCategories).sort()];
+        if (sortedRssCategories.length > 1) return sortedRssCategories;
+      }
+      return ["All", "General"]; // Ultimate fallback
+    }
+
+    return ["All", ...categories.sort()];
+  } catch (error) {
+    console.error("[DB PlaceholderData] Error fetching categories from MongoDB:", error);
+    return ["All", "General"]; // Fallback on error
+  }
 }
 
-// This function can be used to explicitly trigger a cache refresh if needed by other parts of the app.
-export async function updateArticlesFromRss(): Promise<void> {
-  console.log("[Data Service] Triggering explicit RSS fetch to update in-memory cache...");
-  await ensureCacheIsPopulated(true);
-  console.log("[Data Service] In-memory cache update process completed.");
+// This function's role changes. It's no longer about updating an in-memory cache
+// but can be a utility to trigger the DB population if needed for development/testing.
+// The actual periodic update should be handled by a separate mechanism (e.g., cron job).
+export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
+  console.log("[PlaceholderData] Triggering RSS fetch to update MongoDB...");
+  try {
+    // Fetch all articles, with OG images, and save them to DB.
+    await fetchArticlesFromAllSources(false, true, true);
+    console.log("[PlaceholderData] MongoDB update process via RSS fetch completed.");
+  } catch (error) {
+    console.error("[PlaceholderData] Error during triggered RSS fetch and DB save:", error);
+  }
 }
