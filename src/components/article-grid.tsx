@@ -37,87 +37,92 @@ const ArticleCardSkeleton = () => (
 
 
 const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
-  const [allFetchedArticles, setAllFetchedArticles] = useState<Article[]>([]);
   const [displayedArticles, setDisplayedArticles] = useState<Article[]>([]);
-  const [page, setPage] = useState(1); 
+  const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   
-  const [isLoadingDataForFilter, setIsLoadingDataForFilter] = useState(true); 
-  const [isFetchingMoreItems, setIsFetchingMoreItems] = useState(false); 
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true); 
+  const [isLoadingMore, setIsLoadingMore] = useState(false); 
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const entry = useIntersectionObserver(loadMoreRef, { threshold: 0.5 });
+  const entry = useIntersectionObserver(loadMoreRef, { threshold: 0.1 }); // Adjusted threshold
 
-  const fetchArticlesForCurrentFilter = useCallback(async () => {
-    setIsLoadingDataForFilter(true); 
+  const fetchArticlesPage = useCallback(async (pageToFetch: number, isInitialLoad: boolean) => {
+    if (isInitialLoad) {
+      setIsLoadingInitial(true);
+      // No need to clear displayedArticles here if we're replacing it fully on initial load
+    } else {
+      if (isLoadingMore || !hasMore) return; // Don't fetch if already loading or no more data
+      setIsLoadingMore(true);
+    }
+
     try {
       const params = new URLSearchParams();
       if (searchTerm) params.set('q', searchTerm);
       if (currentCategory && currentCategory !== "All") params.set('category', currentCategory);
+      params.set('page', pageToFetch.toString());
+      params.set('limit', ARTICLES_PER_PAGE.toString());
       
       const response = await fetch(`/api/articles?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`API error! status: ${response.status}`);
       }
-      const fetchedArticlesFromApi: Article[] = await response.json();
+      const data: { articles: Article[]; totalArticles: number; hasMore: boolean } = await response.json();
 
-      setAllFetchedArticles(fetchedArticlesFromApi);
-      setDisplayedArticles(fetchedArticlesFromApi.slice(0, ARTICLES_PER_PAGE));
-      setHasMore(fetchedArticlesFromApi.length > ARTICLES_PER_PAGE);
-      setPage(2); 
+      if (isInitialLoad) {
+        setDisplayedArticles(data.articles || []);
+      } else {
+        setDisplayedArticles((prev) => [...prev, ...(data.articles || [])]);
+      }
+      setHasMore(data.hasMore);
+      setCurrentPage(pageToFetch);
+
     } catch (error) {
       console.error("Failed to fetch articles via API:", error);
-      setAllFetchedArticles([]);
-      setDisplayedArticles([]);
-      setHasMore(false);
+      if (isInitialLoad) {
+        setDisplayedArticles([]);
+        setHasMore(false);
+      }
+      // For subsequent loads, we might just log error and user can try again via button
     } finally {
-      setIsLoadingDataForFilter(false);
+      if (isInitialLoad) setIsLoadingInitial(false);
+      else setIsLoadingMore(false);
     }
-  }, [currentCategory, searchTerm]);
+  }, [currentCategory, searchTerm, isLoadingMore, hasMore]); // Dependencies for useCallback
   
+  // Effect for initial fetch or when filters change
   useEffect(() => {
-    fetchArticlesForCurrentFilter();
-  }, [fetchArticlesForCurrentFilter]); 
+    // Reset state for new filter/search then fetch
+    setDisplayedArticles([]);
+    setCurrentPage(1);
+    setHasMore(true); // Assume there's more until first fetch confirms
+    fetchArticlesPage(1, true);
+  }, [currentCategory, searchTerm]); // fetchArticlesPage is memoized and doesn't need to be here
 
-  const loadMoreDisplayedArticles = useCallback(() => {
-    if (isFetchingMoreItems || isLoadingDataForFilter || !hasMore) return;
-    
-    setIsFetchingMoreItems(true); 
-    
-    setTimeout(() => {
-      const nextPageStartIndex = (page - 1) * ARTICLES_PER_PAGE;
-      const nextPageEndIndex = page * ARTICLES_PER_PAGE;
-      const nextPageArticles = allFetchedArticles.slice(nextPageStartIndex, nextPageEndIndex);
-      
-      setDisplayedArticles((prev) => [...prev, ...nextPageArticles]);
-      setHasMore(allFetchedArticles.length > nextPageEndIndex);
-      setPage((prev) => prev + 1);
-      setIsFetchingMoreItems(false);
-    }, 750);
-
-  }, [isFetchingMoreItems, isLoadingDataForFilter, hasMore, page, allFetchedArticles]);
-
-  const isAllCategoryView = currentCategory === "All" && (searchTerm === "" || !searchTerm);
-  const isInfiniteScrollTriggerActive = !isAllCategoryView && hasMore;
-
+  // Effect for infinite scroll (triggered by intersection observer)
   useEffect(() => {
-    // Infinite scroll only triggers if not "All" category view, has more, and not already fetching.
-    if (entry?.isIntersecting && isInfiniteScrollTriggerActive && !isFetchingMoreItems && !isLoadingDataForFilter) {
-      loadMoreDisplayedArticles();
+    if (entry?.isIntersecting && hasMore && !isLoadingInitial && !isLoadingMore) {
+      fetchArticlesPage(currentPage + 1, false);
     }
-  }, [entry, loadMoreDisplayedArticles, isInfiniteScrollTriggerActive, isFetchingMoreItems, isLoadingDataForFilter]);
+  }, [entry, hasMore, isLoadingInitial, isLoadingMore, currentPage, fetchArticlesPage]);
 
-  if (isLoadingDataForFilter) { 
+  const handleLoadMoreButtonClick = () => {
+    if (hasMore && !isLoadingInitial && !isLoadingMore) {
+      fetchArticlesPage(currentPage + 1, false);
+    }
+  };
+
+  if (isLoadingInitial) { 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
-          <ArticleCardSkeleton key={`filter-load-skeleton-${index}`} />
+          <ArticleCardSkeleton key={`initial-load-skeleton-${index}`} />
         ))}
       </div>
     );
   }
   
-  if (displayedArticles.length === 0) { // isLoadingDataForFilter is false here
+  if (displayedArticles.length === 0 && !isLoadingInitial) {
     return (
       <Alert variant="default" className="mt-8">
         <AlertCircle className="h-4 w-4" />
@@ -136,41 +141,23 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
           <ArticleCard key={article.id} article={article} />
         ))}
       </div>
-      <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4">
-        {(() => {
-          // This rendering block is only reached if isLoadingDataForFilter is false.
-          if (isAllCategoryView) { // "All" category view (no search)
-            if (hasMore) {
-              return (
-                <Button onClick={loadMoreDisplayedArticles} disabled={isFetchingMoreItems}>
-                  {isFetchingMoreItems ? "Loading More..." : "View More Articles"}
-                </Button>
-              );
-            } else if (displayedArticles.length > 0) { // No more articles for "All" view, but some were displayed
-              return <p className="text-muted-foreground mt-4">You've reached the end!</p>;
-            }
-            // If "All" view, displayedArticles.length is 0, and no more, "No Articles Found" alert handles it.
-            return null; 
-          } else { // Not "All" category view (i.e., specific category or search is active)
-            if (hasMore) { // If there are more articles for this filtered view (infinite scroll mode)
-              if (isFetchingMoreItems) { // And we are currently fetching them (via infinite scroll)
-                return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                    {Array.from({ length: 3 }).map((_, index) => (
-                      <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
-                    ))}
-                  </div>
-                );
-              }
-              // If hasMore, but not fetching, intersection observer will trigger loadMore. Show nothing here.
-              return null; 
-            } else if (displayedArticles.length > 0) { // No more articles for this filtered view, but some were shown
-              return <p className="text-muted-foreground mt-4">You've reached the end!</p>;
-            }
-            // If filtered view, displayedArticles.length is 0, and no more, "No Articles Found" alert handles it.
-            return null;
-          }
-        })()}
+      
+      <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4 min-h-[50px]"> {/* min-h for observer */}
+        {isLoadingMore && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
+            ))}
+          </div>
+        )}
+        {hasMore && !isLoadingMore && (
+           <Button onClick={handleLoadMoreButtonClick} disabled={isLoadingMore}>
+            {isLoadingMore ? "Loading More..." : "View More Articles"}
+          </Button>
+        )}
+        {!hasMore && displayedArticles.length > 0 && !isLoadingMore && (
+          <p className="text-muted-foreground mt-4">You've reached the end!</p>
+        )}
       </div>
     </>
   );

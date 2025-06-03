@@ -29,7 +29,6 @@ function mapMongoDocToArticle(doc: any): Article {
     id: doc.id,
     title: doc.title,
     summary: doc.summary,
-    // Ensure date is an ISO string, handle cases where it might be null or invalid
     date: doc.date ? new Date(doc.date).toISOString() : new Date(0).toISOString(),
     source: doc.source,
     category: doc.category,
@@ -43,16 +42,15 @@ function mapMongoDocToArticle(doc: any): Article {
 
 export async function getArticles(
   searchTerm?: string,
-  currentCategory?: string
-): Promise<Article[]> {
+  currentCategory?: string,
+  page: number = 1,
+  limit: number = 9
+): Promise<{ articles: Article[]; totalArticles: number; hasMore: boolean }> {
   try {
     const articlesCollection = await getArticlesCollection();
     const query: any = {};
 
     if (currentCategory && currentCategory !== "All") {
-      // Attempt to match the slugified category or the direct category name
-      // This assumes category in DB is the non-slugified version.
-      // If categories are stored slugified, this needs adjustment.
       query.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
     }
 
@@ -65,16 +63,26 @@ export async function getArticles(
       ];
     }
 
+    const skipAmount = (page - 1) * limit;
+
     const articlesFromDb = await articlesCollection
       .find(query)
       .sort({ date: -1 }) // Sort by BSON Date object
-      .limit(200) // Limiting to 200 articles for performance, adjust as needed
+      .skip(skipAmount)
+      .limit(limit)
       .toArray();
 
-    return articlesFromDb.map(mapMongoDocToArticle);
+    const totalArticlesInQuery = await articlesCollection.countDocuments(query);
+    const mappedArticles = articlesFromDb.map(mapMongoDocToArticle);
+    
+    return {
+      articles: mappedArticles,
+      totalArticles: totalArticlesInQuery,
+      hasMore: (skipAmount + mappedArticles.length) < totalArticlesInQuery,
+    };
   } catch (error) {
     console.error("[DB PlaceholderData] Error fetching articles from MongoDB:", error);
-    return []; // Return empty array on error to prevent app crash
+    return { articles: [], totalArticles: 0, hasMore: false }; 
   }
 }
 
@@ -101,33 +109,29 @@ export async function getCategories(): Promise<string[]> {
     const categories = distinctCategories.filter((category): category is string => typeof category === 'string' && category.trim() !== '');
 
     if (categories.length === 0) {
-      // Fallback: If DB is empty, try to get categories from RSS service (for initial population idea)
-      // This is a temporary measure; ideally, DB populates categories.
       console.warn("[DB PlaceholderData] No categories found in DB. Attempting to fetch from RSS for category list.");
-      const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false); // isForCategoriesOnly = true
+      const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false); 
       if (rssArticlesForCategories.length > 0) {
         const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
         const sortedRssCategories = ["All", ...Array.from(uniqueRssCategories).sort()];
         if (sortedRssCategories.length > 1) return sortedRssCategories;
       }
-      return ["All", "General"]; // Ultimate fallback
+      return ["All", "General"]; 
     }
 
     return ["All", ...categories.sort()];
   } catch (error) {
     console.error("[DB PlaceholderData] Error fetching categories from MongoDB:", error);
-    return ["All", "General"]; // Fallback on error
+    return ["All", "General"]; 
   }
 }
 
-// This function's role changes. It's no longer about updating an in-memory cache
-// but can be a utility to trigger the DB population if needed for development/testing.
-// The actual periodic update should be handled by a separate mechanism (e.g., cron job).
 export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
   console.log("[PlaceholderData] Triggering RSS fetch to update MongoDB...");
   try {
     // Fetch all articles, with OG images, and save them to DB.
-    await fetchArticlesFromAllSources(false, true, true);
+    // fetchArticlesFromAllSources(isForCategoriesOnly, fetchOgImages, saveToDb)
+    await fetchArticlesFromAllSources(false, true, true); 
     console.log("[PlaceholderData] MongoDB update process via RSS fetch completed.");
   } catch (error) {
     console.error("[PlaceholderData] Error during triggered RSS fetch and DB save:", error);
