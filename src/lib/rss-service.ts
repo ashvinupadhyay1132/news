@@ -5,11 +5,12 @@
 'use server';
 
 import { Parser } from 'xml2js';
-import type { Article } from './placeholder-data';
+import type { Article } from './placeholder-data'; // Assumes Article type is defined here
 import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
+import { getArticlesCollection } from './mongodb'; // Import MongoDB utility
 
 interface NewsSource {
   name: string;
@@ -451,11 +452,56 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
   return imageUrl; 
 }
 
+async function saveArticlesToDatabase(articles: Article[]): Promise<void> {
+  if (!articles || articles.length === 0) {
+    console.log("[DB Save] No articles to save.");
+    return;
+  }
+
+  try {
+    const articlesCollection = await getArticlesCollection();
+    const operations = articles.map(article => {
+      // Prepare article data for MongoDB, ensuring date fields are BSON Dates
+      const articleDataForDb = {
+        id: article.id,
+        title: article.title,
+        summary: article.summary,
+        date: new Date(article.date), // Convert ISO string to Date
+        source: article.source,
+        category: article.category,
+        imageUrl: article.imageUrl,
+        link: article.link,
+        sourceLink: article.sourceLink,
+        content: article.content,
+        fetchedAt: article.fetchedAt ? new Date(article.fetchedAt) : new Date(), // Convert ISO string to Date
+      };
+
+      return {
+        updateOne: {
+          filter: { id: article.id }, // Use app-generated ID for upsert
+          update: {
+            $set: articleDataForDb,
+            $setOnInsert: { createdAt: new Date() } // Set createdAt only on insert for TTL
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    if (operations.length > 0) {
+      const result = await articlesCollection.bulkWrite(operations, { ordered: false });
+      console.log(`[DB Save] Bulk write completed. Matched: ${result.matchedCount}, Upserted: ${result.upsertedCount}, Modified: ${result.modifiedCount}`);
+    }
+  } catch (error) {
+    console.error("[DB Save] Error saving articles to MongoDB:", error);
+  }
+}
+
+
 async function fetchAndParseRSS(
     source: NewsSource, 
     isForCategoriesOnly: boolean = false, 
-    fetchOgImagesParam: boolean = true,
-    saveToDb: boolean = false // This parameter is now effectively always false for this service's direct actions
+    fetchOgImagesParam: boolean = true
   ): Promise<Article[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
@@ -468,6 +514,7 @@ async function fetchAndParseRSS(
     });
 
     if (!fetchResponse.ok) {
+      console.warn(`[RSS Fetch] Failed to fetch ${source.name}: ${fetchResponse.status}`);
       return [];
     }
 
@@ -478,12 +525,12 @@ async function fetchAndParseRSS(
     let utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
+    // Basic heuristic for encoding detection
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
     }
-
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
@@ -502,6 +549,7 @@ async function fetchAndParseRSS(
     }
 
     if (items.length === 0) {
+      // console.log(`[RSS Parse] No items found for ${source.name}`);
       return [];
     }
 
@@ -544,9 +592,10 @@ async function fetchAndParseRSS(
       }
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
-      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date();
-      if (isNaN(parsedDateFromFeed.getTime())) { // Check if date is invalid
-        parsedDateFromFeed = new Date(); // Default to now if parsing failed
+      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date(); // Default to now if no date
+      if (isNaN(parsedDateFromFeed.getTime())) { 
+        // console.warn(`[RSS Parse] Invalid date "${normalizeContent(pubDateSource)}" for "${title}" from ${source.name}. Defaulting to current time.`);
+        parsedDateFromFeed = new Date(); 
       }
       const date = parsedDateFromFeed.toISOString();
 
@@ -638,11 +687,13 @@ async function fetchAndParseRSS(
       const internalArticleLink = `/${slugify(finalCategory)}/${id}`;
 
       if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD'))) {
+        // console.warn(`[RSS Parse] Article "${title}" skipped due to REPLACEMENT CHARACTER.`);
         continue;
       }
       if (!isForCategoriesOnly) {
         const summaryLower = summaryText.toLowerCase();
         if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
+          // console.warn(`[RSS Parse] Article "${title}" skipped due to insufficient summary.`);
           continue;
         }
       }
@@ -651,22 +702,24 @@ async function fetchAndParseRSS(
         id,
         title,
         summary: summaryText,
-        date, // Original article date
+        date, // Original article date (ISO string)
         source: source.name,
         category: finalCategory,
         imageUrl: extractedImgUrl, 
         link: internalArticleLink,
         sourceLink: originalLink,
         content: itemContentForPage, 
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: new Date().toISOString(), // When this article was fetched/processed by this service
       };
 
       if (title && title !== 'Untitled Article' && originalLink && originalLink !== '#') {
         processedArticles.push(articleForProcessing);
       }
     }
+    // console.log(`[RSS Parse] Processed ${processedArticles.length} articles from ${source.name}`);
     return processedArticles;
   } catch (error) {
+    console.error(`[RSS Service] Error fetching or parsing RSS from ${source.name}:`, error);
     return [];
   }
 }
@@ -674,10 +727,11 @@ async function fetchAndParseRSS(
 export async function fetchArticlesFromAllSources(
   isForCategoriesOnly: boolean = false, 
   fetchOgImagesParam: boolean = true,
-  saveToDb: boolean = false // Parameter kept for signature consistency, but no longer used for DB saving in this service
+  saveToDb: boolean = false // New parameter, defaults to false
 ): Promise<Article[]> {
+  // console.log(`[RSS Service] Fetching all sources. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}, SaveToDB: ${saveToDb}`);
   const allArticlesPromises = NEWS_SOURCES.map(source => 
-    fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam, saveToDb)
+    fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam)
   );
   const results = await Promise.allSettled(allArticlesPromises);
 
@@ -687,6 +741,7 @@ export async function fetchArticlesFromAllSources(
     .flat();
 
   if (!isForCategoriesOnly) {
+    // console.log(`[RSS Service] Raw articles fetched before filtering: ${allArticles.length}`);
     allArticles = allArticles.filter(article =>
       !article.title.includes('\uFFFD') &&
       article.summary && !article.summary.includes('\uFFFD')
@@ -697,6 +752,8 @@ export async function fetchArticlesFromAllSources(
       return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
     });
 
+    // console.log(`[RSS Service] Articles after initial quality filter: ${allArticles.length}`);
+
     const uniqueArticlesMap = new Map<string, Article>();
     for (const article of allArticles) {
       if (!article.title || !article.sourceLink || article.sourceLink === '#') {
@@ -706,7 +763,7 @@ export async function fetchArticlesFromAllSources(
       try {
         const url = new URL(article.sourceLink);
         normalizedLinkKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
-      } catch(e) { /* no-op */ }
+      } catch(e) { /* no-op, use original sourceLink */ }
 
       const existingArticle = uniqueArticlesMap.get(normalizedLinkKey);
       if (existingArticle) {
@@ -714,6 +771,8 @@ export async function fetchArticlesFromAllSources(
           if (article.imageUrl && !existingArticle.imageUrl) keepNew = true;
           else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) keepNew = true;
           else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.') keepNew = true;
+          // Prioritize articles with more recent 'date' field if all else is similar
+          else if (new Date(article.date) > new Date(existingArticle.date)) keepNew = true;
           
           if (keepNew) uniqueArticlesMap.set(normalizedLinkKey, article);
       } else {
@@ -721,8 +780,21 @@ export async function fetchArticlesFromAllSources(
       }
     }
     allArticles = Array.from(uniqueArticlesMap.values());
+    // console.log(`[RSS Service] Articles after deduplication: ${allArticles.length}`);
   } 
 
   allArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return allArticles.slice(0, 500); 
+  const finalArticles = allArticles.slice(0, 500); // Limit to 500 articles
+  // console.log(`[RSS Service] Final articles count: ${finalArticles.length}`);
+
+  if (saveToDb && !isForCategoriesOnly && finalArticles.length > 0) {
+    // console.log(`[RSS Service] Attempting to save ${finalArticles.length} articles to DB.`);
+    await saveArticlesToDatabase(finalArticles);
+  } else if (saveToDb && isForCategoriesOnly) {
+    // console.log("[RSS Service] 'saveToDb' is true, but 'isForCategoriesOnly' is also true. Articles will not be saved.");
+  }
+
+
+  return finalArticles; 
 }
+
