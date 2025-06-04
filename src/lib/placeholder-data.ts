@@ -3,11 +3,9 @@
 
 import { getArticlesCollection } from './mongodb';
 import { slugify } from './utils';
-import type { Article as RssArticle } from './rss-service'; // Keep for potential future use or type reference
-import { fetchArticlesFromAllSources } from './rss-service'; // For fallback category population if DB is empty
+import type { Article as RssArticle } from './rss-service'; 
+import { fetchArticlesFromAllSources } from './rss-service'; 
 
-// Article interface as expected by the application components
-// Dates should be ISO strings when returned to the client.
 export interface Article {
   id: string;
   title: string;
@@ -16,25 +14,23 @@ export interface Article {
   source: string;
   category: string;
   imageUrl: string | null;
-  link: string; // Internal app link: /category/id
-  sourceLink: string; // Original article link
+  link: string; 
+  sourceLink: string; 
   content?: string;
-  fetchedAt?: string; // ISO string from rss-service, can be useful
+  fetchedAt?: string; // ISO string
 }
 
-// Helper to map MongoDB document to Article type
-// Ensure date fields are converted to ISO strings.
 function mapMongoDocToArticle(doc: any): Article {
   return {
-    id: doc.id,
-    title: doc.title,
-    summary: doc.summary,
+    id: doc.id || `missing-id-${Math.random().toString(36).substring(7)}`,
+    title: doc.title || "Untitled Article",
+    summary: doc.summary || "No summary available.",
     date: doc.date ? new Date(doc.date).toISOString() : new Date(0).toISOString(),
-    source: doc.source,
-    category: doc.category,
-    imageUrl: doc.imageUrl,
-    link: doc.link,
-    sourceLink: doc.sourceLink,
+    source: doc.source || "Unknown Source",
+    category: doc.category || "General",
+    imageUrl: doc.imageUrl || null,
+    link: doc.link || "/",
+    sourceLink: doc.sourceLink || "#",
     content: doc.content,
     fetchedAt: doc.fetchedAt ? new Date(doc.fetchedAt).toISOString() : undefined,
   };
@@ -46,28 +42,27 @@ export async function getArticles(
   page: number = 1,
   limit: number = 9
 ): Promise<{ articles: Article[]; totalArticles: number; hasMore: boolean }> {
+  const query: any = {};
+  if (currentCategory && currentCategory !== "All") {
+    query.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
+  }
+  if (searchTerm) {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    query.$or = [
+      { title: { $regex: lowerSearchTerm, $options: 'i' } },
+      { summary: { $regex: lowerSearchTerm, $options: 'i' } },
+      { source: { $regex: lowerSearchTerm, $options: 'i' } },
+    ];
+  }
+  console.log("[DB PlaceholderData] getArticles - Query:", JSON.stringify(query), `Page: ${page}, Limit: ${limit}`);
+
   try {
     const articlesCollection = await getArticlesCollection();
-    const query: any = {};
-
-    if (currentCategory && currentCategory !== "All") {
-      query.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
-    }
-
-    if (searchTerm) {
-      const lowerSearchTerm = searchTerm.toLowerCase();
-      query.$or = [
-        { title: { $regex: lowerSearchTerm, $options: 'i' } },
-        { summary: { $regex: lowerSearchTerm, $options: 'i' } },
-        { source: { $regex: lowerSearchTerm, $options: 'i' } },
-      ];
-    }
-
     const skipAmount = (page - 1) * limit;
 
     const articlesFromDb = await articlesCollection
       .find(query)
-      .sort({ date: -1 }) // Sort by BSON Date object
+      .sort({ date: -1 }) 
       .skip(skipAmount)
       .limit(limit)
       .toArray();
@@ -75,10 +70,13 @@ export async function getArticles(
     const totalArticlesInQuery = await articlesCollection.countDocuments(query);
     const mappedArticles = articlesFromDb.map(mapMongoDocToArticle);
     
+    const hasMore = (skipAmount + mappedArticles.length) < totalArticlesInQuery;
+    console.log(`[DB PlaceholderData] getArticles - Found ${mappedArticles.length} articles. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}`);
+    
     return {
       articles: mappedArticles,
       totalArticles: totalArticlesInQuery,
-      hasMore: (skipAmount + mappedArticles.length) < totalArticlesInQuery,
+      hasMore: hasMore,
     };
   } catch (error) {
     console.error("[DB PlaceholderData] Error fetching articles from MongoDB:", error);
@@ -87,13 +85,16 @@ export async function getArticles(
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
+  console.log(`[DB PlaceholderData] getArticleById - Fetching article with ID: ${id}`);
   try {
     const articlesCollection = await getArticlesCollection();
     const articleDoc = await articlesCollection.findOne({ id: id });
 
     if (articleDoc) {
+      console.log(`[DB PlaceholderData] getArticleById - Found article: ${articleDoc.title}`);
       return mapMongoDocToArticle(articleDoc);
     }
+    console.log(`[DB PlaceholderData] getArticleById - Article not found for ID: ${id}`);
     return undefined;
   } catch (error) {
     console.error(`[DB PlaceholderData] Error fetching article by ID (${id}) from MongoDB:`, error);
@@ -102,6 +103,7 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
 }
 
 export async function getCategories(): Promise<string[]> {
+  console.log("[DB PlaceholderData] getCategories - Fetching categories.");
   try {
     const articlesCollection = await getArticlesCollection();
     const distinctCategories = await articlesCollection.distinct('category');
@@ -114,26 +116,30 @@ export async function getCategories(): Promise<string[]> {
       if (rssArticlesForCategories.length > 0) {
         const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
         const sortedRssCategories = ["All", ...Array.from(uniqueRssCategories).sort()];
-        if (sortedRssCategories.length > 1) return sortedRssCategories;
+        if (sortedRssCategories.length > 1) {
+          console.log(`[DB PlaceholderData] Categories fetched from RSS: ${sortedRssCategories.join(', ')}`);
+          return sortedRssCategories;
+        }
       }
+      console.log("[DB PlaceholderData] No categories from DB or RSS. Returning default.");
       return ["All", "General"]; 
     }
-
-    return ["All", ...categories.sort()];
+    const finalCategories = ["All", ...categories.sort()];
+    console.log(`[DB PlaceholderData] Categories fetched from DB: ${finalCategories.join(', ')}`);
+    return finalCategories;
   } catch (error) {
     console.error("[DB PlaceholderData] Error fetching categories from MongoDB:", error);
+    console.log("[DB PlaceholderData] Returning default categories due to error.");
     return ["All", "General"]; 
   }
 }
 
 export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
-  console.log("[PlaceholderData] Triggering RSS fetch to update MongoDB...");
+  console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process STARTED.");
   try {
-    // Fetch all articles, with OG images, and save them to DB.
-    // fetchArticlesFromAllSources(isForCategoriesOnly, fetchOgImages, saveToDb)
     await fetchArticlesFromAllSources(false, true, true); 
-    console.log("[PlaceholderData] MongoDB update process via RSS fetch completed.");
+    console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process COMPLETED successfully.");
   } catch (error) {
-    console.error("[PlaceholderData] Error during triggered RSS fetch and DB save:", error);
+    console.error("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Error during process:", error);
   }
 }
