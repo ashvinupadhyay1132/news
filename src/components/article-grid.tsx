@@ -80,10 +80,9 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     } catch (error) {
       console.error("Failed to fetch articles via API:", error);
       if (isInitialLoad) {
-        setDisplayedArticles([]);
-        setHasMore(false);
+        setDisplayedArticles([]); // Clear articles on initial load error
       }
-      // For subsequent loads, we might just log error and user can try again via button
+      setHasMore(false); // Stop trying to load more if an error occurs
     } finally {
       if (isInitialLoad) setIsLoadingInitial(false);
       else setIsLoadingMore(false);
@@ -97,7 +96,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     setCurrentPage(1);
     setHasMore(true); // Assume there's more until first fetch confirms
     fetchArticlesPage(1, true);
-  }, [currentCategory, searchTerm]); // fetchArticlesPage is memoized and doesn't need to be here
+  }, [currentCategory, searchTerm, fetchArticlesPage]); // fetchArticlesPage is memoized
 
   // Effect for infinite scroll (triggered by intersection observer)
   useEffect(() => {
@@ -123,12 +122,15 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   }
   
   if (displayedArticles.length === 0 && !isLoadingInitial) {
+    // Log the current filters when no articles are found
+    console.log(`ArticleGrid: No articles found for searchTerm="${searchTerm}", currentCategory="${currentCategory}". Database might be empty or filters too restrictive. Ensure /api/admin/update-articles has been run.`);
     return (
       <Alert variant="default" className="mt-8">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>No Articles Found</AlertTitle>
         <AlertDescription>
           Sorry, we couldn't find any articles matching your criteria. Try adjusting your search or category filters.
+          If this is unexpected, ensure the article database has been populated recently.
         </AlertDescription>
       </Alert>
     );
@@ -164,3 +166,4 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 };
 
 export default ArticleGrid;
+

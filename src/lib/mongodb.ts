@@ -75,6 +75,42 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
         }
     }
 
+    // Ensure index on 'date' for sorting
+    const dateIndexName = 'article_date_idx';
+    const dateIndexExists = indexes.some(idx => idx.name === dateIndexName);
+    if (!dateIndexExists) {
+      try {
+        await articlesCollection.createIndex({ date: -1 }, { name: dateIndexName });
+        console.log("Index on 'date' for 'articles' collection created successfully.");
+      } catch (indexError) {
+        console.error("Error creating index on 'date' for 'articles':", indexError);
+      }
+    }
+
+    // Ensure index on 'category' for filtering
+    const categoryIndexName = 'article_category_idx';
+    const categoryIndexExists = indexes.some(idx => idx.name === categoryIndexName);
+    if (!categoryIndexExists) {
+      try {
+        await articlesCollection.createIndex({ category: 1 }, { name: categoryIndexName });
+        console.log("Index on 'category' for 'articles' collection created successfully.");
+      } catch (indexError) {
+        console.error("Error creating index on 'category' for 'articles':", indexError);
+      }
+    }
+    
+    // Ensure compound index for common queries like category and date
+    const categoryDateIndexName = 'article_category_date_idx';
+    const categoryDateIndexExists = indexes.some(idx => idx.name === categoryDateIndexName);
+    if(!categoryDateIndexExists) {
+        try {
+            await articlesCollection.createIndex({ category: 1, date: -1 }, { name: categoryDateIndexName });
+            console.log("Compound index on 'category' and 'date' for 'articles' collection created successfully.");
+        } catch (indexError) {
+            console.error("Error creating compound index on 'category' and 'date' for 'articles':", indexError);
+        }
+    }
+
 
     return { client, db };
   } catch (connectionError) {
@@ -103,3 +139,4 @@ export async function getArticlesCollection(): Promise<Collection<Document>> {
   const db = await getDb();
   return db.collection('articles');
 }
+
