@@ -496,6 +496,8 @@ async function saveArticlesToDatabase(articles: Article[]): Promise<void> {
     if (operations.length > 0) {
       const result = await articlesCollection.bulkWrite(operations, { ordered: false });
       console.log(`[DB Save] Bulk write completed. Matched: ${result.matchedCount}, Upserted: ${result.upsertedCount}, Modified: ${result.modifiedCount}, Inserted: ${result.insertedCount}`);
+    } else {
+       console.log("[DB Save] No operations to perform after mapping articles.");
     }
   } catch (error) {
     console.error("[DB Save] Error saving articles to MongoDB:", error);
@@ -508,6 +510,7 @@ async function fetchAndParseRSS(
     isForCategoriesOnly: boolean = false, 
     fetchOgImagesParam: boolean = true
   ): Promise<Article[]> {
+  console.log(`[RSS Fetch] Starting fetch for ${source.name}. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}`);
   try {
     const fetchResponse = await fetch(source.rssUrl, {
       headers: {
@@ -552,7 +555,7 @@ async function fetchAndParseRSS(
       items = items ? [items] : [];
     }
     
-    console.log(`[RSS Parse] Found ${items.length} items in feed for ${source.name}.`);
+    console.log(`[RSS Parse] Found ${items.length} raw items in feed for ${source.name}.`);
 
     if (items.length === 0) {
       return [];
@@ -603,11 +606,11 @@ async function fetchAndParseRSS(
       }
       const date = parsedDateFromFeed.toISOString();
 
-      const idInputForSlug = (originalLink !== "#" ? originalLink : (title + source.name + index) );
+      const idInputForSlugBase = (originalLink && originalLink !== "#" ? originalLink : (title && title !== 'Untitled Article' ? title : `article-${source.name}-${index}-${new Date(date).getTime()}`));
       const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10);
-      let slugifiedIdPart = slugify(idInputForSlug);
-      if (!slugifiedIdPart || slugifiedIdPart.length < 5) { // Ensure slug part is somewhat meaningful
-          slugifiedIdPart = `article-${new Date(date).getTime()}-${index}`; // Fallback for ID slug part
+      let slugifiedIdPart = slugify(idInputForSlugBase);
+      if (!slugifiedIdPart || slugifiedIdPart.length < 5) { 
+          slugifiedIdPart = `article-${new Date(date).getTime()}-${index}`; 
       }
       const MAX_SLUG_BASE_LENGTH = 100;
       if (slugifiedIdPart.length > MAX_SLUG_BASE_LENGTH) {
@@ -690,7 +693,7 @@ async function fetchAndParseRSS(
       }
 
       let slugifiedCategory = slugify(finalCategory);
-      if (!slugifiedCategory) {
+      if (!slugifiedCategory || slugifiedCategory.length < 1) {
           slugifiedCategory = 'general'; // Default category slug if slugification fails
       }
       const internalArticleLink = `/${slugifiedCategory}/${id}`;
@@ -720,7 +723,7 @@ async function fetchAndParseRSS(
         fetchedAt: new Date().toISOString(), 
       };
 
-      if (title && title !== 'Untitled Article' && originalLink && originalLink !== '#') {
+      if (title && title !== 'Untitled Article' && title.length > 10 && originalLink && originalLink !== '#') {
         processedArticles.push(articleForProcessing);
       }
     }
@@ -751,40 +754,64 @@ export async function fetchArticlesFromAllSources(
 
 
   if (!isForCategoriesOnly) {
+    console.log(`[RSS Filter] Initial article count for filtering: ${allArticles.length}`);
+    // Filter out articles with bad characters in title/summary
     allArticles = allArticles.filter(article =>
       !article.title.includes('\uFFFD') &&
       article.summary && !article.summary.includes('\uFFFD')
     );
+    console.log(`[RSS Filter] Articles after invalid character filter: ${allArticles.length}`);
 
+    // Filter out articles with very short or placeholder summaries/titles
     allArticles = allArticles.filter(article => {
       const summaryLower = article.summary.toLowerCase();
-      return summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
+      const titleLower = article.title.toLowerCase();
+      const isGoodTitle = titleLower.length >= 10 && titleLower !== "untitled article";
+      const isGoodSummary = summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
+      return isGoodTitle && isGoodSummary;
     });
-    console.log(`[RSS Service] Articles after quality filter: ${allArticles.length}`);
+    console.log(`[RSS Filter] Articles after short/placeholder content filter: ${allArticles.length}`);
+
+    // Filter out articles without an image URL
+    allArticles = allArticles.filter(article => article.imageUrl && article.imageUrl.trim() !== '');
+    console.log(`[RSS Filter] Articles after image URL filter: ${allArticles.length}`);
+
 
     const uniqueArticlesMap = new Map<string, Article>();
     for (const article of allArticles) {
-      if (!article.title || !article.sourceLink || article.sourceLink === '#') {
+      if (!article.title || !article.sourceLink) {
           console.warn(`[RSS Deduplication] Skipping article with missing title or sourceLink: ${article.title}`);
           continue;
       }
-      let normalizedLinkKey = article.sourceLink;
-      try {
-        const url = new URL(article.sourceLink);
-        normalizedLinkKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
-      } catch(e) { /* no-op, use original sourceLink */ }
+      let normalizedKey: string;
+        if (article.sourceLink && article.sourceLink !== '#' && article.sourceLink.startsWith('http')) {
+            try {
+                const url = new URL(article.sourceLink);
+                normalizedKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
+            } catch (e) {
+                 // If sourceLink is not a valid URL, use a combination of title and source.
+                normalizedKey = `${slugify(article.title)}-${slugify(article.source)}`.toLowerCase();
+            }
+        } else {
+            // If sourceLink is '#' or missing, or not starting with http, use title and source.
+            normalizedKey = `${slugify(article.title)}-${slugify(article.source)}`.toLowerCase();
+        }
 
-      const existingArticle = uniqueArticlesMap.get(normalizedLinkKey);
+
+      const existingArticle = uniqueArticlesMap.get(normalizedKey);
       if (existingArticle) {
           let keepNew = false;
+          // Prioritize article with more complete content or more recent date
           if (article.imageUrl && !existingArticle.imageUrl) keepNew = true;
           else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) keepNew = true;
           else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.') keepNew = true;
           else if (new Date(article.date) > new Date(existingArticle.date)) keepNew = true;
           
-          if (keepNew) uniqueArticlesMap.set(normalizedLinkKey, article);
+          if (keepNew) {
+            uniqueArticlesMap.set(normalizedKey, article);
+          }
       } else {
-          uniqueArticlesMap.set(normalizedLinkKey, article);
+          uniqueArticlesMap.set(normalizedKey, article);
       }
     }
     allArticles = Array.from(uniqueArticlesMap.values());
@@ -807,4 +834,4 @@ export async function fetchArticlesFromAllSources(
 
   return finalArticles; 
 }
-
+    
