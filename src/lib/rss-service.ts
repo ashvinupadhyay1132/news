@@ -441,31 +441,32 @@ async function saveArticlesToDatabase(articles: Article[]): Promise<void> {
     console.log("[DB Save] No articles to save.");
     return;
   }
-  console.log(`[DB Save] Attempting to save ${articles.length} articles to database.`);
+  console.log(`[DB Save] Attempting to save/update ${articles.length} articles to database.`);
 
   try {
     const articlesCollection = await getArticlesCollection();
     const operations = articles.map(article => {
+      // Ensure dates are BSON Date objects for MongoDB
       const articleDataForDb = {
         id: article.id, 
         title: article.title,
         summary: article.summary,
-        date: new Date(article.date), 
+        date: new Date(article.date), // Convert ISO string to BSON Date
         source: article.source,
         category: article.category,
         imageUrl: article.imageUrl,
         link: article.link, 
         sourceLink: article.sourceLink, 
         content: article.content,
-        fetchedAt: article.fetchedAt ? new Date(article.fetchedAt) : new Date(), 
+        fetchedAt: article.fetchedAt ? new Date(article.fetchedAt) : new Date(), // Convert ISO string to BSON Date
       };
 
       return {
         updateOne: {
-          filter: { id: article.id }, 
+          filter: { id: article.id }, // Use the unique 'id' field for upserting
           update: {
             $set: articleDataForDb,
-            $setOnInsert: { createdAt: new Date() } 
+            $setOnInsert: { createdAt: new Date() } // Add 'createdAt' only on first insert for TTL
           },
           upsert: true,
         },
@@ -473,13 +474,25 @@ async function saveArticlesToDatabase(articles: Article[]): Promise<void> {
     });
 
     if (operations.length > 0) {
+      console.log(`[DB Save] Preparing to execute ${operations.length} bulkWrite operations.`);
       const result = await articlesCollection.bulkWrite(operations, { ordered: false });
-      console.log(`[DB Save] Bulk write completed. Matched: ${result.matchedCount}, Upserted: ${result.upsertedCount}, Modified: ${result.modifiedCount}, Inserted: ${result.insertedCount}`);
+      console.log(`[DB Save] Bulk write completed. Result: 
+        acknowledged: ${result.acknowledged},
+        insertedCount: ${result.insertedCount},
+        matchedCount: ${result.matchedCount},
+        modifiedCount: ${result.modifiedCount},
+        upsertedCount: ${result.upsertedCount},
+        deletedCount: ${result.deletedCount},
+        upsertedIds: ${JSON.stringify(result.upsertedIds)}`);
+      if (result.writeErrors && result.writeErrors.length > 0) {
+        console.error(`[DB Save] Bulk write encountered ${result.writeErrors.length} write errors. First error:`, result.writeErrors[0]);
+      }
     } else {
-       console.log("[DB Save] No operations to perform after mapping articles.");
+       console.log("[DB Save] No operations to perform after mapping articles (perhaps all articles were filtered out).");
     }
   } catch (error) {
-    console.error("[DB Save] Error saving articles to MongoDB:", error);
+    console.error("[DB Save] CRITICAL ERROR saving articles to MongoDB:", error);
+    // Consider re-throwing or handling more gracefully depending on your app's needs
   }
 }
 
@@ -496,12 +509,12 @@ async function fetchAndParseRSS(
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 NewsAggregator/1.0 (+http://example.com/bot.html)',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7'
       },
-      signal: AbortSignal.timeout(15000),
-      next: { revalidate: 300 } 
+      signal: AbortSignal.timeout(15000), // 15 second timeout for fetching the feed
+      next: { revalidate: 300 } // Revalidate cache every 5 minutes (300 seconds) for this specific fetch
     });
 
     if (!fetchResponse.ok) {
-      console.warn(`[RSS Fetch] Failed to fetch ${source.name}: ${fetchResponse.status}`);
+      console.warn(`[RSS Fetch] Failed to fetch ${source.name}: ${fetchResponse.status} ${fetchResponse.statusText}`);
       return [];
     }
 
@@ -509,14 +522,19 @@ async function fetchAndParseRSS(
     const rawDataBuffer = Buffer.from(arrayBuffer);
 
     let feedXmlString: string;
+    // Try decoding as UTF-8 first
     let utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
+    // Heuristic: if there are many replacement characters, UTF-8 might be wrong
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
+    // If many replacement characters (e.g., >5% of content or more than 5 absolute), try windows-1252 as a common fallback
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
+      // console.log(`[RSS Parse] ${source.name}: High UTF-8 replacement count (${utf8ReplacementCharCount}). Trying windows-1252.`);
       feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
     } else {
       feedXmlString = utf8Decoded;
     }
+    // Remove any remaining invalid XML characters (control characters, etc.)
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
@@ -568,6 +586,7 @@ async function fetchAndParseRSS(
         originalLink = he.decode(String(tempLink).trim());
       }
 
+      // Fallback to guid or id if link is still '#'
       if (originalLink === '#' && item.guid && (typeof item.guid === 'string' || (typeof item.guid === 'object' && item.guid._)) ) {
           const guidContent = typeof item.guid === 'object' ? item.guid._ : item.guid;
           if (typeof guidContent === 'string' && guidContent.startsWith('http') && (getNestedValue(item.guid, 'isPermaLink', 'true') !== 'false') ) {
@@ -579,19 +598,21 @@ async function fetchAndParseRSS(
       }
 
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
-      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date(); 
-      if (isNaN(parsedDateFromFeed.getTime())) { 
-        parsedDateFromFeed = new Date(); 
+      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date(); // Default to now if no date
+      if (isNaN(parsedDateFromFeed.getTime())) { // Check if date is invalid
+        // console.warn(`[RSS Parse] Invalid date for item "${title}" from ${source.name}. Using current date.`);
+        parsedDateFromFeed = new Date(); // Fallback to current date if parsing failed
       }
       const date = parsedDateFromFeed.toISOString();
 
+      // Robust ID generation
       const idInputForSlugBase = (originalLink && originalLink !== "#" && originalLink.startsWith('http') ? originalLink : (title && title !== 'Untitled Article' ? title : `article-${source.name}-${index}-${new Date(date).getTime()}`));
-      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10);
+      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10) || 'src'; // Ensure suffix is not empty
       let slugifiedIdPart = slugify(idInputForSlugBase);
-      if (!slugifiedIdPart || slugifiedIdPart.length < 5) { 
+      if (!slugifiedIdPart || slugifiedIdPart.length < 5) { // Ensure slug part is meaningful
           slugifiedIdPart = `article-${new Date(date).getTime()}-${index}`; 
       }
-      const MAX_SLUG_BASE_LENGTH = 100;
+      const MAX_SLUG_BASE_LENGTH = 100; // Prevent overly long IDs
       if (slugifiedIdPart.length > MAX_SLUG_BASE_LENGTH) {
         slugifiedIdPart = slugifiedIdPart.substring(0, MAX_SLUG_BASE_LENGTH);
       }
@@ -615,20 +636,25 @@ async function fetchAndParseRSS(
       let itemContentForPage: string | undefined = undefined;
       let summaryText: string;
 
-      if (isForCategoriesOnly) { 
-        summaryText = "For category generation"; 
-      } else { 
+      if (isForCategoriesOnly) { // If only fetching for category list generation
+        summaryText = "For category generation"; // Placeholder, not used for saving
+      } else { // Full article processing
         extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
         if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#' && fetchOgImagesParam) {
           try {
+            // console.log(`[RSS OG Fetch] Attempting OG image fetch for: ${originalLink}`);
             const ogImage = await fetchOgImageFromUrl(originalLink);
             if (ogImage) extractedImgUrl = ogImage;
-          } catch (ogError) { }
+            // else console.log(`[RSS OG Fetch] No OG image found for: ${originalLink}`);
+          } catch (ogError) {
+            // console.error(`[RSS OG Fetch] Error in OG image fetch for ${originalLink}:`, ogError);
+          }
         }
         
         const rawFullContentFromFeed = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
         itemContentForPage = rawFullContentFromFeed;
 
+        // Attempt to remove the main image from content if it's the same as extractedImgUrl and at the beginning
         if (extractedImgUrl && itemContentForPage && itemContentForPage.length > 0) {
             try {
                 const $ = cheerioLoad(itemContentForPage);
@@ -647,44 +673,48 @@ async function fetchAndParseRSS(
                         if (tempSrc.startsWith('http')) {
                             try {
                                 resolvedFirstImgSrcInContent = new URL(tempSrc).href;
-                            } catch (e) { }
+                            } catch (e) { /* ignore invalid URL */ }
                         } else if (originalLink && originalLink.startsWith('http')) {
                             try {
                                 resolvedFirstImgSrcInContent = new URL(tempSrc, originalLink).href;
-                            } catch (e) { }
+                            } catch (e) { /* ignore invalid relative URL construction */ }
                         }
                         
+                        // If the image found in content is the same as the main extracted image and near the start, remove it
                         if (resolvedFirstImgSrcInContent && resolvedFirstImgSrcInContent === extractedImgUrl) {
-                            const imgHtml = $.html(firstImgElement);
+                            const imgHtml = $.html(firstImgElement); // Get outerHTML of the img tag
                             const indexOfImg = itemContentForPage.indexOf(imgHtml);
-                            if (indexOfImg !== -1 && indexOfImg < 300) { 
+                            if (indexOfImg !== -1 && indexOfImg < 300) { // If image is within first 300 chars
                                 firstImgElement.remove();
-                                itemContentForPage = $.html();
+                                itemContentForPage = $.html(); // Get updated HTML without the image
                             }
                         }
                     }
                 }
             } catch (cheerioError) {
+                // console.error(`[RSS Parse] Cheerio error processing content for image removal for "${title}":`, cheerioError);
             }
         }
         summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawFullContentFromFeed, source.name);
       }
 
+      // Robust internal link generation
       let slugifiedCategory = slugify(finalCategory);
       if (!slugifiedCategory || slugifiedCategory.length < 1) {
-          slugifiedCategory = 'general'; 
+          slugifiedCategory = 'general'; // Fallback category slug
       }
       const internalArticleLink = `/${slugifiedCategory}/${id}`;
 
 
+      // Basic quality checks before adding to processed list
       if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD'))) {
-        console.warn(`[RSS Filter] Skipping article due to invalid characters in title/summary: "${title}"`);
+        // console.warn(`[RSS Filter] Skipping article due to invalid characters in title/summary: "${title}"`);
         continue;
       }
       if (!isForCategoriesOnly) {
         const summaryLower = summaryText.toLowerCase();
         if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
-          console.warn(`[RSS Filter] Skipping article due to insufficient summary: "${title}"`);
+          // console.warn(`[RSS Filter] Skipping article due to insufficient summary: "${title}"`);
           continue;
         }
       }
@@ -693,26 +723,27 @@ async function fetchAndParseRSS(
         id,
         title,
         summary: summaryText,
-        date, 
+        date, // ISO string
         source: source.name,
         category: finalCategory,
         imageUrl: extractedImgUrl, 
-        link: internalArticleLink,
-        sourceLink: originalLink,
-        content: itemContentForPage, 
-        fetchedAt: new Date().toISOString(), 
+        link: internalArticleLink, // Internal link to the article page on your site
+        sourceLink: originalLink, // External link to the original article
+        content: itemContentForPage, // HTML content, potentially cleaned
+        fetchedAt: new Date().toISOString(), // ISO string
       };
 
+      // Ensure essential fields are present
       if (title && title !== 'Untitled Article' && title.length > 10 && originalLink && originalLink !== '#') {
         processedArticles.push(articleForProcessing);
       } else {
-        console.warn(`[RSS Filter] Skipping article due to invalid title or missing original link: "${title}"`);
+        // console.warn(`[RSS Filter] Skipping article due to invalid title or missing original link: "${title}" (Link: ${originalLink})`);
       }
     }
     console.log(`[RSS Parse] Successfully processed ${processedArticles.length} articles from ${source.name}.`);
     return processedArticles;
   } catch (error) {
-    console.error(`[RSS Service] Error fetching or parsing RSS from ${source.name}:`, error);
+    console.error(`[RSS Service] Error fetching or parsing RSS from ${source.name} (${source.rssUrl}):`, error);
     return [];
   }
 }
@@ -723,7 +754,7 @@ export async function fetchArticlesFromAllSources(
   saveToDb: boolean = false,
   articleLimit?: number // New parameter for limiting articles before saving
 ): Promise<Article[]> {
-  console.log(`[RSS Service] Starting fetchArticlesFromAllSources. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}, SaveToDB: ${saveToDb}, ArticleLimit: ${articleLimit}`);
+  console.log(`[RSS Service] Starting fetchArticlesFromAllSources. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}, SaveToDB: ${saveToDb}, ArticleLimit: ${articleLimit ?? 'N/A'}`);
   const allArticlesPromises = NEWS_SOURCES.map(source => 
     fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam)
   );
@@ -733,18 +764,21 @@ export async function fetchArticlesFromAllSources(
     .filter(result => result.status === 'fulfilled')
     .map(result => (result as PromiseFulfilledResult<Article[]>).value)
     .flat();
-  console.log(`[RSS Service] Total articles collected from all sources: ${allFetchedArticles.length}`);
+  console.log(`[RSS Service] Total raw articles collected from all sources: ${allFetchedArticles.length}`);
 
 
   let articlesToProcess = allFetchedArticles;
   if (!isForCategoriesOnly) {
-    console.log(`[RSS Filter] Initial article count for filtering: ${articlesToProcess.length}`);
+    console.log(`[RSS Filter] Pre-filter article count for processing: ${articlesToProcess.length}`);
+    
+    // Filter 1: Invalid characters
     articlesToProcess = articlesToProcess.filter(article =>
       !article.title.includes('\uFFFD') &&
       article.summary && !article.summary.includes('\uFFFD')
     );
-    console.log(`[RSS Filter] Articles after invalid character filter: ${articlesToProcess.length}`);
+    console.log(`[RSS Filter] Count after invalid character filter: ${articlesToProcess.length}`);
 
+    // Filter 2: Title and Summary quality
     articlesToProcess = articlesToProcess.filter(article => {
       const summaryLower = article.summary.toLowerCase();
       const titleLower = article.title.toLowerCase();
@@ -752,34 +786,39 @@ export async function fetchArticlesFromAllSources(
       const isGoodSummary = summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
       return isGoodTitle && isGoodSummary;
     });
-    console.log(`[RSS Filter] Articles after short/placeholder content filter: ${articlesToProcess.length}`);
+    console.log(`[RSS Filter] Count after title/summary quality filter: ${articlesToProcess.length}`);
 
+    // Filter 3: Image URL presence (important for display)
     articlesToProcess = articlesToProcess.filter(article => article.imageUrl && article.imageUrl.trim() !== '');
-    console.log(`[RSS Filter] Articles after image URL filter: ${articlesToProcess.length}`);
+    console.log(`[RSS Filter] Count after image URL presence filter: ${articlesToProcess.length}`);
 
 
+    // Deduplication
     const uniqueArticlesMap = new Map<string, Article>();
     for (const article of articlesToProcess) {
       if (!article.title) {
-          console.warn(`[RSS Deduplication] Skipping article with missing title.`);
+          // console.warn(`[RSS Deduplication] Skipping article with missing title during deduplication.`);
           continue;
       }
       let normalizedKey: string;
+      // Prefer sourceLink if valid, otherwise use title+source
       if (article.sourceLink && article.sourceLink !== '#' && article.sourceLink.startsWith('http')) {
           try {
               const url = new URL(article.sourceLink);
               normalizedKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
           } catch (e) {
-              normalizedKey = `${slugify(article.title)}-${slugify(article.source || 'unknown')}`.toLowerCase();
+              // Fallback if sourceLink is not a valid URL
+              normalizedKey = `${slugify(article.title)}-${slugify(article.source || 'unknown_source')}`.toLowerCase();
           }
       } else {
-          normalizedKey = `${slugify(article.title)}-${slugify(article.source || 'unknown')}`.toLowerCase();
+          normalizedKey = `${slugify(article.title)}-${slugify(article.source || 'unknown_source')}`.toLowerCase();
       }
 
 
       const existingArticle = uniqueArticlesMap.get(normalizedKey);
       if (existingArticle) {
           let keepNew = false;
+          // Prioritize article with more complete data or newer date
           if (article.imageUrl && !existingArticle.imageUrl) keepNew = true;
           else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) keepNew = true;
           else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.') keepNew = true;
@@ -793,35 +832,37 @@ export async function fetchArticlesFromAllSources(
       }
     }
     articlesToProcess = Array.from(uniqueArticlesMap.values());
-    console.log(`[RSS Service] Articles after deduplication: ${articlesToProcess.length}`);
+    console.log(`[RSS Service] Count after deduplication: ${articlesToProcess.length}`);
   } 
+  // End of !isForCategoriesOnly block
 
+  // Sort all articles (whether for categories or full processing) by date
   articlesToProcess.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   let finalArticlesToReturnOrSave = articlesToProcess;
-  const defaultProcessingCap = 500;
+  const defaultProcessingCap = 500; // Cap for regular updates if no specific limit
 
-  if (articleLimit && articleLimit > 0 && !isForCategoriesOnly) { // Apply articleLimit only if not for categories and limit is positive
+  if (articleLimit && articleLimit > 0 && !isForCategoriesOnly) {
     finalArticlesToReturnOrSave = articlesToProcess.slice(0, articleLimit);
-    console.log(`[RSS Service] Limiting articles to be returned/saved to ${articleLimit}. Count after limit: ${finalArticlesToReturnOrSave.length}`);
+    console.log(`[RSS Service] Applied specific articleLimit: ${articleLimit}. Count for save/return: ${finalArticlesToReturnOrSave.length}`);
   } else if (!isForCategoriesOnly) { // Apply default cap if no specific limit and not for categories
     finalArticlesToReturnOrSave = articlesToProcess.slice(0, defaultProcessingCap);
-    console.log(`[RSS Service] Applying default processing cap of ${defaultProcessingCap}. Count after cap: ${finalArticlesToReturnOrSave.length}`);
+    console.log(`[RSS Service] Applied default processing cap: ${defaultProcessingCap}. Count for save/return: ${finalArticlesToReturnOrSave.length}`);
   }
-  // For category-only fetches, no limit/cap is applied to the processed list before returning.
+  // For category-only fetches, no limit/cap is applied to the list returned.
   
-  console.log(`[RSS Service] Final articles count for this run (return/save): ${finalArticlesToReturnOrSave.length}`);
+  console.log(`[RSS Service] Final articles count for this run (to be returned or saved if enabled): ${finalArticlesToReturnOrSave.length}`);
 
   if (saveToDb && !isForCategoriesOnly && finalArticlesToReturnOrSave.length > 0) {
     console.log(`[RSS Service] Calling saveArticlesToDatabase for ${finalArticlesToReturnOrSave.length} articles.`);
     await saveArticlesToDatabase(finalArticlesToReturnOrSave);
   } else if (saveToDb && isForCategoriesOnly) {
-    console.log("[RSS Service] 'saveToDb' is true, but 'isForCategoriesOnly' is also true. Articles will not be saved.");
+    console.log("[RSS Service] 'saveToDb' is true, but 'isForCategoriesOnly' is also true. Articles will not be saved from this specific call type.");
   } else if (saveToDb && finalArticlesToReturnOrSave.length === 0 && !isForCategoriesOnly) {
-    console.log("[RSS Service] 'saveToDb' is true, but no articles to save after processing.");
+    console.log("[RSS Service] 'saveToDb' is true, but no articles to save after all processing and filtering steps.");
   }
 
 
-  return finalArticlesToReturnOrSave; 
+  return finalArticlesToReturnOrSave; // Return the list (limited or not, depending on params)
 }
     
