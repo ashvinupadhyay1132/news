@@ -2,7 +2,6 @@
 'use server';
 
 import { getArticlesCollection } from './mongodb';
-import { slugify } from './utils';
 import type { Article as RssArticle } from './rss-service'; 
 import { fetchArticlesFromAllSources } from './rss-service'; 
 
@@ -112,6 +111,7 @@ export async function getCategories(): Promise<string[]> {
 
     if (categories.length === 0) {
       console.warn("[DB PlaceholderData] No categories found in DB. Attempting to fetch from RSS for category list.");
+      // This call is only for populating category names if DB is empty, does not save articles to DB.
       const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false); 
       if (rssArticlesForCategories.length > 0) {
         const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
@@ -137,7 +137,21 @@ export async function getCategories(): Promise<string[]> {
 export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
   console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process STARTED.");
   try {
-    await fetchArticlesFromAllSources(false, true, true); 
+    const articlesCollection = await getArticlesCollection();
+    const count = await articlesCollection.countDocuments();
+    let articleProcessingLimit: number | undefined = undefined;
+
+    if (count === 0) {
+      console.log("[PlaceholderData] Database is empty. Proceeding with initial population (up to 150 articles).");
+      articleProcessingLimit = 150;
+       // Fetch and save with a limit for initial population
+      await fetchArticlesFromAllSources(false, true, true, articleProcessingLimit);
+    } else {
+      console.log(`[PlaceholderData] Database already has ${count} articles. Proceeding with regular update (default processing cap applies).`);
+       // Regular update, fetchArticlesFromAllSources internal limit (e.g. 500) applies for processing,
+       // saveToDb will save all of these if new/updated.
+      await fetchArticlesFromAllSources(false, true, true); // No specific limit, uses default cap in fetchArticlesFromAllSources
+    }
     console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process COMPLETED successfully.");
   } catch (error) {
     console.error("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Error during process:", error);
