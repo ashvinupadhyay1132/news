@@ -3,12 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { updateArticlesFromRssAndSaveToDb } from '@/lib/placeholder-data';
 
 export async function GET(request: NextRequest) {
-  console.log("API: /api/admin/update-articles - Request received.");
-  const secret = request.nextUrl.searchParams.get('secret');
-  if (process.env.UPDATE_SECRET && secret !== process.env.UPDATE_SECRET) {
-    console.warn("API: /api/admin/update-articles - Unauthorized attempt. Missing or incorrect secret.");
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  console.log("API: /api/admin/update-articles - Request received to update articles.");
+  // Secret check removed for simpler automated triggering.
+  // Consider re-adding protection for public-facing production deployments.
 
   try {
     console.log("API: /api/admin/update-articles - Update process starting...");
@@ -21,3 +18,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update articles', details: errorMessage }, { status: 500 });
   }
 }
+
