@@ -1,15 +1,15 @@
 
 "use client";
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation'; // Added useRouter
 import { useEffect, useState } from 'react';
-// import { getArticleById, type Article } from '@/lib/placeholder-data'; // Direct import removed
-import type { Article } from '@/lib/placeholder-data'; // Type import is fine
+import type { Article } from '@/lib/placeholder-data';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink } from 'lucide-react';
-import Link from 'next/link';
+// Link import might still be used if there are other links, but not for this button
+// import Link from 'next/link'; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import { generateAiHintFromTitle } from '@/lib/utils';
 
 export default function ArticlePage() {
   const params = useParams();
+  const router = useRouter(); // Initialize useRouter
   const { toast } = useToast();
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,10 +93,8 @@ export default function ArticlePage() {
         <p className="text-muted-foreground mb-8">
           The article you are looking for does not exist or may have been moved.
         </p>
-        <Button asChild>
-          <Link href="/">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Go back to Homepage
-          </Link>
+        <Button onClick={() => router.back()} className="group flex items-center text-sm"> {/* Changed to onClick */}
+          <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Go back to Homepage
         </Button>
       </div>
     );
@@ -147,10 +146,12 @@ export default function ArticlePage() {
 
   return (
     <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl my-8">
-      <Button asChild variant="outline" className="mb-8 group">
-        <Link href="/" className="flex items-center text-sm">
-          <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back to News
-        </Link>
+      <Button 
+        variant="outline" 
+        className="mb-8 group flex items-center text-sm"
+        onClick={() => router.back()} // Changed to onClick
+      >
+        <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back to News
       </Button>
 
       <article>
@@ -174,10 +175,9 @@ export default function ArticlePage() {
             <Image
               src={article.imageUrl || placeholderImageSrc}
               alt={article.title}
-              layout="fill"
-              objectFit="cover"
+              fill
+              className="object-cover transition-opacity duration-300"
               priority 
-              className="transition-opacity duration-300"
               data-ai-hint={article.imageUrl ? `${article.category} article full image` : imageAiHintForPage}
               onError={(e) => {
                 const target = e.currentTarget;
