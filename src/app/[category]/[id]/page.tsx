@@ -1,15 +1,13 @@
 
 "use client";
 
-import { useParams, useRouter } from 'next/navigation'; // Added useRouter
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Article } from '@/lib/placeholder-data';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink } from 'lucide-react';
-// Link import might still be used if there are other links, but not for this button
-// import Link from 'next/link'; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +20,7 @@ import { generateAiHintFromTitle } from '@/lib/utils';
 
 export default function ArticlePage() {
   const params = useParams();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter();
   const { toast } = useToast();
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,8 +91,8 @@ export default function ArticlePage() {
         <p className="text-muted-foreground mb-8">
           The article you are looking for does not exist or may have been moved.
         </p>
-        <Button onClick={() => router.back()} className="group flex items-center text-sm"> {/* Changed to onClick */}
-          <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Go back to Homepage
+        <Button onClick={() => router.back()} className="group flex items-center text-sm">
+          <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Go back
         </Button>
       </div>
     );
@@ -145,11 +143,11 @@ export default function ArticlePage() {
 
 
   return (
-    <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl my-8">
+    <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-lg my-8">
       <Button 
         variant="outline" 
         className="mb-8 group flex items-center text-sm"
-        onClick={() => router.back()} // Changed to onClick
+        onClick={() => router.back()}
       >
         <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back to News
       </Button>

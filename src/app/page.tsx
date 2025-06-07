@@ -24,7 +24,6 @@ function NewsPageContent() {
   if (searchTerm) {
     pageTitle = `Search results for "${searchTerm}"`;
   } else if (currentCategory !== "All") {
-    // Check if currentCategory already ends with " News" (case-insensitive)
     if (currentCategory.toLowerCase().endsWith(" news")) {
       pageTitle = currentCategory;
     } else {
@@ -36,12 +35,11 @@ function NewsPageContent() {
     <div className="space-y-8">
       <CategoryFilter />
       <div>
-        <h2 className="text-2xl font-bold mb-6 text-foreground">
+        <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-foreground">
           {pageTitle}
         </h2>
         <ArticleGrid searchTerm={searchTerm} currentCategory={currentCategory} />
 
-        {/* Conditionally show the 'View All News' button if filters are active */}
         {areFiltersActive && (
           <div className="mt-12 py-8 text-center border-t border-border">
             <h3 className="text-xl font-semibold mb-4 text-foreground">
