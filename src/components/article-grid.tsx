@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-
+import { usePathname } from "next/navigation"; // Import usePathname
 
 interface ArticleGridProps {
   searchTerm: string;
@@ -53,12 +53,19 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   const hasMoreRef = useRef(hasMore);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
 
+  const displayedArticlesRef = useRef(displayedArticles);
+  useEffect(() => { displayedArticlesRef.current = displayedArticles; }, [displayedArticles]);
+
+  const currentPageRef = useRef(currentPage);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+
+  const pathname = usePathname();
+
 
   const fetchArticlesPage = useCallback(async (pageToFetch: number, isInitialLoad: boolean) => {
     if (isInitialLoad) {
-      setIsLoadingInitial(true);
+      // This will be set by the main effect now
     } else {
-      // Guard for loading more: use refs to ensure latest values are checked
       if (isLoadingMoreRef.current || !hasMoreRef.current) {
         console.log(`[ArticleGrid] fetchArticlesPage (more) skipped. isLoadingMore: ${isLoadingMoreRef.current}, hasMore: ${hasMoreRef.current}`);
         return;
@@ -95,7 +102,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
         `[ArticleGrid] Error fetching articles. URL: ${apiUrl}. Error Message: "${error.message}"`,
         "Full error object:", error
       );
-      if (String(error.message).toLowerCase().includes('failed to fetch')) {
+       if (String(error.message).toLowerCase().includes('failed to fetch')) {
         console.warn(
             "[ArticleGrid] Hint: 'Failed to fetch' often means the Next.js server is not running, has crashed, or is unreachable from your browser. " +
             "Please check:\n" +
@@ -104,45 +111,107 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
             "3. The browser's network tab for more details on the failed request to " + apiUrl
         );
       }
-      // For any error, stop trying to load more for this attempt/sequence
       if (isInitialLoad) {
-        setDisplayedArticles([]); // Clear articles on initial load error
+        setDisplayedArticles([]); 
       }
       setHasMore(false); 
     } finally {
       if (isInitialLoad) setIsLoadingInitial(false);
       else setIsLoadingMore(false); 
     }
-  }, [currentCategory, searchTerm]); // Dependencies are stable values or refs are used internally
+  }, [currentCategory, searchTerm]); 
   
   useEffect(() => {
-    console.log(`[ArticleGrid] Filters changed or component mounted. searchTerm: "${searchTerm}", currentCategory: "${currentCategory}". Resetting and fetching page 1.`);
-    setDisplayedArticles([]); 
-    setCurrentPage(1);        
-    setHasMore(true);         
-    setIsLoadingInitial(true); // Ensure loading state is true before fetch
-    fetchArticlesPage(1, true); 
-  }, [currentCategory, searchTerm, fetchArticlesPage]); // fetchArticlesPage is stable due to useCallback and internal refs
+    const storageKey = `articleGridState::${pathname}::${currentCategory}::${searchTerm}`;
+    let restoredState = null;
+
+    if (typeof window !== 'undefined') {
+      const storedItem = sessionStorage.getItem(storageKey);
+      if (storedItem) {
+        try {
+          restoredState = JSON.parse(storedItem);
+          // Important: Consume the state so it's not reused on a normal filter change or refresh
+          sessionStorage.removeItem(storageKey); 
+        } catch (e) {
+          console.error("[ArticleGrid] Error parsing stored state:", e);
+          sessionStorage.removeItem(storageKey); // Clear corrupted item
+        }
+      }
+    }
+
+    if (restoredState) {
+      console.log(`[ArticleGrid] Restoring state for key ${storageKey}:`, { 
+        articleCount: restoredState.articles?.length, 
+        currentPage: restoredState.currentPage, 
+        hasMore: restoredState.hasMore, 
+        scrollY: restoredState.scrollY 
+      });
+      setDisplayedArticles(restoredState.articles || []);
+      setCurrentPage(restoredState.currentPage || 1);
+      setHasMore(restoredState.hasMore === undefined ? true : restoredState.hasMore);
+      setIsLoadingInitial(false); // We've restored, not an initial load from API
+
+      // Defer scroll restoration until after React has rendered the restored articles
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && restoredState && restoredState.scrollY !== undefined) {
+          console.log(`[ArticleGrid] Attempting to scroll to ${restoredState.scrollY}`);
+          window.scrollTo(0, restoredState.scrollY);
+        }
+      }, 0); // setTimeout with 0 delay pushes to end of event queue
+
+    } else {
+      console.log(`[ArticleGrid] No restored state for ${storageKey} (or filters changed). Resetting and fetching page 1.`);
+      setDisplayedArticles([]); 
+      setCurrentPage(1);        
+      setHasMore(true);         
+      setIsLoadingInitial(true); 
+      fetchArticlesPage(1, true); 
+    }
+
+    // Cleanup function to save state
+    return () => {
+      if (typeof window !== 'undefined' && displayedArticlesRef.current.length > 0) {
+        // Use refs to get the latest state values for saving
+        const stateToSave = {
+          articles: displayedArticlesRef.current,
+          currentPage: currentPageRef.current,
+          hasMore: hasMoreRef.current,
+          scrollY: window.scrollY,
+        };
+        console.log(`[ArticleGrid] Saving state for key ${storageKey} on cleanup/unmount:`, { 
+            articleCount: stateToSave.articles?.length, 
+            currentPage: stateToSave.currentPage,
+            hasMore: stateToSave.hasMore,
+            scrollY: stateToSave.scrollY 
+        });
+        try {
+            sessionStorage.setItem(storageKey, JSON.stringify(stateToSave));
+        } catch (e) {
+            console.error("[ArticleGrid] Error saving state to sessionStorage (possibly full):", e);
+        }
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCategory, searchTerm, pathname, fetchArticlesPage]); // fetchArticlesPage is stable
 
   useEffect(() => {
     const canLoadMore = hasMoreRef.current && !isLoadingInitial && !isLoadingMoreRef.current;
     if (entry?.isIntersecting && canLoadMore) {
-      console.log(`[ArticleGrid] Intersection Observer Triggered: Attempting to fetch page ${currentPage + 1}`);
-      fetchArticlesPage(currentPage + 1, false);
+      console.log(`[ArticleGrid] Intersection Observer Triggered: Attempting to fetch page ${currentPageRef.current + 1}`);
+      fetchArticlesPage(currentPageRef.current + 1, false);
     }
-  }, [entry, isLoadingInitial, currentPage, fetchArticlesPage]); // Add fetchArticlesPage as it's called
+  }, [entry, isLoadingInitial, fetchArticlesPage]);
 
   const handleLoadMoreButtonClick = () => {
-    // Use refs here for the guards, consistent with intersection observer
     const canLoadMore = hasMoreRef.current && !isLoadingInitial && !isLoadingMoreRef.current;
-    console.log(`[ArticleGrid] Load More Button Clicked. State: canLoadMore: ${canLoadMore} (hasMore: ${hasMoreRef.current}, !isLoadingInitial: ${!isLoadingInitial}, !isLoadingMore: ${!isLoadingMoreRef.current}), currentPage: ${currentPage}`);
+    console.log(`[ArticleGrid] Load More Button Clicked. State: canLoadMore: ${canLoadMore}, currentPage: ${currentPageRef.current}`);
     if (canLoadMore) {
-      console.log(`[ArticleGrid] Load More Button Action: Attempting to fetch page ${currentPage + 1}`);
-      fetchArticlesPage(currentPage + 1, false);
+      console.log(`[ArticleGrid] Load More Button Action: Attempting to fetch page ${currentPageRef.current + 1}`);
+      fetchArticlesPage(currentPageRef.current + 1, false);
     }
   };
 
-  if (isLoadingInitial) { 
+  if (isLoadingInitial && displayedArticles.length === 0) { 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
@@ -153,7 +222,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   }
   
   if (displayedArticles.length === 0 && !isLoadingInitial) { 
-    console.log(`[ArticleGrid] No articles found for display. Active filters - searchTerm: "${searchTerm}", currentCategory: "${currentCategory}". This might indicate an empty database, restrictive filters, or an issue fetching data. Ensure data population process has run successfully and the server is reachable.`);
+    console.log(`[ArticleGrid] No articles found for display. Active filters - searchTerm: "${searchTerm}", currentCategory: "${currentCategory}".`);
     return (
       <Alert variant="default" className="mt-8">
         <AlertCircle className="h-4 w-4" />
@@ -196,4 +265,3 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 };
 
 export default ArticleGrid;
-
