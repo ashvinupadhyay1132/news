@@ -18,17 +18,17 @@ function getMaskedMongoURI(uri?: string): string {
 }
 
 if (!MONGODB_URI) {
-  console.error('CRITICAL ERROR: MONGODB_URI environment variable is not defined.');
-  // Consider throwing an error here in production or a stricter setup
-  // throw new Error('MONGODB_URI environment variable is not defined.');
-}
-if (!MONGODB_DB_NAME) {
-  console.error('CRITICAL ERROR: MONGODB_DB_NAME environment variable is not defined.');
-  // Consider throwing an error here
-  // throw new Error('MONGODB_DB_NAME environment variable is not defined.');
+  console.error('[MongoDB] CRITICAL ERROR: MONGODB_URI environment variable is not defined.');
+} else {
+  console.log(`[MongoDB] Using MONGODB_URI: ${getMaskedMongoURI(MONGODB_URI)}`);
 }
 
-console.log(`[MongoDB] Attempting to connect with MONGODB_URI: ${getMaskedMongoURI(MONGODB_URI)} and MONGODB_DB_NAME: ${MONGODB_DB_NAME}`);
+if (!MONGODB_DB_NAME) {
+  console.error('[MongoDB] CRITICAL ERROR: MONGODB_DB_NAME environment variable is not defined.');
+} else {
+  console.log(`[MongoDB] Using MONGODB_DB_NAME: ${MONGODB_DB_NAME}`);
+}
+
 
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
@@ -80,13 +80,12 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
       }
     };
 
-    await ensureIndex({ createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 7 }, 'createdAt_ttl_index');
+    // TTL index for 2 days
+    await ensureIndex({ createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 2 }, 'createdAt_ttl_index');
     await ensureIndex({ id: 1 }, { name: 'article_id_unique_idx', unique: true }, 'article_id_unique_idx');
     await ensureIndex({ date: -1 }, { name: 'article_date_idx' }, 'article_date_idx');
     await ensureIndex({ category: 1 }, { name: 'article_category_idx' }, 'article_category_idx');
     await ensureIndex({ category: 1, date: -1 }, { name: 'article_category_date_idx' }, 'article_category_date_idx');
-    // Example for text index if needed for $text search (ensure your MongoDB version supports it well)
-    // await ensureIndex({ title: "text", summary: "text", source: "text" }, { name: "article_text_search_idx" }, "article_text_search_idx");
 
 
     return { client, db };
