@@ -58,6 +58,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     if (isInitialLoad) {
       setIsLoadingInitial(true);
     } else {
+      // Guard for loading more: use refs to ensure latest values are checked
       if (isLoadingMoreRef.current || !hasMoreRef.current) {
         console.log(`[ArticleGrid] fetchArticlesPage (more) skipped. isLoadingMore: ${isLoadingMoreRef.current}, hasMore: ${hasMoreRef.current}`);
         return;
@@ -76,7 +77,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     try {
       const response = await fetch(apiUrl);
       if (!response.ok) {
-        throw new Error(`API error! status: ${response.status}, statusText: ${response.statusText}`);
+        throw new Error(`API error! status: ${response.status}, statusText: ${response.statusText || 'N/A'}`);
       }
       const data: { articles: Article[]; totalArticles: number; hasMore: boolean } = await response.json();
       console.log(`[ArticleGrid] API Response for page ${pageToFetch}:`, data);
@@ -91,8 +92,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
     } catch (error: any) {
       console.error(
-        `[ArticleGrid] Error fetching articles. URL: ${apiUrl}. Error Message:`,
-        error.message,
+        `[ArticleGrid] Error fetching articles. URL: ${apiUrl}. Error Message: "${error.message}"`,
         "Full error object:", error
       );
       if (String(error.message).toLowerCase().includes('failed to fetch')) {
@@ -104,24 +104,25 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
             "3. The browser's network tab for more details on the failed request to " + apiUrl
         );
       }
+      // For any error, stop trying to load more for this attempt/sequence
       if (isInitialLoad) {
-        setDisplayedArticles([]); 
+        setDisplayedArticles([]); // Clear articles on initial load error
       }
       setHasMore(false); 
     } finally {
       if (isInitialLoad) setIsLoadingInitial(false);
       else setIsLoadingMore(false); 
     }
-  }, [currentCategory, searchTerm]); 
+  }, [currentCategory, searchTerm]); // Dependencies are stable values or refs are used internally
   
   useEffect(() => {
     console.log(`[ArticleGrid] Filters changed or component mounted. searchTerm: "${searchTerm}", currentCategory: "${currentCategory}". Resetting and fetching page 1.`);
     setDisplayedArticles([]); 
     setCurrentPage(1);        
     setHasMore(true);         
-    setIsLoadingInitial(true); 
+    setIsLoadingInitial(true); // Ensure loading state is true before fetch
     fetchArticlesPage(1, true); 
-  }, [currentCategory, searchTerm, fetchArticlesPage]);
+  }, [currentCategory, searchTerm, fetchArticlesPage]); // fetchArticlesPage is stable due to useCallback and internal refs
 
   useEffect(() => {
     const canLoadMore = hasMoreRef.current && !isLoadingInitial && !isLoadingMoreRef.current;
@@ -129,9 +130,10 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       console.log(`[ArticleGrid] Intersection Observer Triggered: Attempting to fetch page ${currentPage + 1}`);
       fetchArticlesPage(currentPage + 1, false);
     }
-  }, [entry, isLoadingInitial, currentPage, fetchArticlesPage]);
+  }, [entry, isLoadingInitial, currentPage, fetchArticlesPage]); // Add fetchArticlesPage as it's called
 
   const handleLoadMoreButtonClick = () => {
+    // Use refs here for the guards, consistent with intersection observer
     const canLoadMore = hasMoreRef.current && !isLoadingInitial && !isLoadingMoreRef.current;
     console.log(`[ArticleGrid] Load More Button Clicked. State: canLoadMore: ${canLoadMore} (hasMore: ${hasMoreRef.current}, !isLoadingInitial: ${!isLoadingInitial}, !isLoadingMore: ${!isLoadingMoreRef.current}), currentPage: ${currentPage}`);
     if (canLoadMore) {
@@ -151,14 +153,14 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   }
   
   if (displayedArticles.length === 0 && !isLoadingInitial) { 
-    console.log(`[ArticleGrid] No articles found for display. Active filters - searchTerm: "${searchTerm}", currentCategory: "${currentCategory}". This might indicate an empty database, restrictive filters, or an issue fetching data. Ensure data population process has run successfully.`);
+    console.log(`[ArticleGrid] No articles found for display. Active filters - searchTerm: "${searchTerm}", currentCategory: "${currentCategory}". This might indicate an empty database, restrictive filters, or an issue fetching data. Ensure data population process has run successfully and the server is reachable.`);
     return (
       <Alert variant="default" className="mt-8">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>No Articles Found</AlertTitle>
         <AlertDescription>
           Sorry, we couldn't find any articles matching your criteria. Try adjusting your search or category filters.
-          If this is unexpected, ensure the article database has been populated recently and the server is running correctly.
+          If this is unexpected, ensure the article database has been populated recently and that the server is running correctly and reachable.
         </AlertDescription>
       </Alert>
     );
@@ -194,3 +196,4 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 };
 
 export default ArticleGrid;
+
