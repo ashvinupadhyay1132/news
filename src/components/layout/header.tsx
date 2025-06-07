@@ -6,8 +6,8 @@ import { ModeToggle } from '@/components/mode-toggle';
 
 const Header = () => {
   return (
-    <header className="bg-card border-b border-border shadow-sm sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-6 flex flex-col sm:flex-row justify-between items-center">
+    <header className="bg-card border-b border-border/60 shadow-sm sticky top-0 z-50">
+      <div className="container mx-auto px-4 py-5 flex flex-col sm:flex-row justify-between items-center">
         <Link href="/" className="flex items-center space-x-2.5 mb-4 sm:mb-0">
           <Newspaper className="h-7 w-7 text-primary" />
           <h1 className="text-3xl font-bold text-primary whitespace-nowrap">TrendingNewsFeed.in</h1>

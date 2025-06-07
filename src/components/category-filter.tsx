@@ -62,7 +62,7 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
         <Skeleton className="h-6 w-40 mb-3" /> 
         <div className="flex space-x-3 p-1">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-28 rounded-md" /> // Adjusted skeleton for button size
+            <Skeleton key={i} className="h-10 w-28 rounded-md" />
           ))}
         </div>
       </div>
@@ -72,14 +72,14 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-medium mb-3 text-foreground">Filter by Category</h2>
-      <ScrollArea className="w-full whitespace-nowrap rounded-lg">
-        <div className="flex space-x-3 p-1">
+      <ScrollArea className="w-full whitespace-nowrap">
+        <div className="flex space-x-3 py-1">
           {categories.map((category) => (
             <Button
               key={category}
               variant={activeCategory === category ? "default" : "outline"}
               onClick={() => handleCategoryChange(category)}
-              className="shrink-0 shadow-sm hover:shadow-md transition-shadow px-4 py-2 text-sm" // Increased padding
+              className="shrink-0 shadow-sm hover:shadow transition-shadow px-4 py-2 text-sm rounded-full"
             >
               {category}
             </Button>

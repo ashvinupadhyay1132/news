@@ -8,96 +8,96 @@ body {
 
 @layer base {
   :root {
-    --background: 30 50% 98%; /* Very light, warm off-white */
-    --foreground: 30 20% 25%; /* Dark, desaturated warm gray/brown */
+    --background: 210 40% 98%; /* Very light, cool off-white */
+    --foreground: 215 28% 17%; /* Dark slate gray */
 
     --card: 0 0% 100%; /* White */
-    --card-foreground: 30 20% 25%;
+    --card-foreground: 215 28% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 30 20% 25%;
+    --popover-foreground: 215 28% 17%;
 
-    --primary: 190 70% 45%; /* Sophisticated teal/blue */
+    --primary: 217 33% 32%; /* Muted, professional blue */
     --primary-foreground: 0 0% 100%; /* White text on primary */
 
-    --secondary: 30 30% 92%; /* Light warm gray */
-    --secondary-foreground: 30 15% 35%; /* Darker text on secondary */
+    --secondary: 210 30% 94%; /* Light gray for secondary backgrounds */
+    --secondary-foreground: 215 20% 35%; /* Darker gray text on secondary */
 
-    --muted: 30 30% 95%; /* Even lighter warm gray for muted elements */
-    --muted-foreground: 30 20% 55%; /* Medium gray text on muted */
+    --muted: 210 30% 96%; /* Even lighter gray for subtle elements */
+    --muted-foreground: 215 15% 55%; /* Medium gray text on muted */
 
-    --accent: 25 85% 60%; /* Warm, vibrant orange */
+    --accent: 30 90% 55%; /* Warm, inviting orange for specific highlights */
     --accent-foreground: 0 0% 100%; /* White text on accent */
 
     --destructive: 0 75% 55%; /* Clear Red */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 20% 88%; /* Subtle warm borders */
+    --border: 210 20% 88%; /* Subtle cool gray borders */
     --input: 0 0% 100%; /* White inputs */
-    --ring: 190 70% 45%; /* Primary color for focus rings */
+    --ring: 217 33% 32%; /* Primary color for focus rings */
 
-    --chart-1: 190 70% 40%;
-    --chart-2: 190 70% 50%;
-    --chart-3: 190 70% 60%;
-    --chart-4: 190 70% 70%;
-    --chart-5: 190 70% 80%;
-    --radius: 0.5rem; /* Moderate rounded corners */
+    --chart-1: 217 33% 40%;
+    --chart-2: 217 33% 50%;
+    --chart-3: 217 33% 60%;
+    --chart-4: 217 33% 70%;
+    --chart-5: 217 33% 80%;
+    --radius: 0.375rem; /* Slightly less rounded, equivalent to rounded-md */
 
     /* Sidebar specific colors - can be same as main or distinct */
-    --sidebar-background: 30 50% 97%;
-    --sidebar-foreground: 30 20% 25%;
-    --sidebar-primary: 190 70% 45%;
+    --sidebar-background: 210 40% 97%;
+    --sidebar-foreground: 215 28% 17%;
+    --sidebar-primary: 217 33% 32%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 25 85% 60%;
+    --sidebar-accent: 30 90% 55%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 30 20% 85%;
-    --sidebar-ring: 190 70% 45%;
+    --sidebar-border: 210 20% 85%;
+    --sidebar-ring: 217 33% 32%;
   }
 
   .dark {
-    --background: 30 10% 12%; /* Very dark, slightly warm gray */
-    --foreground: 30 20% 90%; /* Light warm gray for text */
+    --background: 220 18% 12%; /* Very dark, slightly cool gray/blue */
+    --foreground: 210 30% 88%; /* Light gray for text */
 
-    --card: 30 10% 18%; /* Slightly lighter dark for cards */
-    --card-foreground: 30 20% 90%;
+    --card: 220 15% 18%; /* Slightly lighter dark for cards */
+    --card-foreground: 210 30% 88%;
 
-    --popover: 30 10% 12%;
-    --popover-foreground: 30 20% 90%;
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 30% 88%;
 
-    --primary: 190 70% 55%; /* Teal/blue, slightly brighter for dark mode */
-    --primary-foreground: 30 10% 15%; /* Dark text on primary */
+    --primary: 217 50% 60%; /* Brighter blue for dark mode */
+    --primary-foreground: 0 0% 100%; 
 
-    --secondary: 30 10% 25%; /* Darker gray for secondary elements */
-    --secondary-foreground: 30 15% 80%; /* Lighter text on secondary */
+    --secondary: 220 15% 22%; /* Darker gray for secondary elements */
+    --secondary-foreground: 210 25% 80%; /* Lighter text on secondary */
 
-    --muted: 30 10% 22%; /* Even darker gray for muted */
-    --muted-foreground: 30 15% 60%; /* Medium-light gray text on muted */
+    --muted: 220 15% 20%; 
+    --muted-foreground: 210 20% 60%; 
 
-    --accent: 25 85% 65%; /* Lighter orange for accents */
-    --accent-foreground: 30 10% 10%; /* Dark text on accent */
+    --accent: 30 85% 65%; /* Slightly brighter orange for dark mode */
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 70% 60%; /* Slightly brighter red */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 15% 30%; /* Subtle dark borders */
-    --input: 30 10% 20%; /* Dark input backgrounds */
-    --ring: 190 70% 55%; /* Teal/Blue for focus rings */
+    --border: 220 10% 30%; /* Subtle dark borders */
+    --input: 220 15% 20%; /* Dark input backgrounds */
+    --ring: 217 50% 60%; 
 
-    --chart-1: 190 70% 65%;
-    --chart-2: 190 70% 55%;
-    --chart-3: 190 70% 45%;
-    --chart-4: 190 70% 35%;
-    --chart-5: 190 70% 25%;
+    --chart-1: 217 50% 70%;
+    --chart-2: 217 50% 60%;
+    --chart-3: 217 50% 50%;
+    --chart-4: 217 50% 40%;
+    --chart-5: 217 50% 30%;
 
     /* Sidebar specific colors - dark mode */
-    --sidebar-background: 30 10% 15%;
-    --sidebar-foreground: 30 20% 90%;
-    --sidebar-primary: 190 70% 55%;
-    --sidebar-primary-foreground: 30 10% 15%;
-    --sidebar-accent: 25 85% 65%;
-    --sidebar-accent-foreground: 30 10% 10%;
-    --sidebar-border: 30 15% 28%;
-    --sidebar-ring: 190 70% 55%;
+    --sidebar-background: 220 18% 15%;
+    --sidebar-foreground: 210 30% 88%;
+    --sidebar-primary: 217 50% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 85% 65%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 10% 28%;
+    --sidebar-ring: 217 50% 60%;
   }
 }
 
@@ -118,30 +118,30 @@ body {
   }
 
   .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-    @apply text-primary;
+    @apply text-primary; /* Changed from text-foreground to text-primary */
   }
   .dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose h5, .dark .prose h6 {
-    @apply text-primary;
+    @apply text-primary; /* Changed from text-foreground to text-primary */
   }
   
   .prose a {
-    @apply text-primary hover:underline;
+    @apply text-accent hover:underline; /* Changed from text-primary to text-accent for links */
   }
   .dark .prose a {
-    @apply text-primary hover:underline;
+    @apply text-accent hover:underline; /* Changed from text-primary to text-accent for links */
   }
 
   .prose strong {
-    @apply text-foreground;
+    @apply text-foreground font-semibold; /* Ensure strong is bolder */
   }
   .dark .prose strong {
-    @apply text-foreground;
+    @apply text-foreground font-semibold;
   }
   
   .prose blockquote {
-    @apply border-primary;
+    @apply border-accent; /* Changed from border-primary to border-accent */
   }
   .dark .prose blockquote {
-    @apply border-primary;
+    @apply border-accent;
   }
 }

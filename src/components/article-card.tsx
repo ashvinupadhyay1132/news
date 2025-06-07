@@ -25,7 +25,6 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   const [siteOrigin, setSiteOrigin] = useState("");
 
   useEffect(() => {
-    // Ensure this runs only on the client where window is available
     if (typeof window !== "undefined") {
       setSiteOrigin(window.location.origin);
     }
@@ -86,15 +85,14 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   };
 
   return (
-    <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg bg-card group">
+    <Card className="flex flex-col h-full overflow-hidden border shadow-sm hover:shadow-md transition-shadow duration-300 rounded-md bg-card group">
       <Link href={article.link} className="block">
         <div className="relative w-full h-52 sm:h-48 overflow-hidden bg-muted/50">
           <Image
             src={article.imageUrl || placeholderImageSrc}
             alt={article.title}
-            layout="fill"
-            objectFit="cover"
-            className="group-hover:scale-105 transition-transform duration-300 ease-in-out"
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300 ease-in-out"
             data-ai-hint={article.imageUrl ? `${slugify(article.category)} thumbnail` : imageAiHint}
             onError={(e) => {
               const target = e.currentTarget;
@@ -104,21 +102,22 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
                 target.setAttribute('data-ai-hint', imageAiHint);
               }
             }}
+            priority={false} 
           />
         </div>
       </Link>
-      <CardHeader className="p-4 pb-2">
-        <Badge variant="secondary" className="mb-2 w-fit text-xs">{article.category}</Badge>
-        <CardTitle className="text-lg font-semibold leading-snug">
+      <CardHeader className="p-5 pb-2">
+        <Badge variant="outline" className="mb-2 w-fit text-xs py-0.5 px-2">{article.category}</Badge>
+        <CardTitle className="text-xl font-semibold leading-snug">
           <Link href={article.link} className="hover:text-primary transition-colors line-clamp-3">
             {article.title}
           </Link>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-1 flex-grow">
+      <CardContent className="p-5 pt-1 flex-grow">
         <p className="text-sm text-muted-foreground line-clamp-4">{article.summary}</p>
       </CardContent>
-      <CardFooter className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-3">
+      <CardFooter className="p-5 border-t flex flex-col sm:flex-row justify-between items-center gap-3">
         <div className="text-xs text-muted-foreground space-y-1 self-start sm:self-center">
           <div className="flex items-center">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
