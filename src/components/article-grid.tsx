@@ -19,7 +19,7 @@ interface ArticleGridProps {
 const ARTICLES_PER_PAGE = 9;
 
 const ArticleCardSkeleton = () => (
-  <div className="flex flex-col space-y-3 p-4 border rounded-lg bg-card break-inside-avoid w-full mb-6">
+  <div className="flex flex-col space-y-3 p-4 border rounded-lg bg-card">
     <Skeleton className="h-48 w-full rounded-md" />
     <Skeleton className="h-4 w-20 mt-2" />
     <Skeleton className="h-6 w-full" />
@@ -61,7 +61,6 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   const pathname = usePathname();
 
-
   const fetchArticlesPage = useCallback(async (pageToFetch: number, isInitialLoad: boolean) => {
     if (!isInitialLoad) {
       if (isLoadingMoreRef.current || !hasMoreRef.current) {
@@ -69,6 +68,8 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
         return;
       }
       setIsLoadingMore(true); 
+    } else {
+      setIsLoadingInitial(true); // Ensure initial loading state is set for filter changes
     }
 
     console.log(`[ArticleGrid] Fetching page: ${pageToFetch}. Initial: ${isInitialLoad}. Search: "${searchTerm}", Cat: "${currentCategory}"`);
@@ -156,11 +157,10 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       }, 0);
 
     } else {
-      console.log(`[ArticleGrid] No restored state for ${storageKey} (or filters changed). Resetting and fetching page 1.`);
+      console.log(`[ArticleGrid] Filters changed or component mounted. searchTerm: "${searchTerm}", currentCategory: "${currentCategory}". Resetting and fetching page 1.`);
       setDisplayedArticles([]); 
       setCurrentPage(1);        
       setHasMore(true);         
-      setIsLoadingInitial(true); 
       fetchArticlesPage(1, true); 
     }
 
@@ -197,7 +197,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   const handleLoadMoreButtonClick = () => {
     const canLoadMore = hasMoreRef.current && !isLoadingInitial && !isLoadingMoreRef.current;
-    console.log(`[ArticleGrid] Load More Button Clicked. State: canLoadMore: ${canLoadMore}, currentPage: ${currentPageRef.current}`);
+    console.log(`[ArticleGrid] Load More Button Clicked. State: canLoadMore: ${canLoadMore}, currentPage: ${currentPageRef.current}, isLoadingMore: ${isLoadingMoreRef.current}`);
     if (canLoadMore) {
       console.log(`[ArticleGrid] Load More Button Action: Attempting to fetch page ${currentPageRef.current + 1}`);
       fetchArticlesPage(currentPageRef.current + 1, false);
@@ -206,7 +206,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   if (isLoadingInitial && displayedArticles.length === 0) { 
     return (
-      <div className="block space-y-6 md:columns-2 md:gap-6 lg:columns-3 xl:columns-4 md:space-y-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
           <ArticleCardSkeleton key={`initial-load-skeleton-${index}`} />
         ))}
@@ -231,7 +231,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   return (
     <>
-      <div className="block space-y-6 md:columns-2 md:gap-6 lg:columns-3 xl:columns-4 md:space-y-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayedArticles.map((article) => (
           <ArticleCard key={article.id} article={article} />
         ))}
@@ -239,15 +239,15 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       
       <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4 min-h-[50px]">
         {isLoadingMore && (
-           <div className="block space-y-6 md:columns-2 md:gap-6 lg:columns-3 xl:columns-4 md:space-y-0 w-full">
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             {Array.from({ length: 3 }).map((_, index) => ( 
               <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
             ))}
           </div>
         )}
         {hasMore && !isLoadingMore && displayedArticles.length > 0 && (
-           <Button onClick={handleLoadMoreButtonClick} disabled={isLoadingMore}>
-            {isLoadingMore ? "Loading More..." : "View More Articles"}
+           <Button onClick={handleLoadMoreButtonClick} disabled={isLoadingMoreRef.current}>
+            {isLoadingMoreRef.current ? "Loading More..." : "View More Articles"}
           </Button>
         )}
         {!hasMore && displayedArticles.length > 0 && !isLoadingMore && (

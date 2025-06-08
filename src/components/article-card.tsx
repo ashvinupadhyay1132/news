@@ -85,7 +85,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   };
 
   return (
-    <Card className="flex flex-col h-full overflow-hidden border shadow-sm hover:shadow-xl transition-all duration-300 ease-in-out rounded-md bg-card group break-inside-avoid w-full mb-6 animate-in fade-in duration-500">
+    <Card className="flex flex-col h-full overflow-hidden border shadow-sm hover:shadow-lg transition-all duration-300 ease-in-out rounded-md bg-card group">
       <Link href={article.link} className="block">
         <div className="relative w-full aspect-[16/10] overflow-hidden bg-muted/50"> {/* Adjusted aspect ratio slightly */}
           <Image

@@ -79,7 +79,7 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
               key={category}
               variant={activeCategory === category ? "default" : "outline"}
               onClick={() => handleCategoryChange(category)}
-              className="rounded-full px-5 py-2.5 text-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out" // Increased padding
+              className="rounded-full px-5 py-2.5 text-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out" 
               size="sm" 
             >
               {category}
