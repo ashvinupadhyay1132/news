@@ -1,11 +1,16 @@
 
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { Skeleton } from "./ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { slugify } from "@/lib/utils";
 
 interface CategoryFilterProps {
@@ -20,11 +25,9 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  let currentCategoryQuery = searchParams.get('category') || "All";
-  const categoryFromPath = Array.isArray(params.category) ? params.category[0] : params.category;
-  
-  const activeCategory = categoryFromPath ? categories.find(c => slugify(c) === slugify(categoryFromPath)) || "All" : currentCategoryQuery;
-
+  // Determine the active category based on URL query parameters
+  // For a Select component, we generally want the exact value string.
+  const activeCategory = searchParams.get('category') || "All";
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -35,7 +38,9 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
           throw new Error(`API error! status: ${response.status}`);
         }
         const fetchedCategories: string[] = await response.json();
-        setCategories(fetchedCategories);
+        // Ensure "All" is always an option, typically the first.
+        // The API should already return "All" as the first item.
+        setCategories(fetchedCategories.includes("All") ? fetchedCategories : ["All", ...fetchedCategories]);
       } catch (error) {
         console.error("Failed to fetch categories via API:", error);
         setCategories(["All"]); 
@@ -45,26 +50,22 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
     fetchCategories();
   }, []);
 
-  const handleCategoryChange = (category: string) => {
+  const handleCategoryChange = (categoryValue: string) => {
     const newParams = new URLSearchParams(searchParams.toString());
-    if (category === "All") {
+    if (categoryValue === "All") {
       newParams.delete('category');
-      router.push(`/?${newParams.toString()}`);
     } else {
-      newParams.set('category', category);
-      router.push(`/?${newParams.toString()}`);
+      newParams.set('category', categoryValue);
     }
+    // Always navigate to the homepage for category filtering
+    router.push(`/?${newParams.toString()}`);
   };
   
   if (isLoading) {
     return (
       <div className="mb-8">
         <Skeleton className="h-6 w-40 mb-4" /> 
-        <div className="flex space-x-3 p-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-28 rounded-full" />
-          ))}
-        </div>
+        <Skeleton className="h-10 w-full max-w-xs rounded-md" />
       </div>
     );
   }
@@ -72,22 +73,18 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-semibold mb-4 text-foreground">Filter by Category</h2>
-      <ScrollArea className="w-full whitespace-nowrap pb-3"> {/* Increased pb for scrollbar */}
-        <div className="flex space-x-2 py-1">
+      <Select value={activeCategory} onValueChange={handleCategoryChange}>
+        <SelectTrigger className="w-full max-w-xs text-base py-2.5 h-auto sm:text-sm">
+          <SelectValue placeholder="Select a category" />
+        </SelectTrigger>
+        <SelectContent>
           {categories.map((category) => (
-            <Button
-              key={category}
-              variant={activeCategory === category ? "default" : "outline"}
-              onClick={() => handleCategoryChange(category)}
-              className="rounded-full px-5 py-2.5 text-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out" 
-              size="sm" 
-            >
+            <SelectItem key={category} value={category} className="text-base py-2 sm:text-sm">
               {category}
-            </Button>
+            </SelectItem>
           ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+        </SelectContent>
+      </Select>
     </div>
   );
 };
