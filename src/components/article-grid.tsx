@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { usePathname } from "next/navigation"; // Import usePathname
+import { usePathname } from "next/navigation"; 
 
 interface ArticleGridProps {
   searchTerm: string;
@@ -19,7 +19,7 @@ interface ArticleGridProps {
 const ARTICLES_PER_PAGE = 9;
 
 const ArticleCardSkeleton = () => (
-  <div className="flex flex-col space-y-3 p-4 border rounded-lg bg-card">
+  <div className="flex flex-col space-y-3 p-4 border rounded-lg bg-card break-inside-avoid w-full mb-6">
     <Skeleton className="h-48 w-full rounded-md" />
     <Skeleton className="h-4 w-20 mt-2" />
     <Skeleton className="h-6 w-full" />
@@ -63,9 +63,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
 
   const fetchArticlesPage = useCallback(async (pageToFetch: number, isInitialLoad: boolean) => {
-    if (isInitialLoad) {
-      // This will be set by the main effect now
-    } else {
+    if (!isInitialLoad) {
       if (isLoadingMoreRef.current || !hasMoreRef.current) {
         console.log(`[ArticleGrid] fetchArticlesPage (more) skipped. isLoadingMore: ${isLoadingMoreRef.current}, hasMore: ${hasMoreRef.current}`);
         return;
@@ -130,11 +128,10 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       if (storedItem) {
         try {
           restoredState = JSON.parse(storedItem);
-          // Important: Consume the state so it's not reused on a normal filter change or refresh
           sessionStorage.removeItem(storageKey); 
         } catch (e) {
           console.error("[ArticleGrid] Error parsing stored state:", e);
-          sessionStorage.removeItem(storageKey); // Clear corrupted item
+          sessionStorage.removeItem(storageKey); 
         }
       }
     }
@@ -149,15 +146,14 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       setDisplayedArticles(restoredState.articles || []);
       setCurrentPage(restoredState.currentPage || 1);
       setHasMore(restoredState.hasMore === undefined ? true : restoredState.hasMore);
-      setIsLoadingInitial(false); // We've restored, not an initial load from API
+      setIsLoadingInitial(false);
 
-      // Defer scroll restoration until after React has rendered the restored articles
       setTimeout(() => {
         if (typeof window !== 'undefined' && restoredState && restoredState.scrollY !== undefined) {
           console.log(`[ArticleGrid] Attempting to scroll to ${restoredState.scrollY}`);
           window.scrollTo(0, restoredState.scrollY);
         }
-      }, 0); // setTimeout with 0 delay pushes to end of event queue
+      }, 0);
 
     } else {
       console.log(`[ArticleGrid] No restored state for ${storageKey} (or filters changed). Resetting and fetching page 1.`);
@@ -168,10 +164,8 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       fetchArticlesPage(1, true); 
     }
 
-    // Cleanup function to save state
     return () => {
       if (typeof window !== 'undefined' && displayedArticlesRef.current.length > 0) {
-        // Use refs to get the latest state values for saving
         const stateToSave = {
           articles: displayedArticlesRef.current,
           currentPage: currentPageRef.current,
@@ -191,8 +185,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
         }
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCategory, searchTerm, pathname, fetchArticlesPage]); // fetchArticlesPage is stable
+  }, [currentCategory, searchTerm, pathname, fetchArticlesPage]); 
 
   useEffect(() => {
     const canLoadMore = hasMoreRef.current && !isLoadingInitial && !isLoadingMoreRef.current;
@@ -213,7 +206,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   if (isLoadingInitial && displayedArticles.length === 0) { 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="block space-y-6 md:columns-2 md:gap-6 lg:columns-3 xl:columns-4 md:space-y-0">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
           <ArticleCardSkeleton key={`initial-load-skeleton-${index}`} />
         ))}
@@ -230,6 +223,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
         <AlertDescription>
           Sorry, we couldn't find any articles matching your criteria. Try adjusting your search or category filters.
           If this is unexpected, ensure the article database has been populated recently and that the server is running correctly and reachable.
+          Also verify your Next.js server terminal for any errors during startup or API requests.
         </AlertDescription>
       </Alert>
     );
@@ -237,7 +231,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+      <div className="block space-y-6 md:columns-2 md:gap-6 lg:columns-3 xl:columns-4 md:space-y-0">
         {displayedArticles.map((article) => (
           <ArticleCard key={article.id} article={article} />
         ))}
@@ -245,7 +239,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
       
       <div ref={loadMoreRef} className="h-auto flex flex-col justify-center items-center mt-8 py-4 min-h-[50px]">
         {isLoadingMore && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+           <div className="block space-y-6 md:columns-2 md:gap-6 lg:columns-3 xl:columns-4 md:space-y-0 w-full">
             {Array.from({ length: 3 }).map((_, index) => ( 
               <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
             ))}

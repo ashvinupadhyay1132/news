@@ -85,9 +85,9 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   };
 
   return (
-    <Card className="flex flex-col h-full overflow-hidden border shadow-sm hover:shadow-md transition-shadow duration-300 rounded-md bg-card group">
+    <Card className="flex flex-col h-full overflow-hidden border shadow-sm hover:shadow-xl transition-all duration-300 ease-in-out rounded-md bg-card group break-inside-avoid w-full mb-6 animate-in fade-in duration-500">
       <Link href={article.link} className="block">
-        <div className="relative w-full h-52 sm:h-48 overflow-hidden bg-muted/50">
+        <div className="relative w-full aspect-[16/10] overflow-hidden bg-muted/50"> {/* Adjusted aspect ratio slightly */}
           <Image
             src={article.imageUrl || placeholderImageSrc}
             alt={article.title}
@@ -103,21 +103,22 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
               }
             }}
             priority={false} 
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
         </div>
       </Link>
-      <CardHeader className="p-5 pb-2">
+      <CardHeader className="p-4 pb-2">
         <Badge variant="outline" className="mb-2 w-fit text-xs py-0.5 px-2">{article.category}</Badge>
-        <CardTitle className="text-xl font-semibold leading-snug">
+        <CardTitle className="text-lg font-semibold leading-snug">
           <Link href={article.link} className="hover:text-primary transition-colors line-clamp-3">
             {article.title}
           </Link>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-5 pt-1 flex-grow">
+      <CardContent className="p-4 pt-1 flex-grow">
         <p className="text-sm text-muted-foreground line-clamp-4">{article.summary}</p>
       </CardContent>
-      <CardFooter className="p-5 border-t flex flex-col sm:flex-row justify-between items-center gap-3">
+      <CardFooter className="p-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3">
         <div className="text-xs text-muted-foreground space-y-1 self-start sm:self-center">
           <div className="flex items-center">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5" />

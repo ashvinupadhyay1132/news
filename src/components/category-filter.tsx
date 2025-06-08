@@ -72,15 +72,15 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-semibold mb-4 text-foreground">Filter by Category</h2>
-      <ScrollArea className="w-full whitespace-nowrap pb-2">
+      <ScrollArea className="w-full whitespace-nowrap pb-3"> {/* Increased pb for scrollbar */}
         <div className="flex space-x-2 py-1">
           {categories.map((category) => (
             <Button
               key={category}
               variant={activeCategory === category ? "default" : "outline"}
               onClick={() => handleCategoryChange(category)}
-              className="rounded-full px-4 py-2 text-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out"
-              size="sm"
+              className="rounded-full px-5 py-2.5 text-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out" // Increased padding
+              size="sm" 
             >
               {category}
             </Button>
