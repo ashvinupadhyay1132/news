@@ -11,8 +11,16 @@ export async function register() {
   // The `NEXT_RUNTIME` variable helps distinguish. 'nodejs' is typical for the server.
   // 'edge-runtime' would be for Edge Functions where long-running processes like cron aren't suitable.
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    console.log('[Instrumentation] Registering cron service for Node.js runtime.');
-    startCronService();
+    console.log('[Instrumentation] Attempting to register cron service for Node.js runtime.');
+    try {
+      await startCronService(); // Make sure startCronService and its callees handle their promises correctly
+      console.log('[Instrumentation] Cron service registration process initiated.');
+    } catch (error) {
+      console.error('[Instrumentation] CRITICAL ERROR during cron service registration or initial fetch:', error);
+      // Depending on the severity, you might choose to gracefully degrade or re-throw
+      // For now, we log it. If this error is fatal to the app's ability to run,
+      // the process might still exit if Next.js doesn't handle errors from register() gracefully.
+    }
   } else {
     console.log(`[Instrumentation] Skipping cron service registration for runtime: ${process.env.NEXT_RUNTIME || 'unknown (likely client or edge)'}.`);
   }
