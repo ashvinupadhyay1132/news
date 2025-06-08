@@ -174,8 +174,8 @@ export default function ArticlePage() {
               src={article.imageUrl || placeholderImageSrc}
               alt={article.title}
               fill
-              className="object-cover transition-opacity duration-300"
-              priority 
+              className="object-cover"
+              priority={true} 
               data-ai-hint={article.imageUrl ? `${article.category} article full image` : imageAiHintForPage}
               onError={(e) => {
                 const target = e.currentTarget;
