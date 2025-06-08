@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,7 +9,7 @@ body {
 
 @layer base {
   :root {
-    /* Modern B&W Theme with Blue Accent - Light Mode */
+    /* Strict Black & White Theme - Light Mode */
     --background: 0 0% 100%; /* White */
     --foreground: 0 0% 13%; /* Very Dark Gray, almost Black */
 
@@ -18,8 +19,8 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 13%;
 
-    --primary: 217 91% 60%; /* Trustworthy Blue */
-    --primary-foreground: 0 0% 100%; /* White text on primary */
+    --primary: 0 0% 25%; /* Dark Gray */
+    --primary-foreground: 0 0% 95%; /* Light Gray */
 
     --secondary: 0 0% 96.5%; /* Very Light Gray */
     --secondary-foreground: 0 0% 20%; /* Dark Gray */
@@ -27,36 +28,36 @@ body {
     --muted: 0 0% 97.3%; /* Slightly off-white/light gray */
     --muted-foreground: 0 0% 45.1%; /* Medium Gray */
 
-    --accent: 217 80% 75%; /* Lighter/Softer Blue for accents */
-    --accent-foreground: 0 0% 13%; /* Dark text on light blue accent */
+    --accent: 0 0% 90%; /* Light Gray for hover/subtle accents */
+    --accent-foreground: 0 0% 13%; /* Dark Gray */
 
-    --destructive: 0 75% 55%; /* Clear Red */
+    --destructive: 0 75% 55%; /* Clear Red - kept for destructive actions */
     --destructive-foreground: 0 0% 100%;
 
     --border: 0 0% 90%; /* Light Gray Borders */
     --input: 0 0% 92.2%; /* Slightly darker light gray for inputs */
-    --ring: 217 91% 60%; /* Primary blue for focus rings */
+    --ring: 0 0% 60%; /* Medium Gray for focus rings */
 
-    --chart-1: 217 91% 50%;
-    --chart-2: 217 91% 60%;
-    --chart-3: 217 91% 70%;
-    --chart-4: 217 91% 80%;
-    --chart-5: 217 91% 90%;
+    --chart-1: 0 0% 50%;
+    --chart-2: 0 0% 60%;
+    --chart-3: 0 0% 70%;
+    --chart-4: 0 0% 80%;
+    --chart-5: 0 0% 90%;
     --radius: 0.5rem;
 
-    /* Sidebar specific colors - adapt to B&W + Blue */
-    --sidebar-background: 0 0% 98%; /* Very light gray for sidebar */
+    /* Sidebar specific colors - Grayscale */
+    --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 0 0% 13%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 80% 75%;
+    --sidebar-primary: 0 0% 25%;
+    --sidebar-primary-foreground: 0 0% 95%;
+    --sidebar-accent: 0 0% 90%;
     --sidebar-accent-foreground: 0 0% 13%;
     --sidebar-border: 0 0% 88%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-ring: 0 0% 60%;
   }
 
   .dark {
-    /* Modern B&W Theme with Blue Accent - Dark Mode */
+    /* Strict Black & White Theme - Dark Mode */
     --background: 0 0% 10%; /* Near Black */
     --foreground: 0 0% 97%; /* Light Gray/Off-white */
 
@@ -66,8 +67,8 @@ body {
     --popover: 0 0% 10%;
     --popover-foreground: 0 0% 97%;
 
-    --primary: 217 91% 65%; /* Brighter Blue for dark mode */
-    --primary-foreground: 0 0% 100%; 
+    --primary: 0 0% 85%; /* Light Gray */
+    --primary-foreground: 0 0% 10%; /* Near Black */
 
     --secondary: 0 0% 18%; /* Dark Gray for secondary elements */
     --secondary-foreground: 0 0% 88%; /* Lighter text on secondary */
@@ -75,31 +76,31 @@ body {
     --muted: 0 0% 16%; 
     --muted-foreground: 0 0% 65%; 
 
-    --accent: 217 80% 55%; /* A noticeable but not overly bright blue */
-    --accent-foreground: 0 0% 100%;
+    --accent: 0 0% 25%; /* Dark Gray for hover/subtle accents */
+    --accent-foreground: 0 0% 95%; /* Light Gray */
 
-    --destructive: 0 70% 60%; /* Slightly brighter red */
+    --destructive: 0 70% 60%; /* Slightly brighter red - kept for destructive actions */
     --destructive-foreground: 0 0% 100%;
 
     --border: 0 0% 22%; /* Subtle dark borders */
     --input: 0 0% 16%; /* Dark input backgrounds */
-    --ring: 217 91% 65%; 
+    --ring: 0 0% 50%; /* Medium Gray for focus rings */
 
-    --chart-1: 217 91% 75%;
-    --chart-2: 217 91% 65%;
-    --chart-3: 217 91% 55%;
-    --chart-4: 217 91% 45%;
-    --chart-5: 217 91% 35%;
+    --chart-1: 0 0% 75%;
+    --chart-2: 0 0% 65%;
+    --chart-3: 0 0% 55%;
+    --chart-4: 0 0% 45%;
+    --chart-5: 0 0% 35%;
 
-    /* Sidebar specific colors - dark mode */
+    /* Sidebar specific colors - Grayscale dark mode */
     --sidebar-background: 0 0% 12%;
     --sidebar-foreground: 0 0% 97%;
-    --sidebar-primary: 217 91% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 80% 55%;
-    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 85%;
+    --sidebar-primary-foreground: 0 0% 10%;
+    --sidebar-accent: 0 0% 25%;
+    --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 217 91% 65%;
+    --sidebar-ring: 0 0% 50%;
   }
 }
 
@@ -120,17 +121,17 @@ body {
   }
 
   .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-    @apply text-primary;
+    @apply text-primary; /* Will now be a shade of gray */
   }
   .dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose h5, .dark .prose h6 {
-    @apply text-primary;
+    @apply text-primary; /* Will now be a shade of gray */
   }
   
   .prose a {
-    @apply text-accent hover:underline;
+    @apply text-accent hover:underline; /* Will now be a shade of gray, consider adding underline always for visibility */
   }
   .dark .prose a {
-    @apply text-accent hover:underline;
+    @apply text-accent hover:underline; /* Will now be a shade of gray */
   }
 
   .prose strong {
@@ -141,9 +142,9 @@ body {
   }
   
   .prose blockquote {
-    @apply border-accent;
+    @apply border-accent; /* Will now be a shade of gray */
   }
   .dark .prose blockquote {
-    @apply border-accent;
+    @apply border-accent; /* Will now be a shade of gray */
   }
 }
