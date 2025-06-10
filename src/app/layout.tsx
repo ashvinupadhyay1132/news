@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
@@ -5,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
 import {ThemeProvider} from "@/components/theme-provider";
-
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'TrendingNewsFeed.in - Your Daily News Digest',
-  description: 'Stay updated with the latest trending news from TrendingNewsFeed.in, all in one place.',
+  description: 'Stay updated with the latest trending news from TrendingNewsFeed.in.',
 };
 
 export default function RootLayout({
@@ -29,6 +29,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
         <ThemeProvider
           attribute="class"

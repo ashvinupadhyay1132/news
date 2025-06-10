@@ -2,9 +2,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    instrumentationHook: true, // Enable the instrumentation hook
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -26,7 +23,7 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      { 
+      {
         protocol: 'https',
         hostname: '**.wp.com', // e.g., i0.wp.com, s.w.org (often used by TechCrunch)
         port: '',
@@ -35,12 +32,12 @@ const nextConfig: NextConfig = {
       // Reuters
       {
         protocol: 'https',
-        hostname: '**.reuters.com', 
+        hostname: '**.reuters.com',
         port: '',
         pathname: '/**',
       },
       {
-        protocol: 'http', 
+        protocol: 'http',
         hostname: '**.reuters.com',
         port: '',
         pathname: '/**',
@@ -60,13 +57,13 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'vanilla.futurecdn.net', 
+        hostname: 'vanilla.futurecdn.net',
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: 'www.livescience.com', 
+        hostname: 'www.livescience.com',
         port: '',
         pathname: '/**',
       },
@@ -79,32 +76,13 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'static.toiimg.com',
+        hostname: '**.toiimg.com', // Changed from static.toiimg.com
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
         hostname: '**.timesofindia.indiatimes.com',
-        port: '',
-        pathname: '/**',
-      },
-      // Hindustan Times
-      {
-        protocol: 'https',
-        hostname: 'www.hindustantimes.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.hindustantimes.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.hindustantimes.com',
         port: '',
         pathname: '/**',
       },
@@ -184,4 +162,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-    

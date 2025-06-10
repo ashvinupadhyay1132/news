@@ -1,5 +1,5 @@
 
-import { MongoClient, type Db, type Collection, type Document } from 'mongodb';
+import { MongoClient, type Db, type Collection, type Document, type IndexSpecification } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME;
@@ -20,24 +20,116 @@ function getMaskedMongoURI(uri?: string): string {
 if (!MONGODB_URI) {
   console.error('[MongoDB] CRITICAL ERROR: MONGODB_URI environment variable is not defined.');
 } else {
-  console.log(`[MongoDB] Using MONGODB_URI: ${getMaskedMongoURI(MONGODB_URI)}`);
+  // console.log(`[MongoDB] Using MONGODB_URI: ${getMaskedMongoURI(MONGODB_URI)}`);
 }
 
 if (!MONGODB_DB_NAME) {
   console.error('[MongoDB] CRITICAL ERROR: MONGODB_DB_NAME environment variable is not defined.');
 } else {
-  console.log(`[MongoDB] Using MONGODB_DB_NAME: ${MONGODB_DB_NAME}`);
+  // console.log(`[MongoDB] Using MONGODB_DB_NAME: ${MONGODB_DB_NAME}`);
 }
 
 
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
 
+// Helper to compare simple objects (like index key definitions)
+function areObjectsEqual(obj1: any, obj2: any): boolean {
+  if (obj1 === null || obj1 === undefined || obj2 === null || obj2 === undefined) {
+    return obj1 === obj2;
+  }
+  const keys1 = Object.keys(obj1).sort();
+  const keys2 = Object.keys(obj2).sort();
+  if (keys1.length !== keys2.length) {
+    return false;
+  }
+  for (let i = 0; i < keys1.length; i++) {
+    const key = keys1[i];
+    if (key !== keys2[i] || obj1[key] !== obj2[key]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const ensureIndex = async (
+  articlesCollection: Collection<Document>,
+  keyDefinition: Document,
+  options: { name: string; unique?: boolean; expireAfterSeconds?: number },
+  desiredName: string
+) => {
+  const fullOptions = { ...options, name: desiredName };
+  let existingIndexes: any[] = [];
+
+  try {
+    existingIndexes = await articlesCollection.listIndexes().toArray();
+  } catch (error: any) {
+    if (error.codeName === 'NamespaceNotFound') {
+      console.log(`[MongoDB] Collection '${articlesCollection.collectionName}' does not exist yet. Will proceed with index creation for '${desiredName}'.`);
+      // existingIndexes remains empty, which is correct for a new collection.
+    } else {
+      // Re-throw other errors not related to collection non-existence
+      console.error(`[MongoDB] Error listing indexes for '${articlesCollection.collectionName}' (index: '${desiredName}'):`, error);
+      throw error;
+    }
+  }
+
+  const indexWithDesiredName = existingIndexes.find(idx => idx.name === desiredName);
+  let needsCreationOrRecreation = false;
+
+  if (indexWithDesiredName) {
+    let definitionMatches = areObjectsEqual(indexWithDesiredName.key, keyDefinition);
+    if (fullOptions.unique !== undefined && indexWithDesiredName.unique !== fullOptions.unique) {
+      definitionMatches = false;
+    }
+    if (fullOptions.expireAfterSeconds !== undefined && indexWithDesiredName.expireAfterSeconds !== fullOptions.expireAfterSeconds) {
+      definitionMatches = false;
+    }
+
+    if (!definitionMatches) {
+      console.warn(`[MongoDB] Index '${desiredName}' on '${articlesCollection.collectionName}' exists but its definition differs. Dropping for re-creation.`);
+      try {
+        await articlesCollection.dropIndex(desiredName);
+        console.log(`[MongoDB] Dropped index '${desiredName}' on '${articlesCollection.collectionName}'.`);
+        needsCreationOrRecreation = true;
+      } catch (dropError) {
+        console.error(`[MongoDB] Error dropping index '${desiredName}' on '${articlesCollection.collectionName}' for re-creation:`, dropError);
+        throw dropError;
+      }
+    }
+  } else {
+    needsCreationOrRecreation = true;
+  }
+
+  if (needsCreationOrRecreation) {
+    const conflictingKeyIndex = existingIndexes.find(idx => idx.name !== desiredName && areObjectsEqual(idx.key, keyDefinition));
+    if (conflictingKeyIndex) {
+      console.warn(`[MongoDB] Found conflicting index '${conflictingKeyIndex.name}' with the same key definition as desired for '${desiredName}' on '${articlesCollection.collectionName}'. Dropping conflicting index.`);
+      try {
+        await articlesCollection.dropIndex(conflictingKeyIndex.name);
+        console.log(`[MongoDB] Dropped conflicting key index '${conflictingKeyIndex.name}' on '${articlesCollection.collectionName}'.`);
+      } catch (dropConflictError) {
+        console.error(`[MongoDB] Error dropping conflicting key index '${conflictingKeyIndex.name}' on '${articlesCollection.collectionName}':`, dropConflictError);
+        throw dropConflictError;
+      }
+    }
+
+    try {
+      console.log(`[MongoDB] Creating index '${desiredName}' with key ${JSON.stringify(keyDefinition)} and options ${JSON.stringify(fullOptions)} on collection '${articlesCollection.collectionName}'.`);
+      await articlesCollection.createIndex(keyDefinition, fullOptions); // This will create the collection if it doesn't exist.
+      console.log(`[MongoDB] Index '${desiredName}' created successfully on '${articlesCollection.collectionName}'.`);
+    } catch (createError) {
+      console.error(`[MongoDB] Error creating index '${desiredName}' with key ${JSON.stringify(keyDefinition)} on '${articlesCollection.collectionName}':`, createError);
+      throw createError;
+    }
+  }
+};
+
+
 async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
   if (cachedClient && cachedDb) {
     try {
       await cachedClient.db('admin').command({ ping: 1 });
-      // console.log("[MongoDB] Using cached database connection.");
       return { client: cachedClient, db: cachedDb };
     } catch (e) {
       console.warn("[MongoDB] Cached connection check failed, attempting to reconnect.", e);
@@ -64,33 +156,17 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
     cachedDb = db;
 
     const articlesCollection = db.collection('articles');
-    const indexes = await articlesCollection.listIndexes().toArray();
-    const existingIndexNames = indexes.map(idx => idx.name);
     
-    const ensureIndex = async (fieldName: string | any, options: any, indexName: string) => {
-      if (!existingIndexNames.includes(indexName)) {
-        try {
-          await articlesCollection.createIndex(fieldName, options);
-          console.log(`[MongoDB] Index '${indexName}' on '${JSON.stringify(fieldName)}' for 'articles' collection created successfully.`);
-        } catch (indexError) {
-          console.error(`[MongoDB] Error creating index '${indexName}' for 'articles':`, indexError);
-        }
-      } else {
-        // console.log(`[MongoDB] Index '${indexName}' already exists.`);
-      }
-    };
-
-    // TTL index for 2 days
-    await ensureIndex({ createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 2 }, 'createdAt_ttl_index');
-    await ensureIndex({ id: 1 }, { name: 'article_id_unique_idx', unique: true }, 'article_id_unique_idx');
-    await ensureIndex({ date: -1 }, { name: 'article_date_idx' }, 'article_date_idx');
-    await ensureIndex({ category: 1 }, { name: 'article_category_idx' }, 'article_category_idx');
-    await ensureIndex({ category: 1, date: -1 }, { name: 'article_category_date_idx' }, 'article_category_date_idx');
+    await ensureIndex(articlesCollection, { createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 2 }, 'createdAt_ttl_index');
+    await ensureIndex(articlesCollection, { id: 1 }, { name: 'article_id_unique_idx', unique: true }, 'article_id_unique_idx');
+    await ensureIndex(articlesCollection, { date: -1 }, { name: 'article_date_idx' }, 'article_date_idx');
+    await ensureIndex(articlesCollection, { category: 1 }, { name: 'article_category_idx' }, 'article_category_idx');
+    await ensureIndex(articlesCollection, { category: 1, date: -1 }, { name: 'article_category_date_idx' }, 'article_category_date_idx');
 
 
     return { client, db };
   } catch (connectionError) {
-    console.error(`[MongoDB] CRITICAL ERROR: Failed to connect to MongoDB at ${getMaskedMongoURI(MONGODB_URI)} (DB: ${MONGODB_DB_NAME}):`, connectionError);
+    console.error(`[MongoDB] CRITICAL ERROR: Failed to connect to MongoDB at ${getMaskedMongoURI(MONGODB_URI)} (DB: ${MONGODB_DB_NAME}) or ensure indexes:`, connectionError);
     throw connectionError;
   }
 }

@@ -20,7 +20,7 @@ async function runHourlyUpdate() {
 
 async function initializeNewsFetching() {
   if (isInitialUpdateDone) {
-    console.log('[Cron Service] Initial update already performed or in progress.');
+    // console.log('[Cron Service] Initial update already performed or in progress.');
     return;
   }
   isInitialUpdateDone = true; // Set flag immediately to prevent multiple initial runs
@@ -36,7 +36,6 @@ async function initializeNewsFetching() {
   }
 
   // Schedule the hourly job after the initial run attempt
-  // Important: See caveat in main response about node-cron in serverless environments.
   if (cron.validate(CRON_SCHEDULE_HOURLY)) {
     console.log(`[Cron Service] Scheduling hourly article updates with cron expression: ${CRON_SCHEDULE_HOURLY}`);
     cron.schedule(CRON_SCHEDULE_HOURLY, runHourlyUpdate, {
@@ -50,9 +49,10 @@ async function initializeNewsFetching() {
 }
 
 // Export a function that can be called to start the service
-export function startCronService() {
+export async function startCronService() {
   console.log('[Cron Service] Initializing news fetching service...');
   // Perform the initial fetch/save.
   // The cron job for hourly updates will be scheduled inside initializeNewsFetching.
-  initializeNewsFetching();
+  await initializeNewsFetching(); // Ensure this completes before startCronService returns
+  console.log('[Cron Service] News fetching service initialization complete.');
 }

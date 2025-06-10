@@ -5,12 +5,12 @@
 'use server';
 
 import { Parser } from 'xml2js';
-import type { Article } from './placeholder-data'; 
+import type { Article as ArticleInterface } from './placeholder-data';
 import { slugify, getNestedValue } from './utils';
 import he from 'he';
 import iconv from 'iconv-lite';
 import { load as cheerioLoad } from 'cheerio';
-import { getArticlesCollection } from './mongodb'; 
+import { getArticlesCollection } from './mongodb';
 
 interface NewsSource {
   name: string;
@@ -25,7 +25,6 @@ const TARGET_DISPLAY_CATEGORIES = [
   'Entertainment', 'Science', 'World News', 'India News',
   'Life & Style', 'Top News', 'General'
 ];
-
 
 function mapToDisplayCategory(rawCategory: string, title: string = ''): string {
     const lowerRawCategory = rawCategory.toLowerCase();
@@ -152,15 +151,13 @@ const NEWS_SOURCES: NewsSource[] = [
   { name: "TOI - Top Stories", rssUrl: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", defaultCategory: "Top News", fetchOgImageFallback: false },
   { name: "TOI - India News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", defaultCategory: "India News", fetchOgImageFallback: false },
   { name: "TOI - World News", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", defaultCategory: "World News", fetchOgImageFallback: false },
-  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true }, 
+  { name: "TOI - Entertainment", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", defaultCategory: "Entertainment", fetchOgImageFallback: true },
   { name: "TOI - Sports", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", defaultCategory: "Sports", fetchOgImageFallback: false },
   { name: "TOI - Business", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: false },
   { name: "TOI - Science", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", defaultCategory: "Science", fetchOgImageFallback: false },
   { name: "TOI - Life & Style", rssUrl: "https://timesofindia.indiatimes.com/rssfeeds/2886704.cms", defaultCategory: "Life & Style", fetchOgImageFallback: false },
 
-  { name: "Hindustan Times - India", rssUrl: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", defaultCategory: "India News", fetchOgImageFallback: false },
-  { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: false },
-
+  // { name: "Indian Express - India", rssUrl: "https://indianexpress.com/section/india/feed/", defaultCategory: "India News", fetchOgImageFallback: false }, // Commented out due to 403 Forbidden
   { name: "Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeedsdefault.cms", defaultCategory: "Business & Finance", fetchOgImageFallback: true },
 ];
 
@@ -174,7 +171,7 @@ const parser = new Parser({
 
 async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
     if (!articleUrl || !articleUrl.startsWith('http')) {
-      console.warn(`[RSS OG Fetch] Invalid URL for OG image fetch: ${articleUrl}`);
+      // console.warn(`[RSS OG Fetch] Invalid URL for OG image fetch: ${articleUrl}`);
       return null;
     }
     try {
@@ -183,7 +180,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
           'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         },
-        signal: AbortSignal.timeout(8000) 
+        signal: AbortSignal.timeout(8000)
       });
 
       if (!response.ok) {
@@ -201,7 +198,7 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
           $('meta[name="twitter:image"]').attr('content');
 
       if (ogImageUrl && typeof ogImageUrl === 'string') {
-          ogImageUrl = he.decode(ogImageUrl.trim()); 
+          ogImageUrl = he.decode(ogImageUrl.trim());
           if (ogImageUrl.startsWith('//')) {
               ogImageUrl = `https:${ogImageUrl}`;
           }
@@ -209,14 +206,14 @@ async function fetchOgImageFromUrl(articleUrl: string): Promise<string | null> {
               const urlObject = new URL(articleUrl);
               ogImageUrl = `${urlObject.protocol}//${urlObject.hostname}${ogImageUrl}`;
           }
-          
+
           if (ogImageUrl.startsWith('http')) {
             try {
                 const validatedUrl = new URL(ogImageUrl);
-                return validatedUrl.href; 
+                return validatedUrl.href;
             } catch (e) {
-                console.warn(`[RSS OG Fetch] Invalid OG image URL constructed: "${ogImageUrl}" from base ${articleUrl}. Error: ${e.message}`);
-                return null; 
+                console.warn(`[RSS OG Fetch] Invalid OG image URL constructed: "${ogImageUrl}" from base ${articleUrl}. Error: ${(e as Error).message}`);
+                return null;
             }
           }
       }
@@ -281,6 +278,46 @@ function normalizeContent(contentInput: any): string {
   return '';
 }
 
+function normalizeAndStripHtml(htmlString: string): string {
+    if (!htmlString || typeof htmlString !== 'string') return "";
+    return he.decode(htmlString)
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]+>/g, ' ') 
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s\s+/g, ' ') 
+        .trim();
+}
+
+function isSummaryJustTitle(title: string, summary: string, similarityThreshold: number = 0.8): boolean {
+    if (!title || !summary) return false;
+
+    const normalizedTitle = normalizeAndStripHtml(title).toLowerCase();
+    const normalizedSummary = normalizeAndStripHtml(summary).toLowerCase();
+    
+    if (normalizedTitle.length === 0 || normalizedSummary.length === 0) return false;
+
+    // Quick check: if summary starts with title and is not much longer
+    if (normalizedSummary.startsWith(normalizedTitle) && (normalizedSummary.length < normalizedTitle.length + 30)) {
+        return true;
+    }
+    
+    // Word overlap check
+    const titleWords = new Set(normalizedTitle.split(/\s+/).filter(w => w.length > 2));
+    if (titleWords.size === 0) return false;
+
+    const summaryWords = normalizedSummary.split(/\s+/);
+    let commonWords = 0;
+    summaryWords.forEach(word => {
+        if (titleWords.has(word)) {
+            commonWords++;
+        }
+    });
+
+    const overlapRatio = commonWords / titleWords.size;
+    return overlapRatio >= similarityThreshold;
+}
+
 function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceName?: string): string {
   let textToSummarize = '';
   const descriptionText = normalizeContent(descriptionInput);
@@ -303,38 +340,10 @@ function normalizeSummary(descriptionInput: any, fullContentInput?: any, sourceN
         .replace(/<p><a href="[^"]*">.*?read more.*?<\/a><\/p>/gi, '');
   }
 
-  const plainText = textToSummarize
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '')
-    .replace(/<img[^>]*?>/gi, '')
-    .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '')
-    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
-    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\[link\]|\[comments\]/gi, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const plainText = normalizeAndStripHtml(textToSummarize);
 
   if (!plainText && fullContentText && fullContentText !== textToSummarize) {
-      const plainFullContent = fullContentText
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<figure[^>]*>[\s\S]*?<\/figure>/gi, '')
-        .replace(/<img[^>]*?>/gi, '')
-        .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '')
-        .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-        .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '')
-        .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
-        .replace(/<!--[\s\S]*?-->/g, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\[link\]|\[comments\]/gi, '')
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const plainFullContent = normalizeAndStripHtml(fullContentText);
       return he.decode(plainFullContent.substring(0, 250) + (plainFullContent.length > 250 ? '...' : ''));
   }
 
@@ -399,10 +408,10 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
       });
     }
   }
-  
+
   for (let src of potentialImageSources) {
     if (typeof src !== 'string') continue;
-    src = he.decode(src.trim());
+    src = src.trim();
 
     if (src.startsWith('//')) {
       src = `https:${src}`;
@@ -411,106 +420,186 @@ function extractImageUrl(item: any, articleTitle: string, articleCategory?: stri
     if (!src.startsWith('http') && articleLink && articleLink.startsWith('http')) {
       try {
         const base = new URL(articleLink);
-        if (src.startsWith('/')) { 
+        if (src.startsWith('/')) {
           src = new URL(src, base.origin).href;
-        } else { 
+        } else {
           src = new URL(src, base.href).href;
         }
       } catch (e) {
-        continue; 
+        continue;
       }
     }
 
     if (src.startsWith('http')) {
       try {
-        const validatedUrl = new URL(src); 
+        const validatedUrl = new URL(src);
         if (validatedUrl.protocol === 'http:' || validatedUrl.protocol === 'https:') {
-          imageUrl = validatedUrl.href; 
+          imageUrl = validatedUrl.href;
           break; 
         }
-      } catch (urlError) {
-      }
+      } catch (urlError) { /* Log or handle URL parsing errors if necessary */ }
     }
   }
 
-  return imageUrl; 
+  return imageUrl;
 }
 
-async function saveArticlesToDatabase(articles: Article[]): Promise<void> {
+function normalizeSourceLinkForDedupe(link: string | null | undefined): string | null {
+  if (!link || typeof link !== 'string' || !link.startsWith('http')) {
+    return null;
+  }
+  try {
+    const urlObj = new URL(link);
+    const commonTrackingParams = [
+      'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+      'fbclid', 'gclid', 'msclkid', 'mc_eid', 'mc_cid',
+      '_ga', 'source', 'src', 'ref', 'spm', 'share_id', 'share_source',
+      'feedType', 'feedName', 'rssfeed', 'syndication', 'CMP', 'ncid', 'ICID',
+    ];
+    commonTrackingParams.forEach(param => urlObj.searchParams.delete(param));
+    
+    Array.from(urlObj.searchParams.keys()).forEach(key => {
+        if (/^\d+$/.test(urlObj.searchParams.get(key) || "")) { 
+        }
+    });
+
+    const sortedSearchParams = new URLSearchParams();
+    Array.from(urlObj.searchParams.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([key, value]) => sortedSearchParams.append(key, value));
+    
+    let finalPathname = urlObj.pathname;
+    if (finalPathname !== '/' && finalPathname.endsWith('/')) {
+      finalPathname = finalPathname.slice(0, -1);
+    }
+
+    return `${urlObj.protocol}//${urlObj.hostname}${finalPathname}${sortedSearchParams.toString() ? '?' + sortedSearchParams.toString() : ''}`;
+  } catch (e) {
+    const trimmedLink = link.trim();
+    return trimmedLink.startsWith('http') ? trimmedLink : null;
+  }
+}
+
+async function saveArticlesToDatabase(articles: ArticleInterface[]): Promise<void> {
   if (!articles || articles.length === 0) {
-    console.log("[DB Save] No articles to save.");
+    // console.log("[DB Save] No articles to save (input array was empty or null).");
     return;
   }
-  console.log(`[DB Save] Attempting to save/update ${articles.length} articles to database.`);
+  console.log(`[DB Save] Attempting to save/update up to ${articles.length} articles after initial filtering.`);
 
   try {
     const articlesCollection = await getArticlesCollection();
-    const operations = articles.map(article => {
-      // Ensure dates are BSON Date objects for MongoDB
+    
+    const existingArticleDocs = await articlesCollection.find({}, { projection: { title: 1, sourceLink: 1, _id: 0 } }).toArray();
+    
+    const existingNormalizedSourceLinksInDb = new Set<string>();
+    existingArticleDocs.forEach(doc => {
+      if (doc.sourceLink && typeof doc.sourceLink === 'string') {
+        const normalizedExistingLink = normalizeSourceLinkForDedupe(doc.sourceLink);
+        if (normalizedExistingLink) {
+          existingNormalizedSourceLinksInDb.add(normalizedExistingLink);
+        }
+      }
+    });
+
+    const existingNormalizedTitlesInDb = new Set<string>();
+    existingArticleDocs.forEach(doc => {
+        if (doc.title && typeof doc.title === 'string') {
+            existingNormalizedTitlesInDb.add(doc.title.trim().toLowerCase());
+        }
+    });
+    
+    // console.log(`[DB Save] Fetched ${existingNormalizedSourceLinksInDb.size} existing normalized sourceLinks and ${existingNormalizedTitlesInDb.size} existing normalized titles from DB for deduplication.`);
+
+    const operations = [];
+    const processedNormalizedSourceLinksInBatch = new Set<string>(); 
+    const processedNormalizedTitlesInBatch = new Set<string>();      
+    
+    let skippedBySourceLink = 0;
+    let skippedByTitle = 0;
+    let articlesForDbCount = 0;
+
+    for (const article of articles) {
+      const normalizedArticleSourceLink = normalizeSourceLinkForDedupe(article.sourceLink);
+      const normalizedArticleTitle = article.title.trim().toLowerCase(); 
+
+      if (normalizedArticleSourceLink) { 
+        if (existingNormalizedSourceLinksInDb.has(normalizedArticleSourceLink) || 
+            processedNormalizedSourceLinksInBatch.has(normalizedArticleSourceLink)) {
+          skippedBySourceLink++;
+          continue; 
+        }
+      }
+      
+      if (existingNormalizedTitlesInDb.has(normalizedArticleTitle) || 
+          processedNormalizedTitlesInBatch.has(normalizedArticleTitle)) {
+        skippedByTitle++;
+        continue;
+      }
+      
+      if (normalizedArticleSourceLink) {
+        processedNormalizedSourceLinksInBatch.add(normalizedArticleSourceLink);
+      }
+      processedNormalizedTitlesInBatch.add(normalizedArticleTitle);
+      articlesForDbCount++;
+
       const articleDataForDb = {
         id: article.id, 
-        title: article.title,
+        title: article.title.trim(), 
         summary: article.summary,
-        date: new Date(article.date), // Convert ISO string to BSON Date
+        date: new Date(article.date),
         source: article.source,
         category: article.category,
         imageUrl: article.imageUrl,
         link: article.link, 
         sourceLink: article.sourceLink, 
         content: article.content,
-        fetchedAt: article.fetchedAt ? new Date(article.fetchedAt) : new Date(), // Convert ISO string to BSON Date
+        fetchedAt: article.fetchedAt ? new Date(article.fetchedAt) : new Date(),
       };
 
-      return {
+      operations.push({
         updateOne: {
-          filter: { id: article.id }, // Use the unique 'id' field for upserting
+          filter: { id: article.id }, 
           update: {
             $set: articleDataForDb,
-            $setOnInsert: { createdAt: new Date() } // Add 'createdAt' only on first insert for TTL
+            $setOnInsert: { createdAt: new Date() } 
           },
           upsert: true,
         },
-      };
-    });
+      });
+    }
+    
+    console.log(`[DB Save] Deduplication summary: Skipped by sourceLink: ${skippedBySourceLink}. Skipped by title: ${skippedByTitle}. Articles to process for DB: ${articlesForDbCount}.`);
 
     if (operations.length > 0) {
-      console.log(`[DB Save] Preparing to execute ${operations.length} bulkWrite operations.`);
+      // console.log(`[DB Save] Preparing to execute ${operations.length} bulkWrite operations.`);
       const result = await articlesCollection.bulkWrite(operations, { ordered: false });
-      console.log(`[DB Save] Bulk write completed. Result: 
-        acknowledged: ${result.acknowledged},
-        insertedCount: ${result.insertedCount},
-        matchedCount: ${result.matchedCount},
-        modifiedCount: ${result.modifiedCount},
-        upsertedCount: ${result.upsertedCount},
-        deletedCount: ${result.deletedCount},
-        upsertedIds: ${JSON.stringify(result.upsertedIds)}`);
+      console.log(`[DB Save] Bulk write completed. Result: inserted: ${result.insertedCount}, matched: ${result.matchedCount}, modified: ${result.modifiedCount}, upserted: ${result.upsertedCount}`);
       if (result.writeErrors && result.writeErrors.length > 0) {
         console.error(`[DB Save] Bulk write encountered ${result.writeErrors.length} write errors. First error:`, result.writeErrors[0]);
       }
     } else {
-       console.log("[DB Save] No operations to perform after mapping articles (perhaps all articles were filtered out).");
+       console.log("[DB Save] No operations to perform after filtering and deduplication.");
     }
   } catch (error) {
     console.error("[DB Save] CRITICAL ERROR saving articles to MongoDB:", error);
-    // Consider re-throwing or handling more gracefully depending on your app's needs
   }
 }
 
 
 async function fetchAndParseRSS(
-    source: NewsSource, 
-    isForCategoriesOnly: boolean = false, 
-    fetchOgImagesParam: boolean = true
-  ): Promise<Article[]> {
-  console.log(`[RSS Fetch] Starting fetch for ${source.name}. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}`);
+    source: NewsSource,
+    isForCategoriesOnly: boolean = false,
+    fetchOgImagesParam: boolean = true 
+  ): Promise<ArticleInterface[]> {
   try {
     const fetchResponse = await fetch(source.rssUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 NewsAggregator/1.0 (+http://example.com/bot.html)',
         'Accept': 'application/rss+xml,application/xml,application/atom+xml;q=0.9,text/xml;q=0.8,*/*;q=0.7'
       },
-      signal: AbortSignal.timeout(15000), // 15 second timeout for fetching the feed
-      next: { revalidate: 300 } // Revalidate cache every 5 minutes (300 seconds) for this specific fetch
+      signal: AbortSignal.timeout(15000), 
+      next: { revalidate: 300 } 
     });
 
     if (!fetchResponse.ok) {
@@ -522,19 +611,15 @@ async function fetchAndParseRSS(
     const rawDataBuffer = Buffer.from(arrayBuffer);
 
     let feedXmlString: string;
-    // Try decoding as UTF-8 first
     let utf8Decoded = iconv.decode(rawDataBuffer, 'utf-8', { stripBOM: true });
-    // Heuristic: if there are many replacement characters, UTF-8 might be wrong
     const utf8ReplacementCharCount = (utf8Decoded.match(/\uFFFD/g) || []).length;
 
-    // If many replacement characters (e.g., >5% of content or more than 5 absolute), try windows-1252 as a common fallback
     if (utf8ReplacementCharCount > 0 && (utf8ReplacementCharCount > 5 || utf8ReplacementCharCount / (utf8Decoded.length || 1) > 0.01)) {
-      // console.log(`[RSS Parse] ${source.name}: High UTF-8 replacement count (${utf8ReplacementCharCount}). Trying windows-1252.`);
-      feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true });
+      // console.warn(`[RSS Decode] High UTF-8 replacement char count for ${source.name} (${utf8ReplacementCharCount}). Trying windows-1252.`);
+      feedXmlString = iconv.decode(rawDataBuffer, 'windows-1252', { stripBOM: true }); 
     } else {
       feedXmlString = utf8Decoded;
     }
-    // Remove any remaining invalid XML characters (control characters, etc.)
     feedXmlString = feedXmlString.replace(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
 
@@ -542,27 +627,27 @@ async function fetchAndParseRSS(
 
     let items = getNestedValue(result, 'rss.channel.item', []);
     if (!items || (Array.isArray(items) && items.length === 0)) {
-      items = getNestedValue(result, 'feed.entry', []);
+      items = getNestedValue(result, 'feed.entry', []); 
     }
      if (!items || (Array.isArray(items) && items.length === 0)) {
-      items = getNestedValue(result, 'rdf:RDF.item', []);
+      items = getNestedValue(result, 'rdf:RDF.item', []); 
     }
 
     if (!Array.isArray(items)) {
       items = items ? [items] : [];
     }
-    
-    console.log(`[RSS Parse] Found ${items.length} raw items in feed for ${source.name}.`);
 
     if (items.length === 0) {
       return [];
     }
 
-    const processedArticles: Article[] = [];
+    const processedArticles: ArticleInterface[] = [];
+    const MAX_SLUG_LENGTH = 150; 
+    const MAX_SUFFIX_LENGTH = 25;
 
     for (const [index, item] of items.entries()) {
-      const rawTitle = normalizeContent(getNestedValue(item, 'title', 'Untitled Article'));
-      const title = rawTitle;
+      const rawTitle = normalizeContent(getNestedValue(item, 'title', ''));
+      const title = rawTitle.trim();
 
       let originalLink = '#';
       const linkField = getNestedValue(item, 'link');
@@ -580,13 +665,12 @@ async function fetchAndParseRSS(
         let tempLink = alternateLink ? alternateLink.href :
                        ( (firstValidLink && typeof firstValidLink === 'object') ? firstValidLink.href :
                          (typeof firstValidLink === 'string' ? firstValidLink :
-                           (selfLink && selfLink.href && selfLink.href.startsWith('http') ? selfLink.href : '#')
+                           (selfLink && selfLink.href && selfLink.href.startsWith('http') ? selfLink.href : '#') 
                          )
                        );
         originalLink = he.decode(String(tempLink).trim());
       }
 
-      // Fallback to guid or id if link is still '#'
       if (originalLink === '#' && item.guid && (typeof item.guid === 'string' || (typeof item.guid === 'object' && item.guid._)) ) {
           const guidContent = typeof item.guid === 'object' ? item.guid._ : item.guid;
           if (typeof guidContent === 'string' && guidContent.startsWith('http') && (getNestedValue(item.guid, 'isPermaLink', 'true') !== 'false') ) {
@@ -597,32 +681,48 @@ async function fetchAndParseRSS(
         originalLink = he.decode(item.id.trim());
       }
 
+      if (!originalLink.startsWith('http')) originalLink = '#'; 
+      
       const pubDateSource = getNestedValue(item, 'pubDate') || getNestedValue(item, 'published') || getNestedValue(item, 'updated') || getNestedValue(item, 'dc:date');
-      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date(); // Default to now if no date
-      if (isNaN(parsedDateFromFeed.getTime())) { // Check if date is invalid
-        // console.warn(`[RSS Parse] Invalid date for item "${title}" from ${source.name}. Using current date.`);
-        parsedDateFromFeed = new Date(); // Fallback to current date if parsing failed
+      let parsedDateFromFeed = pubDateSource ? new Date(normalizeContent(pubDateSource)) : new Date(); 
+      if (isNaN(parsedDateFromFeed.getTime())) {
+        // console.warn(`[RSS Parse Date] Invalid date "${normalizeContent(pubDateSource)}" for item in ${source.name}. Defaulting to now.`);
+        parsedDateFromFeed = new Date(); 
       }
       const date = parsedDateFromFeed.toISOString();
-
-      // Robust ID generation
-      const idInputForSlugBase = (originalLink && originalLink !== "#" && originalLink.startsWith('http') ? originalLink : (title && title !== 'Untitled Article' ? title : `article-${source.name}-${index}-${new Date(date).getTime()}`));
-      const idSuffix = source.name.replace(/[^a-zA-Z0-9]/g, '').slice(0,10) || 'src'; // Ensure suffix is not empty
-      let slugifiedIdPart = slugify(idInputForSlugBase);
-      if (!slugifiedIdPart || slugifiedIdPart.length < 5) { // Ensure slug part is meaningful
-          slugifiedIdPart = `article-${new Date(date).getTime()}-${index}`; 
+      
+      let idBaseMaterial: string;
+      let normalizedOriginalLinkForId = originalLink; 
+      if (originalLink && originalLink !== "#" && originalLink.startsWith('http')) {
+          try {
+              const urlObj = new URL(originalLink);
+              const commonTrackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'source', 'src', 'ref'];
+              commonTrackingParams.forEach(param => urlObj.searchParams.delete(param));
+              normalizedOriginalLinkForId = `${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}${urlObj.search ? urlObj.search : ''}`;
+          } catch (e) { /* keep originalLink if normalization fails */ }
+          idBaseMaterial = normalizedOriginalLinkForId;
+      } else if (title && title.length > 0) {
+          idBaseMaterial = title;
+      } else {
+          idBaseMaterial = `fallback-${source.name}-${new Date(date).getTime()}-${index}`;
       }
-      const MAX_SLUG_BASE_LENGTH = 100; // Prevent overly long IDs
-      if (slugifiedIdPart.length > MAX_SLUG_BASE_LENGTH) {
-        slugifiedIdPart = slugifiedIdPart.substring(0, MAX_SLUG_BASE_LENGTH);
-      }
-      const id = `${slugifiedIdPart}-${idSuffix}`;
 
+      let processedSlugPart = slugify(idBaseMaterial).substring(0, MAX_SLUG_LENGTH);
+      if (!processedSlugPart || processedSlugPart.length < 5) { 
+          processedSlugPart = slugify(`emptybase-${slugify(source.name)}-${new Date(date).getTime()}-${index}-${Math.random().toString(36).substring(2,5)}`).substring(0, MAX_SLUG_LENGTH);
+      }
+
+      const sourceNameSlug = slugify(source.name).substring(0, MAX_SUFFIX_LENGTH) || 'unknownsrc';
+      let finalId = `${processedSlugPart}-${sourceNameSlug}`;
+
+      if (finalId.length < (sourceNameSlug.length + 5)) { 
+          finalId = slugify(`override-unique-${slugify(source.name)}-${new Date(date).getTime()}-${index}-${Math.random().toString(36).substring(2,7)}`);
+      }
 
       let rawCategoryFromFeed = getNestedValue(item, 'category', source.defaultCategory || 'General');
       if (Array.isArray(rawCategoryFromFeed)) {
           rawCategoryFromFeed = rawCategoryFromFeed.map(cat => {
-            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$;
+            if (typeof cat === 'object') return cat.term || cat._ || cat['#text'] || cat.label || cat.name || cat.$; 
             return cat;
           }).filter(Boolean).join(', ') || source.defaultCategory || 'General';
       } else if (typeof rawCategoryFromFeed === 'object') {
@@ -631,116 +731,105 @@ async function fetchAndParseRSS(
       rawCategoryFromFeed = typeof rawCategoryFromFeed === 'string' ? he.decode(rawCategoryFromFeed.trim().split(',')[0].trim()) : (source.defaultCategory || 'General');
 
       const finalCategory = mapToDisplayCategory(rawCategoryFromFeed, title);
-      
+
       let extractedImgUrl: string | null = null;
       let itemContentForPage: string | undefined = undefined;
       let summaryText: string;
 
-      if (isForCategoriesOnly) { // If only fetching for category list generation
-        summaryText = "For category generation"; // Placeholder, not used for saving
-      } else { // Full article processing
-        extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
-        if (!extractedImgUrl && source.fetchOgImageFallback && originalLink && originalLink !== '#' && fetchOgImagesParam) {
-          try {
-            // console.log(`[RSS OG Fetch] Attempting OG image fetch for: ${originalLink}`);
-            const ogImage = await fetchOgImageFromUrl(originalLink);
-            if (ogImage) extractedImgUrl = ogImage;
-            // else console.log(`[RSS OG Fetch] No OG image found for: ${originalLink}`);
-          } catch (ogError) {
-            // console.error(`[RSS OG Fetch] Error in OG image fetch for ${originalLink}:`, ogError);
-          }
-        }
-        
-        const rawFullContentFromFeed = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
-        itemContentForPage = rawFullContentFromFeed;
+      const rawFullContentFromFeed = normalizeContent(getNestedValue(item, 'content:encoded', getNestedValue(item, 'content', getNestedValue(item, 'description', getNestedValue(item, 'summary')))));
+      itemContentForPage = rawFullContentFromFeed; 
+      summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawFullContentFromFeed, source.name);
 
-        // Attempt to remove the main image from content if it's the same as extractedImgUrl and at the beginning
-        if (extractedImgUrl && itemContentForPage && itemContentForPage.length > 0) {
+      if (isForCategoriesOnly) {
+         if (finalCategory && finalCategory !== 'General') { 
+            processedArticles.push({
+                id: finalId, title, summary: "For category generation", date, source: source.name,
+                category: finalCategory, imageUrl: null, link: '#', sourceLink: originalLink,
+                fetchedAt: new Date().toISOString(),
+            });
+         }
+         continue; 
+      }
+
+      const plainSummaryForCheck = normalizeAndStripHtml(summaryText);
+      if (!title || title.length < 10 || title.trim().toLowerCase() === "untitled article") {
+        // console.warn(`[RSS Filter SKIP] Invalid title: "${title}" from ${source.name}`);
+        continue;
+      }
+      if (!plainSummaryForCheck || plainSummaryForCheck.length < 25 || plainSummaryForCheck.toLowerCase() === "no summary available.") {
+        // console.warn(`[RSS Filter SKIP] Invalid summary for title: "${title}" from ${source.name}`);
+        continue;
+      }
+      if (isSummaryJustTitle(title, plainSummaryForCheck)) {
+        // console.warn(`[RSS Filter SKIP] Summary too similar to title: "${title}" from ${source.name}`);
+        continue;
+      }
+       if (originalLink === '#') { 
+        // console.warn(`[RSS Filter SKIP] Missing valid originalLink for title: "${title}" from ${source.name}`);
+        continue;
+      }
+
+      extractedImgUrl = extractImageUrl(item, title, finalCategory, source.name, originalLink);
+      if (!extractedImgUrl && source.fetchOgImageFallback && originalLink !== '#' && fetchOgImagesParam) {
+        try {
+          const ogImage = await fetchOgImageFromUrl(originalLink);
+          if (ogImage) extractedImgUrl = ogImage;
+        } catch (ogError) { /* Already logged in fetchOgImageFromUrl */ }
+      }
+
+      if (extractedImgUrl && itemContentForPage && itemContentForPage.length > 0) {
             try {
                 const $ = cheerioLoad(itemContentForPage);
                 const firstImgElement = $('img').first();
-
                 if (firstImgElement.length) {
-                    let firstImgSrcInContent = firstImgElement.attr('src') || firstImgElement.attr('data-src');
+                    let firstImgSrcInContent = firstImgElement.attr('src') || firstImgElement.attr('data-src') || firstImgElement.attr('data-original') || firstImgElement.attr('data-lazy-src');
                     if (firstImgSrcInContent) {
                         let resolvedFirstImgSrcInContent = '';
-                        let tempSrc = he.decode(firstImgSrcInContent.trim());
-
-                        if (tempSrc.startsWith('//')) {
-                            tempSrc = `https:${tempSrc}`;
-                        }
-
+                        let tempSrc = firstImgSrcInContent.trim();
+                        if (tempSrc.startsWith('//')) tempSrc = `https:${tempSrc}`;
+                        
                         if (tempSrc.startsWith('http')) {
-                            try {
-                                resolvedFirstImgSrcInContent = new URL(tempSrc).href;
-                            } catch (e) { /* ignore invalid URL */ }
+                            try { resolvedFirstImgSrcInContent = new URL(tempSrc).href; } catch (e) { /* ignore */ }
                         } else if (originalLink && originalLink.startsWith('http')) {
-                            try {
-                                resolvedFirstImgSrcInContent = new URL(tempSrc, originalLink).href;
-                            } catch (e) { /* ignore invalid relative URL construction */ }
+                            try { resolvedFirstImgSrcInContent = new URL(tempSrc, originalLink).href; } catch (e) { /* ignore */ }
                         }
                         
-                        // If the image found in content is the same as the main extracted image and near the start, remove it
                         if (resolvedFirstImgSrcInContent && resolvedFirstImgSrcInContent === extractedImgUrl) {
-                            const imgHtml = $.html(firstImgElement); // Get outerHTML of the img tag
-                            const indexOfImg = itemContentForPage.indexOf(imgHtml);
-                            if (indexOfImg !== -1 && indexOfImg < 300) { // If image is within first 300 chars
+                            const imgHtmlCandidate = $.html(firstImgElement); 
+                            const indexOfImg = itemContentForPage.indexOf(imgHtmlCandidate);
+                            if (indexOfImg !== -1 && indexOfImg < 300) { 
                                 firstImgElement.remove();
-                                itemContentForPage = $.html(); // Get updated HTML without the image
+                                itemContentForPage = $.html(); 
                             }
                         }
                     }
                 }
             } catch (cheerioError) {
-                // console.error(`[RSS Parse] Cheerio error processing content for image removal for "${title}":`, cheerioError);
+                console.warn(`[RSS Cheerio Img Remove] Error processing content for image removal from ${source.name}: ${(cheerioError as Error).message}`);
             }
-        }
-        summaryText = normalizeSummary(getNestedValue(item, 'description', getNestedValue(item, 'summary')), rawFullContentFromFeed, source.name);
       }
 
-      // Robust internal link generation
       let slugifiedCategory = slugify(finalCategory);
       if (!slugifiedCategory || slugifiedCategory.length < 1) {
-          slugifiedCategory = 'general'; // Fallback category slug
+          slugifiedCategory = 'general'; 
       }
-      const internalArticleLink = `/${slugifiedCategory}/${id}`;
+      const internalArticleLink = `/${slugifiedCategory}/${finalId}`;
 
-
-      // Basic quality checks before adding to processed list
-      if (title.includes('\uFFFD') || (!isForCategoriesOnly && summaryText.includes('\uFFFD'))) {
-        // console.warn(`[RSS Filter] Skipping article due to invalid characters in title/summary: "${title}"`);
-        continue;
-      }
-      if (!isForCategoriesOnly) {
-        const summaryLower = summaryText.toLowerCase();
-        if (!summaryText || summaryLower.length < 15 || summaryLower === "no summary available." || summaryLower === "...") {
-          // console.warn(`[RSS Filter] Skipping article due to insufficient summary: "${title}"`);
-          continue;
-        }
-      }
-
-      const articleForProcessing: Article = {
-        id,
+      const articleForProcessing: ArticleInterface = {
+        id: finalId,
         title,
         summary: summaryText,
-        date, // ISO string
-        source: source.name,
+        date,
+        source: source.name, 
         category: finalCategory,
-        imageUrl: extractedImgUrl, 
-        link: internalArticleLink, // Internal link to the article page on your site
-        sourceLink: originalLink, // External link to the original article
-        content: itemContentForPage, // HTML content, potentially cleaned
-        fetchedAt: new Date().toISOString(), // ISO string
+        imageUrl: extractedImgUrl,
+        link: internalArticleLink, 
+        sourceLink: originalLink, 
+        content: itemContentForPage, 
+        fetchedAt: new Date().toISOString(),
       };
-
-      // Ensure essential fields are present
-      if (title && title !== 'Untitled Article' && title.length > 10 && originalLink && originalLink !== '#') {
-        processedArticles.push(articleForProcessing);
-      } else {
-        // console.warn(`[RSS Filter] Skipping article due to invalid title or missing original link: "${title}" (Link: ${originalLink})`);
-      }
+      processedArticles.push(articleForProcessing);
     }
-    console.log(`[RSS Parse] Successfully processed ${processedArticles.length} articles from ${source.name}.`);
     return processedArticles;
   } catch (error) {
     console.error(`[RSS Service] Error fetching or parsing RSS from ${source.name} (${source.rssUrl}):`, error);
@@ -749,120 +838,79 @@ async function fetchAndParseRSS(
 }
 
 export async function fetchArticlesFromAllSources(
-  isForCategoriesOnly: boolean = false, 
-  fetchOgImagesParam: boolean = true,
+  isForCategoriesOnly: boolean = false,
+  fetchOgImagesParam: boolean = true, 
   saveToDb: boolean = false,
-  articleLimit?: number // New parameter for limiting articles before saving
-): Promise<Article[]> {
-  console.log(`[RSS Service] Starting fetchArticlesFromAllSources. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}, SaveToDB: ${saveToDb}, ArticleLimit: ${articleLimit ?? 'N/A'}`);
-  const allArticlesPromises = NEWS_SOURCES.map(source => 
-    fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam)
+  articleLimit?: number 
+): Promise<ArticleInterface[]> {
+  // console.log(`[RSS Service] Starting fetchArticlesFromAllSources. IsForCategories: ${isForCategoriesOnly}, FetchOG: ${fetchOgImagesParam}, SaveToDB: ${saveToDb}, ArticleLimit: ${articleLimit ?? 'N/A'}`);
+  const allArticlesPromises = NEWS_SOURCES.map(source =>
+    fetchAndParseRSS(source, isForCategoriesOnly, fetchOgImagesParam && (source.fetchOgImageFallback ?? false))
   );
   const results = await Promise.allSettled(allArticlesPromises);
 
-  let allFetchedArticles: Article[] = results
+  let allFetchedArticles: ArticleInterface[] = results
     .filter(result => result.status === 'fulfilled')
-    .map(result => (result as PromiseFulfilledResult<Article[]>).value)
+    .map(result => (result as PromiseFulfilledResult<ArticleInterface[]>).value)
     .flat();
-  console.log(`[RSS Service] Total raw articles collected from all sources: ${allFetchedArticles.length}`);
-
-
-  let articlesToProcess = allFetchedArticles;
-  if (!isForCategoriesOnly) {
-    console.log(`[RSS Filter] Pre-filter article count for processing: ${articlesToProcess.length}`);
-    
-    // Filter 1: Invalid characters
-    articlesToProcess = articlesToProcess.filter(article =>
-      !article.title.includes('\uFFFD') &&
-      article.summary && !article.summary.includes('\uFFFD')
-    );
-    console.log(`[RSS Filter] Count after invalid character filter: ${articlesToProcess.length}`);
-
-    // Filter 2: Title and Summary quality
-    articlesToProcess = articlesToProcess.filter(article => {
-      const summaryLower = article.summary.toLowerCase();
-      const titleLower = article.title.toLowerCase();
-      const isGoodTitle = titleLower.length >= 10 && titleLower !== "untitled article";
-      const isGoodSummary = summaryLower.length >= 15 && summaryLower !== "no summary available." && summaryLower !== "...";
-      return isGoodTitle && isGoodSummary;
-    });
-    console.log(`[RSS Filter] Count after title/summary quality filter: ${articlesToProcess.length}`);
-
-    // Filter 3: Image URL presence (important for display)
-    articlesToProcess = articlesToProcess.filter(article => article.imageUrl && article.imageUrl.trim() !== '');
-    console.log(`[RSS Filter] Count after image URL presence filter: ${articlesToProcess.length}`);
-
-
-    // Deduplication
-    const uniqueArticlesMap = new Map<string, Article>();
-    for (const article of articlesToProcess) {
-      if (!article.title) {
-          // console.warn(`[RSS Deduplication] Skipping article with missing title during deduplication.`);
-          continue;
-      }
-      let normalizedKey: string;
-      // Prefer sourceLink if valid, otherwise use title+source
-      if (article.sourceLink && article.sourceLink !== '#' && article.sourceLink.startsWith('http')) {
-          try {
-              const url = new URL(article.sourceLink);
-              normalizedKey = `${url.hostname}${url.pathname}`.replace(/^www\./, '').replace(/\/$/, '').toLowerCase();
-          } catch (e) {
-              // Fallback if sourceLink is not a valid URL
-              normalizedKey = `${slugify(article.title)}-${slugify(article.source || 'unknown_source')}`.toLowerCase();
-          }
-      } else {
-          normalizedKey = `${slugify(article.title)}-${slugify(article.source || 'unknown_source')}`.toLowerCase();
-      }
-
-
-      const existingArticle = uniqueArticlesMap.get(normalizedKey);
-      if (existingArticle) {
-          let keepNew = false;
-          // Prioritize article with more complete data or newer date
-          if (article.imageUrl && !existingArticle.imageUrl) keepNew = true;
-          else if (article.content && (!existingArticle.content || article.content.length > (existingArticle.content.length + 50))) keepNew = true;
-          else if (article.summary.length > existingArticle.summary.length + 20 && article.summary.toLowerCase() !== 'no summary available.') keepNew = true;
-          else if (new Date(article.date) > new Date(existingArticle.date)) keepNew = true;
-          
-          if (keepNew) {
-            uniqueArticlesMap.set(normalizedKey, article);
-          }
-      } else {
-          uniqueArticlesMap.set(normalizedKey, article);
-      }
-    }
-    articlesToProcess = Array.from(uniqueArticlesMap.values());
-    console.log(`[RSS Service] Count after deduplication: ${articlesToProcess.length}`);
-  } 
-  // End of !isForCategoriesOnly block
-
-  // Sort all articles (whether for categories or full processing) by date
-  articlesToProcess.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
-  let finalArticlesToReturnOrSave = articlesToProcess;
-  const defaultProcessingCap = 500; // Cap for regular updates if no specific limit
-
-  if (articleLimit && articleLimit > 0 && !isForCategoriesOnly) {
-    finalArticlesToReturnOrSave = articlesToProcess.slice(0, articleLimit);
-    console.log(`[RSS Service] Applied specific articleLimit: ${articleLimit}. Count for save/return: ${finalArticlesToReturnOrSave.length}`);
-  } else if (!isForCategoriesOnly) { // Apply default cap if no specific limit and not for categories
-    finalArticlesToReturnOrSave = articlesToProcess.slice(0, defaultProcessingCap);
-    console.log(`[RSS Service] Applied default processing cap: ${defaultProcessingCap}. Count for save/return: ${finalArticlesToReturnOrSave.length}`);
+  if (isForCategoriesOnly) {
+      const uniqueCategories = new Set<string>();
+      allFetchedArticles.forEach(art => uniqueCategories.add(art.category));
+      // console.log(`[RSS Service] For categories only, collected ${uniqueCategories.size} unique categories.`);
+      return Array.from(uniqueCategories).map(cat => ({ category: cat } as ArticleInterface)); 
   }
-  // For category-only fetches, no limit/cap is applied to the list returned.
   
-  console.log(`[RSS Service] Final articles count for this run (to be returned or saved if enabled): ${finalArticlesToReturnOrSave.length}`);
+  // console.log(`[RSS Service] Total raw articles collected from all sources (before quality filtering): ${allFetchedArticles.length}`);
 
-  if (saveToDb && !isForCategoriesOnly && finalArticlesToReturnOrSave.length > 0) {
-    console.log(`[RSS Service] Calling saveArticlesToDatabase for ${finalArticlesToReturnOrSave.length} articles.`);
+  allFetchedArticles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  let finalArticlesToReturnOrSave = allFetchedArticles;
+  const defaultProcessingCap = 500; 
+
+  if (articleLimit && articleLimit > 0) {
+    finalArticlesToReturnOrSave = finalArticlesToReturnOrSave.slice(0, articleLimit);
+    // console.log(`[RSS Service] Applied specific articleLimit: ${articleLimit}. Count for save/return: ${finalArticlesToReturnOrSave.length}`);
+  } else {
+    finalArticlesToReturnOrSave = finalArticlesToReturnOrSave.slice(0, defaultProcessingCap);
+    // console.log(`[RSS Service] Applied default processing cap: ${defaultProcessingCap}. Count for save/return: ${finalArticlesToReturnOrSave.length}`);
+  }
+  
+  const finalArticleIds = new Set<string>();
+  const articlesWithGuaranteedUniqueIds: ArticleInterface[] = [];
+  let duplicateIdCounter = 0;
+
+  for (const article of finalArticlesToReturnOrSave) {
+      let currentId = article.id;
+      if (!currentId) { 
+          currentId = `emergency-id-${slugify(article.source || 'unknown')}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+          article.id = currentId;
+      }
+
+      if (finalArticleIds.has(currentId)) {
+          let newId;
+          do {
+              duplicateIdCounter++;
+              newId = `${currentId}-dupfix${duplicateIdCounter}`;
+          } while (finalArticleIds.has(newId));
+          article.id = newId; 
+      }
+      finalArticleIds.add(article.id);
+      articlesWithGuaranteedUniqueIds.push(article);
+  }
+  finalArticlesToReturnOrSave = articlesWithGuaranteedUniqueIds; 
+
+  // console.log(`[RSS Service] Final articles count for this run (to be returned or saved if enabled): ${finalArticlesToReturnOrSave.length}`);
+
+  if (saveToDb && finalArticlesToReturnOrSave.length > 0) {
+    // console.log(`[RSS Service] Calling saveArticlesToDatabase for ${finalArticlesToReturnOrSave.length} articles.`);
     await saveArticlesToDatabase(finalArticlesToReturnOrSave);
-  } else if (saveToDb && isForCategoriesOnly) {
-    console.log("[RSS Service] 'saveToDb' is true, but 'isForCategoriesOnly' is also true. Articles will not be saved from this specific call type.");
-  } else if (saveToDb && finalArticlesToReturnOrSave.length === 0 && !isForCategoriesOnly) {
-    console.log("[RSS Service] 'saveToDb' is true, but no articles to save after all processing and filtering steps.");
+  } else if (saveToDb && finalArticlesToReturnOrSave.length === 0) {
+    // console.log("[RSS Service] 'saveToDb' is true, but no articles to save after all processing and filtering steps.");
   }
 
-
-  return finalArticlesToReturnOrSave; // Return the list (limited or not, depending on params)
+  return finalArticlesToReturnOrSave;
 }
-    
+
+export type { ArticleInterface as Article };
+

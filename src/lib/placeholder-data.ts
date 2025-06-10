@@ -20,6 +20,18 @@ export interface Article {
 }
 
 function mapMongoDocToArticle(doc: any): Article {
+  let imageUrlFromDb = doc.imageUrl;
+  if (typeof imageUrlFromDb === 'string') {
+    const trimmedUrl = imageUrlFromDb.trim();
+    if (trimmedUrl === '' || trimmedUrl.toLowerCase() === 'null' || (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://'))) {
+      imageUrlFromDb = null;
+    } else {
+      imageUrlFromDb = trimmedUrl; // Use the trimmed valid URL
+    }
+  } else if (imageUrlFromDb !== null) { // If it's not a string and not already null (e.g. undefined, number)
+    imageUrlFromDb = null;
+  }
+
   return {
     id: doc.id || `missing-id-${Math.random().toString(36).substring(7)}`,
     title: doc.title || "Untitled Article",
@@ -27,7 +39,7 @@ function mapMongoDocToArticle(doc: any): Article {
     date: doc.date ? new Date(doc.date).toISOString() : new Date(0).toISOString(),
     source: doc.source || "Unknown Source",
     category: doc.category || "General",
-    imageUrl: doc.imageUrl || null,
+    imageUrl: imageUrlFromDb,
     link: doc.link || "/",
     sourceLink: doc.sourceLink || "#",
     content: doc.content,
@@ -41,36 +53,38 @@ export async function getArticles(
   page: number = 1,
   limit: number = 9
 ): Promise<{ articles: Article[]; totalArticles: number; hasMore: boolean }> {
-  const query: any = {};
+  const mongoQuery: any = {};
   if (currentCategory && currentCategory !== "All") {
-    query.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
+    mongoQuery.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
   }
   if (searchTerm) {
     const lowerSearchTerm = searchTerm.toLowerCase();
-    query.$or = [
+    mongoQuery.$or = [
       { title: { $regex: lowerSearchTerm, $options: 'i' } },
       { summary: { $regex: lowerSearchTerm, $options: 'i' } },
       { source: { $regex: lowerSearchTerm, $options: 'i' } },
     ];
   }
-  console.log("[DB PlaceholderData] getArticles - Query:", JSON.stringify(query), `Page: ${page}, Limit: ${limit}`);
+  // console.log(`[DB PlaceholderData] getArticles - MongoDB Query: ${JSON.stringify(mongoQuery)}, Page: ${page}, Limit: ${limit}`);
 
   try {
     const articlesCollection = await getArticlesCollection();
+    
     const skipAmount = (page - 1) * limit;
 
     const articlesFromDb = await articlesCollection
-      .find(query)
+      .find(mongoQuery)
       .sort({ date: -1 }) 
       .skip(skipAmount)
       .limit(limit)
       .toArray();
-
-    const totalArticlesInQuery = await articlesCollection.countDocuments(query);
+    
+    const totalArticlesInQuery = await articlesCollection.countDocuments(mongoQuery);
+    
     const mappedArticles = articlesFromDb.map(mapMongoDocToArticle);
     
     const hasMore = (skipAmount + mappedArticles.length) < totalArticlesInQuery;
-    console.log(`[DB PlaceholderData] getArticles - Found ${mappedArticles.length} articles. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}`);
+    // console.log(`[DB PlaceholderData] getArticles - Mapped ${mappedArticles.length} articles. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}. First mapped title (if any): ${mappedArticles[0]?.title.substring(0,50)}`);
     
     return {
       articles: mappedArticles,
@@ -78,22 +92,22 @@ export async function getArticles(
       hasMore: hasMore,
     };
   } catch (error) {
-    console.error("[DB PlaceholderData] Error fetching articles from MongoDB:", error);
+    console.error("[DB PlaceholderData] CRITICAL ERROR in getArticles fetching from MongoDB:", error);
     return { articles: [], totalArticles: 0, hasMore: false }; 
   }
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
-  console.log(`[DB PlaceholderData] getArticleById - Fetching article with ID: ${id}`);
+  // console.log(`[DB PlaceholderData] getArticleById - Fetching article with ID: ${id}`);
   try {
     const articlesCollection = await getArticlesCollection();
     const articleDoc = await articlesCollection.findOne({ id: id });
 
     if (articleDoc) {
-      console.log(`[DB PlaceholderData] getArticleById - Found article: ${articleDoc.title}`);
+      // console.log(`[DB PlaceholderData] getArticleById - Found article: ${articleDoc.title}`);
       return mapMongoDocToArticle(articleDoc);
     }
-    console.log(`[DB PlaceholderData] getArticleById - Article not found for ID: ${id}`);
+    console.warn(`[DB PlaceholderData] getArticleById - Article not found for ID: ${id}`);
     return undefined;
   } catch (error) {
     console.error(`[DB PlaceholderData] Error fetching article by ID (${id}) from MongoDB:`, error);
@@ -102,7 +116,7 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
 }
 
 export async function getCategories(): Promise<string[]> {
-  console.log("[DB PlaceholderData] getCategories - Fetching categories.");
+  // console.log("[DB PlaceholderData] getCategories - Fetching categories.");
   try {
     const articlesCollection = await getArticlesCollection();
     const distinctCategories = await articlesCollection.distinct('category');
@@ -111,13 +125,12 @@ export async function getCategories(): Promise<string[]> {
 
     if (categories.length === 0) {
       console.warn("[DB PlaceholderData] No categories found in DB. Attempting to fetch from RSS for category list.");
-      // This call is only for populating category names if DB is empty, does not save articles to DB.
       const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false); 
       if (rssArticlesForCategories.length > 0) {
         const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
         const sortedRssCategories = ["All", ...Array.from(uniqueRssCategories).sort()];
         if (sortedRssCategories.length > 1) {
-          console.log(`[DB PlaceholderData] Categories fetched from RSS: ${sortedRssCategories.join(', ')}`);
+          // console.log(`[DB PlaceholderData] Categories fetched from RSS: ${sortedRssCategories.join(', ')}`);
           return sortedRssCategories;
         }
       }
@@ -125,11 +138,11 @@ export async function getCategories(): Promise<string[]> {
       return ["All", "General"]; 
     }
     const finalCategories = ["All", ...categories.sort()];
-    console.log(`[DB PlaceholderData] Categories fetched from DB: ${finalCategories.join(', ')}`);
+    // console.log(`[DB PlaceholderData] Categories fetched from DB: ${finalCategories.join(', ')}`);
     return finalCategories;
   } catch (error) {
     console.error("[DB PlaceholderData] Error fetching categories from MongoDB:", error);
-    console.log("[DB PlaceholderData] Returning default categories due to error.");
+    // console.log("[DB PlaceholderData] Returning default categories due to error.");
     return ["All", "General"]; 
   }
 }
@@ -142,18 +155,17 @@ export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
     let articleProcessingLimit: number | undefined = undefined;
 
     if (count === 0) {
-      console.log("[PlaceholderData] Database is empty. Proceeding with initial population (up to 150 articles).");
+      console.log("[PlaceholderData] Database is EMPTY. Proceeding with initial population (limit: 150 articles).");
       articleProcessingLimit = 150;
-       // Fetch and save with a limit for initial population
       await fetchArticlesFromAllSources(false, true, true, articleProcessingLimit);
+      console.log("[PlaceholderData] Initial population fetch/save attempt FINISHED.");
     } else {
-      console.log(`[PlaceholderData] Database already has ${count} articles. Proceeding with regular update (default processing cap applies).`);
-       // Regular update, fetchArticlesFromAllSources internal limit (e.g. 500) applies for processing,
-       // saveToDb will save all of these if new/updated.
-      await fetchArticlesFromAllSources(false, true, true); // No specific limit, uses default cap in fetchArticlesFromAllSources
+      // console.log(`[PlaceholderData] Database has ${count} articles. Proceeding with regular update (default processing cap applies in rss-service).`);
+      await fetchArticlesFromAllSources(false, true, true); 
+      // console.log("[PlaceholderData] Regular update fetch/save attempt FINISHED.");
     }
     console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process COMPLETED successfully.");
   } catch (error) {
-    console.error("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Error during process:", error);
+    console.error("[PlaceholderData] CRITICAL ERROR in updateArticlesFromRssAndSaveToDb:", error);
   }
 }

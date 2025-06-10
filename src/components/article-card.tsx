@@ -1,12 +1,11 @@
 
 import type { Article } from "@/lib/placeholder-data";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { CalendarDays, NewspaperIcon, Share2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { slugify, generateAiHintFromTitle } from "@/lib/utils";
+import { generateAiHintFromTitle } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +36,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
     day: 'numeric',
   });
 
-  const imageAiHint = generateAiHintFromTitle(article.title, article.category);
+  const imageAiHintForPlaceholder = generateAiHintFromTitle(article.title, article.category);
   const placeholderImageSrc = `https://placehold.co/600x400.png`;
 
   const handleShare = (platform: 'twitter' | 'facebook' | 'linkedin' | 'whatsapp' | 'copy') => {
@@ -87,19 +86,19 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   return (
     <Card className="flex flex-col h-full overflow-hidden border shadow-sm hover:shadow-lg transition-all duration-300 ease-in-out rounded-md bg-card group">
       <Link href={article.link} className="block">
-        <div className="relative w-full aspect-[16/10] overflow-hidden bg-muted/50"> {/* Adjusted aspect ratio slightly */}
+        <div className="relative w-full aspect-[16/10] overflow-hidden bg-muted/50">
           <Image
             src={article.imageUrl || placeholderImageSrc}
             alt={article.title}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300 ease-in-out"
-            data-ai-hint={article.imageUrl ? `${slugify(article.category)} thumbnail` : imageAiHint}
+            data-ai-hint={article.imageUrl ? `${article.category || 'news'} article image` : imageAiHintForPlaceholder}
             onError={(e) => {
               const target = e.currentTarget;
               if (target.src !== placeholderImageSrc) {
                 target.srcset = ''; 
                 target.src = placeholderImageSrc;
-                target.setAttribute('data-ai-hint', imageAiHint);
+                target.setAttribute('data-ai-hint', imageAiHintForPlaceholder);
               }
             }}
             priority={false} 
@@ -108,8 +107,8 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
         </div>
       </Link>
       <CardHeader className="p-4 pb-2">
-        <Badge variant="outline" className="mb-2 w-fit text-xs py-0.5 px-2">{article.category}</Badge>
-        <CardTitle className="text-lg font-semibold leading-snug">
+        {/* Category Badge Removed as per request */}
+        <CardTitle className="text-lg font-semibold leading-snug pt-2"> {/* Added pt-2 for spacing after badge removal */}
           <Link href={article.link} className="hover:text-primary transition-colors line-clamp-3">
             {article.title}
           </Link>
@@ -155,3 +154,4 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
 };
 
 export default ArticleCard;
+
