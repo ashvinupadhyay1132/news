@@ -2,7 +2,7 @@
 'use server';
 
 import { getArticlesCollection } from './mongodb';
-import type { Article as RssArticle } from './rss-service'; 
+// import type { Article as RssArticle } from './rss-service'; // Unused import removed
 import { fetchArticlesFromAllSources } from './rss-service'; 
 
 export interface Article {
@@ -20,17 +20,36 @@ export interface Article {
 }
 
 function mapMongoDocToArticle(doc: any): Article {
+  if (!doc) {
+    console.warn("[DB PlaceholderData] mapMongoDocToArticle received a null/undefined document.");
+    return {
+      id: `invalid-doc-${Date.now()}`,
+      title: "Error: Article data missing",
+      summary: "Could not load article details.",
+      date: new Date().toISOString(),
+      source: "Unknown",
+      category: "General",
+      imageUrl: null,
+      link: "/",
+      sourceLink: "#",
+      content: "Article content is unavailable due to an error.",
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+
   let imageUrlFromDb = doc.imageUrl;
   if (typeof imageUrlFromDb === 'string') {
     const trimmedUrl = imageUrlFromDb.trim();
     if (trimmedUrl === '' || trimmedUrl.toLowerCase() === 'null' || (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://'))) {
       imageUrlFromDb = null;
     } else {
-      imageUrlFromDb = trimmedUrl; // Use the trimmed valid URL
+      imageUrlFromDb = trimmedUrl;
     }
-  } else if (imageUrlFromDb !== null) { // If it's not a string and not already null (e.g. undefined, number)
+  } else if (imageUrlFromDb !== null) {
     imageUrlFromDb = null;
   }
+
+  const articleLink = doc.link && typeof doc.link === 'string' && doc.link.startsWith('/') ? doc.link : `/${doc.category ? doc.category.toLowerCase().replace(/\s+/g, '-') : 'general'}/${doc.id || 'unknown-id'}`;
 
   return {
     id: doc.id || `missing-id-${Math.random().toString(36).substring(7)}`,
@@ -40,7 +59,7 @@ function mapMongoDocToArticle(doc: any): Article {
     source: doc.source || "Unknown Source",
     category: doc.category || "General",
     imageUrl: imageUrlFromDb,
-    link: doc.link || "/",
+    link: articleLink,
     sourceLink: doc.sourceLink || "#",
     content: doc.content,
     fetchedAt: doc.fetchedAt ? new Date(doc.fetchedAt).toISOString() : undefined,
@@ -65,7 +84,7 @@ export async function getArticles(
       { source: { $regex: lowerSearchTerm, $options: 'i' } },
     ];
   }
-  // console.log(`[DB PlaceholderData] getArticles - MongoDB Query: ${JSON.stringify(mongoQuery)}, Page: ${page}, Limit: ${limit}`);
+  // console.log(`[DB PlaceholderData getArticles] Effective MongoDB Query: ${JSON.stringify(mongoQuery)} for page ${page}, limit ${limit}`);
 
   try {
     const articlesCollection = await getArticlesCollection();
@@ -74,7 +93,7 @@ export async function getArticles(
 
     const articlesFromDb = await articlesCollection
       .find(mongoQuery)
-      .sort({ date: -1 }) 
+      .sort({ date: -1, _id: -1 }) // Ensure stable sort by date (latest first), then by _id (latest first) for tie-breaking
       .skip(skipAmount)
       .limit(limit)
       .toArray();
@@ -84,7 +103,7 @@ export async function getArticles(
     const mappedArticles = articlesFromDb.map(mapMongoDocToArticle);
     
     const hasMore = (skipAmount + mappedArticles.length) < totalArticlesInQuery;
-    // console.log(`[DB PlaceholderData] getArticles - Mapped ${mappedArticles.length} articles. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}. First mapped title (if any): ${mappedArticles[0]?.title.substring(0,50)}`);
+    // console.log(`[DB PlaceholderData getArticles] Found ${articlesFromDb.length} articles from DB. Dates of first 3: ${mappedArticles.slice(0,3).map(a => a.date).join(', ')}. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}.`);
     
     return {
       articles: mappedArticles,
@@ -92,80 +111,88 @@ export async function getArticles(
       hasMore: hasMore,
     };
   } catch (error) {
-    console.error("[DB PlaceholderData] CRITICAL ERROR in getArticles fetching from MongoDB:", error);
+    console.error("[DB PlaceholderData getArticles] CRITICAL ERROR fetching from MongoDB:", error);
     return { articles: [], totalArticles: 0, hasMore: false }; 
   }
 }
 
-export async function getArticleById(id: string): Promise<Article | undefined> {
-  // console.log(`[DB PlaceholderData] getArticleById - Fetching article with ID: ${id}`);
+export async function getArticleById(articleId: string): Promise<Article | undefined> {
+  // console.log(`[DB PlaceholderData] getArticleById - Attempting to fetch article with ID: "${articleId}"`);
+  if (!articleId || typeof articleId !== 'string' || articleId.trim() === '') {
+    console.error(`[DB PlaceholderData] getArticleById - Invalid ID provided: "${articleId}"`);
+    return undefined;
+  }
   try {
     const articlesCollection = await getArticlesCollection();
-    const articleDoc = await articlesCollection.findOne({ id: id });
+    // console.log(`[DB PlaceholderData] getArticleById - MongoDB findOne query: { id: "${articleId}" }`);
+    const articleDoc = await articlesCollection.findOne({ id: articleId });
 
     if (articleDoc) {
-      // console.log(`[DB PlaceholderData] getArticleById - Found article: ${articleDoc.title}`);
+      // console.log(`[DB PlaceholderData] getArticleById - Found document for ID "${articleId}"`);
       return mapMongoDocToArticle(articleDoc);
     }
-    console.warn(`[DB PlaceholderData] getArticleById - Article not found for ID: ${id}`);
+    // console.warn(`[DB PlaceholderData] getArticleById - Article document NOT FOUND in DB for ID: "${articleId}"`);
     return undefined;
   } catch (error) {
-    console.error(`[DB PlaceholderData] Error fetching article by ID (${id}) from MongoDB:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[DB PlaceholderData] CRITICAL ERROR fetching article by ID ("${articleId}") from MongoDB: ${errorMessage}`);
     return undefined;
   }
 }
 
 export async function getCategories(): Promise<string[]> {
-  // console.log("[DB PlaceholderData] getCategories - Fetching categories.");
+  const defaultCategories = ["All", "General", "Technology", "Sports", "Business & Finance", "Entertainment", "World News", "India News"];
   try {
     const articlesCollection = await getArticlesCollection();
     const distinctCategories = await articlesCollection.distinct('category');
-    
     const categories = distinctCategories.filter((category): category is string => typeof category === 'string' && category.trim() !== '');
 
     if (categories.length === 0) {
-      console.warn("[DB PlaceholderData] No categories found in DB. Attempting to fetch from RSS for category list.");
-      const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false); 
-      if (rssArticlesForCategories.length > 0) {
-        const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
-        const sortedRssCategories = ["All", ...Array.from(uniqueRssCategories).sort()];
-        if (sortedRssCategories.length > 1) {
-          // console.log(`[DB PlaceholderData] Categories fetched from RSS: ${sortedRssCategories.join(', ')}`);
-          return sortedRssCategories;
+      // console.log("[DB PlaceholderData getCategories] No categories found in DB, attempting RSS fallback.");
+      try {
+        const rssArticlesForCategories = await fetchArticlesFromAllSources(true, false, false);
+        if (rssArticlesForCategories.length > 0) {
+          const uniqueRssCategories = new Set(rssArticlesForCategories.map(a => a.category).filter(Boolean));
+          const sortedRssCategories = ["All", ...Array.from(uniqueRssCategories).filter(cat => cat !== "All").sort()];
+          if (sortedRssCategories.length > 1) { // Make sure there's more than just "All"
+            // console.log("[DB PlaceholderData getCategories] Successfully fetched categories from RSS fallback.");
+            return sortedRssCategories;
+          }
         }
+        // console.warn("[DB PlaceholderData getCategories] RSS fallback yielded no categories, returning defaults.");
+      } catch (rssError) {
+        console.error("[DB PlaceholderData getCategories] Error during RSS fallback for categories:", rssError);
       }
-      console.log("[DB PlaceholderData] No categories from DB or RSS. Returning default.");
-      return ["All", "General"]; 
+      return defaultCategories;
     }
-    const finalCategories = ["All", ...categories.sort()];
-    // console.log(`[DB PlaceholderData] Categories fetched from DB: ${finalCategories.join(', ')}`);
-    return finalCategories;
+    // console.log(`[DB PlaceholderData getCategories] Found ${categories.length} distinct categories from DB.`);
+    return ["All", ...categories.sort()];
   } catch (error) {
-    console.error("[DB PlaceholderData] Error fetching categories from MongoDB:", error);
-    // console.log("[DB PlaceholderData] Returning default categories due to error.");
-    return ["All", "General"]; 
+    console.error("[DB PlaceholderData getCategories] CRITICAL Error fetching categories via MongoDB distinct query:", error);
+    return defaultCategories;
   }
 }
 
+
 export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
-  console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process STARTED.");
+  console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Process STARTED.");
   try {
     const articlesCollection = await getArticlesCollection();
     const count = await articlesCollection.countDocuments();
+    console.log(`[PlaceholderData updateArticlesFromRssAndSaveToDb] Current article count in DB: ${count}`);
+
     let articleProcessingLimit: number | undefined = undefined;
 
     if (count === 0) {
-      console.log("[PlaceholderData] Database is EMPTY. Proceeding with initial population (limit: 150 articles).");
+      console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Database is EMPTY. Proceeding with initial population (limit: 150 articles).");
       articleProcessingLimit = 150;
       await fetchArticlesFromAllSources(false, true, true, articleProcessingLimit);
-      console.log("[PlaceholderData] Initial population fetch/save attempt FINISHED.");
     } else {
-      // console.log(`[PlaceholderData] Database has ${count} articles. Proceeding with regular update (default processing cap applies in rss-service).`);
-      await fetchArticlesFromAllSources(false, true, true); 
-      // console.log("[PlaceholderData] Regular update fetch/save attempt FINISHED.");
+      console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Database is NOT empty. Proceeding with regular update (default cap in fetchArticlesFromAllSources applies).");
+      await fetchArticlesFromAllSources(false, true, true);
     }
-    console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process COMPLETED successfully.");
+    console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Process COMPLETED successfully.");
   } catch (error) {
-    console.error("[PlaceholderData] CRITICAL ERROR in updateArticlesFromRssAndSaveToDb:", error);
+    console.error("[PlaceholderData updateArticlesFromRssAndSaveToDb] CRITICAL ERROR:", error);
   }
 }
