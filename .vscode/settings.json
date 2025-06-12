@@ -1,5 +1,4 @@
 {
     "IDX.aI.enableInlineCompletion": true,
-    "IDX.aI.enableCodebaseIndexing": true,
-    "references.preferredLocation": "view"
+    "IDX.aI.enableCodebaseIndexing": true
 }
