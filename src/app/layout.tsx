@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'TrendingNewsFeed.in - Your Daily News Digest',
-  description: 'Stay updated with the latest trending news from TrendingNewsFeed.in.',
+  title: 'NewsHunt - Your Daily News Digest',
+  description: 'Stay updated with the latest trending news from NewsHunt.',
 };
 
 export default function RootLayout({
