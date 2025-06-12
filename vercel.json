@@ -1,6 +1,7 @@
+
 {
   "crons": [{
-    "path": "/api/cron",
-    "schedule": "0 11 * * *"
+    "path": "/api/cron/trigger-news-fetch",
+    "schedule": "0 * * * *"
   }]
 }

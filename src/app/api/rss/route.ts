@@ -20,28 +20,36 @@ function escapeXml(unsafe: string): string {
 }
 
 export async function GET() {
-  // Use NEXT_PUBLIC_SITE_URL from .env or fallback for local dev
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"; 
+  const siteUrlString = process.env.NEXT_PUBLIC_SITE_URL || "https://www.newshunt.blog";
+  let siteUrl: URL;
+  try {
+    siteUrl = new URL(siteUrlString);
+  } catch (e) {
+    console.error(`[API RSS] Invalid NEXT_PUBLIC_SITE_URL for RSS feed: "${siteUrlString}". Error: ${(e as Error).message}. Falling back to default.`);
+    siteUrl = new URL("https://www.newshunt.blog"); // Fallback
+  }
   
-  // Fetch live articles
   // Fetch up to 20 most recent articles. getArticles sorts by date descending by default.
   const { articles: articlesResult } = await getArticles(undefined, undefined, 1, 20); 
   const articlesToInclude = articlesResult; 
 
   const feedItems = articlesToInclude
     .map((article: Article) => {
-      const articleSourceUrl = article.sourceLink && article.sourceLink !== '#' ? article.sourceLink : `${siteUrl}${article.link}`;
-      const internalArticleUrl = `${siteUrl}${article.link}`; 
+      // Use the sourceLink if it's a valid absolute URL, otherwise construct the internal article URL
+      const articlePageUrl = new URL(article.link.startsWith('/') ? article.link : `/${article.link}`, siteUrl).toString();
+      const linkToUseInFeed = (article.sourceLink && article.sourceLink.startsWith('http') && article.sourceLink !== '#') 
+        ? article.sourceLink 
+        : articlePageUrl;
 
       return `
         <item>
           <title>${escapeXml(article.title)}</title>
-          <link>${escapeXml(articleSourceUrl)}</link> 
+          <link>${escapeXml(linkToUseInFeed)}</link> 
           <description>${escapeXml(article.summary)}</description>
           <pubDate>${new Date(article.date).toUTCString()}</pubDate>
-          <guid isPermaLink="false">${escapeXml(internalArticleUrl)}</guid> 
+          <guid isPermaLink="false">${escapeXml(articlePageUrl)}</guid> 
           <category>${escapeXml(article.category)}</category>
-          ${article.imageUrl && article.imageUrl !== 'https://placehold.co/600x400.png' ? `<enclosure url="${escapeXml(article.imageUrl)}" type="${article.imageUrl.endsWith('.png') ? 'image/png' : article.imageUrl.endsWith('.jpg') || article.imageUrl.endsWith('.jpeg') ? 'image/jpeg' : 'image/gif'}" />` : ''}
+          ${article.imageUrl && article.imageUrl !== 'https://placehold.co/600x400.png' && article.imageUrl.startsWith('http') ? `<enclosure url="${escapeXml(article.imageUrl)}" type="${article.imageUrl.endsWith('.png') ? 'image/png' : article.imageUrl.endsWith('.jpg') || article.imageUrl.endsWith('.jpeg') ? 'image/jpeg' : 'image/gif'}" />` : ''}
         </item>
       `;
     })
@@ -50,12 +58,12 @@ export async function GET() {
   const rssFeed = `
     <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:media="http://search.yahoo.com/mrss/">
       <channel>
-        <title>TrendingNewsFeed.in - Latest Articles</title>
-        <link>${siteUrl}</link>
-        <description>Stay updated with the latest trending news from TrendingNewsFeed.in, all in one place.</description>
+        <title>NewsHunt - Latest Articles</title>
+        <link>${siteUrl.toString()}</link>
+        <description>Stay updated with the latest trending news from NewsHunt, all in one place.</description>
         <language>en-us</language>
         <lastBuildDate>${new Date(articlesToInclude[0]?.date || Date.now()).toUTCString()}</lastBuildDate>
-        <atom:link href="${siteUrl}/api/rss" rel="self" type="application/rss+xml" />
+        <atom:link href="${new URL('/api/rss', siteUrl).toString()}" rel="self" type="application/rss+xml" />
         <generator>Next.js & Firebase Studio</generator>
         ${feedItems}
       </channel>

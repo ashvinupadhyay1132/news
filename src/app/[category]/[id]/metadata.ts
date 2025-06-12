@@ -3,7 +3,7 @@ import type { Metadata, ResolvingMetadata } from 'next';
 import { getArticleById, type Article } from '@/lib/placeholder-data';
 
 type Props = {
-  params: { id: string; category: string }; // category from URL, though article.category is preferred for consistency
+  params: { id: string; category: string };
 };
 
 export async function generateMetadata(
@@ -12,26 +12,35 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const articleId = params.id;
   const articleData: Article | undefined = await getArticleById(articleId);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.newshunt.blog';
+
+  const siteUrlString = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.newshunt.blog';
+  let metadataBaseUrl: URL;
+  try {
+    metadataBaseUrl = new URL(siteUrlString);
+  } catch (e) {
+    console.error(`[Article Metadata] Invalid NEXT_PUBLIC_SITE_URL: "${siteUrlString}". Error: ${(e as Error).message}. Falling back to default.`);
+    metadataBaseUrl = new URL("https://www.newshunt.blog"); // Fallback
+  }
+
 
   if (!articleData) {
     return {
       title: 'Article Not Found',
       description: 'The article you are looking for could not be found.',
-      robots: { index: false, follow: false } // Important for 404-like pages
+      robots: { index: false, follow: false }
     };
   }
 
   const parentMetadata = await parent;
   const previousImages = parentMetadata.openGraph?.images || [];
 
-  // Ensure articleData.link is root-relative before prepending siteUrl
   const articlePath = articleData.link.startsWith('/') ? articleData.link : `/${articleData.link}`;
-  const canonicalUrl = `${siteUrl}${articlePath}`;
+  const canonicalUrl = new URL(articlePath, metadataBaseUrl).toString();
   
+  const defaultOgImageRelativePath = '/default-og-image.png';
   const articleImageUrl = articleData.imageUrl && articleData.imageUrl.startsWith('http') 
     ? articleData.imageUrl 
-    : `${siteUrl}/default-og-image.png`; // Ensure you have a default-og-image.png in your /public folder
+    : new URL(defaultOgImageRelativePath, metadataBaseUrl).toString();
 
   const keywords = [
     articleData.category, 
@@ -43,21 +52,21 @@ export async function generateMetadata(
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     "headline": articleData.title,
-    "description": articleData.summary.substring(0, 250), // Max length for description in structured data can be longer
+    "description": articleData.summary.substring(0, 250),
     "image": [articleImageUrl],
     "datePublished": articleData.date,
     "dateModified": articleData.fetchedAt || articleData.date,
     "author": {
-      "@type": "Organization", // Assuming source is an organization
+      "@type": "Organization",
       "name": articleData.source,
       ...(articleData.sourceLink && articleData.sourceLink !== '#' && articleData.sourceLink.startsWith('http') && { "url": articleData.sourceLink })
     },
     "publisher": {
       "@type": "Organization",
-      "name": "NewsHunt", // Your application's name
+      "name": "NewsHunt",
       "logo": {
         "@type": "ImageObject",
-        "url": `${siteUrl}/default-og-image.png` // URL to your site's logo
+        "url": new URL(defaultOgImageRelativePath, metadataBaseUrl).toString()
       }
     },
     "mainEntityOfPage": {
@@ -68,9 +77,9 @@ export async function generateMetadata(
 
   return {
     title: articleData.title,
-    description: articleData.summary.substring(0, 160), // Standard meta description length
+    description: articleData.summary.substring(0, 160),
     keywords: keywords,
-    authors: [{ name: articleData.source, url: (articleData.sourceLink && articleData.sourceLink !== '#' && articleData.sourceLink.startsWith('http')) ? articleData.sourceLink : siteUrl }],
+    authors: [{ name: articleData.source, url: (articleData.sourceLink && articleData.sourceLink !== '#' && articleData.sourceLink.startsWith('http')) ? articleData.sourceLink : siteUrlString }],
     alternates: {
       canonical: canonicalUrl,
     },
@@ -109,7 +118,6 @@ export async function generateMetadata(
         'max-snippet': -1,
       },
     },
-    // Add JSON-LD structured data using the scripts property
     scripts: [
       {
         id: 'article-jsonld',

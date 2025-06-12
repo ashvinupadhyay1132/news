@@ -2,13 +2,8 @@
 'use server';
 
 import { getArticlesCollection } from './mongodb';
-<<<<<<< Updated upstream
-// import type { Article as RssArticle } from './rss-service'; // Unused import removed
-import { fetchArticlesFromAllSources } from './rss-service'; 
-=======
 import { fetchArticlesFromAllSources } from './rss-service';
 import { slugify } from '@/lib/utils';
->>>>>>> Stashed changes
 
 export interface Article {
   id: string;
@@ -41,11 +36,7 @@ function mapMongoDocToArticle(doc: any): Article {
       source: "Unknown",
       category: "General",
       imageUrl: null,
-<<<<<<< Updated upstream
-      link: "/",
-=======
       link: "/", // Fallback link
->>>>>>> Stashed changes
       sourceLink: "#",
       content: "Article content is unavailable due to an error.",
       fetchedAt: new Date().toISOString(),
@@ -64,9 +55,6 @@ function mapMongoDocToArticle(doc: any): Article {
     imageUrlFromDb = null;
   }
 
-<<<<<<< Updated upstream
-  const articleLink = doc.link && typeof doc.link === 'string' && doc.link.startsWith('/') ? doc.link : `/${doc.category ? doc.category.toLowerCase().replace(/\s+/g, '-') : 'general'}/${doc.id || 'unknown-id'}`;
-=======
   let internalLink = doc.link;
   // Ensure article.link is always root-relative and uses the slugified category if not already valid
   if (!internalLink || typeof internalLink !== 'string' || !internalLink.startsWith('/') || internalLink === '/') {
@@ -75,7 +63,6 @@ function mapMongoDocToArticle(doc: any): Article {
     internalLink = `/${categorySlug}/${articleId}`;
   }
 
->>>>>>> Stashed changes
 
   return {
     id: doc.id || `missing-id-${Math.random().toString(36).substring(7)}`,
@@ -85,11 +72,7 @@ function mapMongoDocToArticle(doc: any): Article {
     source: doc.source || "Unknown Source",
     category: doc.category || "General",
     imageUrl: imageUrlFromDb,
-<<<<<<< Updated upstream
-    link: articleLink,
-=======
     link: internalLink,
->>>>>>> Stashed changes
     sourceLink: doc.sourceLink || "#",
     content: doc.content,
     fetchedAt: doc.fetchedAt ? new Date(doc.fetchedAt).toISOString() : undefined,
@@ -123,11 +106,7 @@ export async function getArticles(
 
     const articlesFromDb = await articlesCollection
       .find(mongoQuery)
-<<<<<<< Updated upstream
-      .sort({ date: -1, _id: -1 }) // Ensure stable sort by date (latest first), then by _id (latest first) for tie-breaking
-=======
       .sort({ date: -1, _id: -1 }) // Sort by date (latest first), then by _id for tie-breaking
->>>>>>> Stashed changes
       .skip(skipAmount)
       .limit(limit)
       .toArray();
@@ -137,14 +116,9 @@ export async function getArticles(
     const mappedArticles = articlesFromDb.map(mapMongoDocToArticle);
 
     const hasMore = (skipAmount + mappedArticles.length) < totalArticlesInQuery;
-<<<<<<< Updated upstream
-    // console.log(`[DB PlaceholderData getArticles] Found ${articlesFromDb.length} articles from DB. Dates of first 3: ${mappedArticles.slice(0,3).map(a => a.date).join(', ')}. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}.`);
-    
-=======
     // const firstThreeDates = mappedArticles.slice(0,3).map(a => a.date);
     // console.log(`[DB PlaceholderData getArticles] Found ${articlesFromDb.length} articles from DB. Dates of first 3: ${firstThreeDates.join(', ')}. Total in query: ${totalArticlesInQuery}. HasMore: ${hasMore}.`);
 
->>>>>>> Stashed changes
     return {
       articles: mappedArticles,
       totalArticles: totalArticlesInQuery,
@@ -152,11 +126,7 @@ export async function getArticles(
     };
   } catch (error) {
     console.error("[DB PlaceholderData getArticles] CRITICAL ERROR fetching from MongoDB:", error);
-<<<<<<< Updated upstream
-    return { articles: [], totalArticles: 0, hasMore: false }; 
-=======
     return { articles: [], totalArticles: 0, hasMore: false };
->>>>>>> Stashed changes
   }
 }
 
@@ -217,8 +187,6 @@ export async function getCategories(): Promise<string[]> {
   }
 }
 
-<<<<<<< Updated upstream
-=======
 export async function getAllArticlesForSitemap(): Promise<ArticleLinkForSitemap[]> {
   // console.log("[DB PlaceholderData] getAllArticlesForSitemap - Fetching all article links and dates for sitemap.");
   try {
@@ -247,40 +215,29 @@ export async function getAllArticlesForSitemap(): Promise<ArticleLinkForSitemap[
   }
 }
 
->>>>>>> Stashed changes
 
 export async function updateArticlesFromRssAndSaveToDb(): Promise<void> {
-  console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Process STARTED.");
+  console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process STARTED.");
   try {
     const articlesCollection = await getArticlesCollection();
     const count = await articlesCollection.countDocuments();
-<<<<<<< Updated upstream
-    console.log(`[PlaceholderData updateArticlesFromRssAndSaveToDb] Current article count in DB: ${count}`);
-=======
     // console.log(`[PlaceholderData] updateArticlesFromRssAndSaveToDb - Current article count in DB: ${count}`);
->>>>>>> Stashed changes
 
     let articleProcessingLimit: number | undefined = undefined;
 
     if (count === 0) {
-      console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Database is EMPTY. Proceeding with initial population (limit: 150 articles).");
+      console.log("[PlaceholderData] Database is EMPTY. Proceeding with initial population (limit: 150 articles).");
       articleProcessingLimit = 150;
       await fetchArticlesFromAllSources(false, true, true, articleProcessingLimit);
-<<<<<<< Updated upstream
-    } else {
-      console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Database is NOT empty. Proceeding with regular update (default cap in fetchArticlesFromAllSources applies).");
-      await fetchArticlesFromAllSources(false, true, true);
-=======
       // console.log("[PlaceholderData] Initial population fetch/save attempt FINISHED.");
     } else {
       // console.log(`[PlaceholderData] Database has ${count} articles. Proceeding with regular update (default processing cap applies in rss-service).`);
       await fetchArticlesFromAllSources(false, true, true);
       // console.log("[PlaceholderData] Regular update fetch/save attempt FINISHED.");
->>>>>>> Stashed changes
     }
-    console.log("[PlaceholderData updateArticlesFromRssAndSaveToDb] Process COMPLETED successfully.");
+    console.log("[PlaceholderData] updateArticlesFromRssAndSaveToDb - Process COMPLETED successfully.");
   } catch (error) {
-    console.error("[PlaceholderData updateArticlesFromRssAndSaveToDb] CRITICAL ERROR:", error);
+    console.error("[PlaceholderData] CRITICAL ERROR in updateArticlesFromRssAndSaveToDb:", error);
   }
 }
 
