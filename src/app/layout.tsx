@@ -20,18 +20,18 @@ const geistMono = Geist_Mono({
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.newshunt.blog";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(siteUrl), // Essential for resolving relative asset paths
   title: {
     default: 'NewsHunt - Your Daily News Digest',
     template: '%s | NewsHunt',
   },
   description: 'Stay updated with the latest trending news and articles from around the world, curated by NewsHunt.',
-  keywords: ['news', 'headlines', 'latest news', 'world news', 'technology', 'sports', 'business', 'entertainment', 'india news'],
+  keywords: ['news', 'headlines', 'latest news', 'world news', 'technology', 'sports', 'business', 'entertainment', 'india news', 'current affairs', 'newshunt'],
   authors: [{ name: 'NewsHunt Team', url: siteUrl }],
   creator: 'NewsHunt Team',
   publisher: 'NewsHunt',
   alternates: {
-    canonical: '/',
+    canonical: '/', // Canonical for the homepage
     types: {
       'application/rss+xml': [{ url: '/api/rss', title: 'NewsHunt RSS Feed' }],
     },
@@ -42,11 +42,11 @@ export const metadata: Metadata = {
       template: '%s | NewsHunt',
     },
     description: 'Stay updated with the latest trending news and articles from around the world, curated by NewsHunt.',
-    url: siteUrl,
+    url: siteUrl, // Base URL for Open Graph
     siteName: 'NewsHunt',
     images: [
       {
-        url: '/default-og-image.png', // Assuming you have this in /public
+        url: '/default-og-image.png', // Relative to metadataBase
         width: 1200,
         height: 630,
         alt: 'NewsHunt - Your Daily News Digest',
@@ -64,15 +64,15 @@ export const metadata: Metadata = {
     description: 'Stay updated with the latest trending news and articles from around the world, curated by NewsHunt.',
     // siteId: '@yourtwitterhandle', // Optional: Your Twitter ID
     // creator: '@yourtwitterhandle', // Optional: Creator's Twitter ID
-    images: [`${siteUrl}/default-og-image.png`], // Must be an absolute URL
+    images: [`${siteUrl}/default-og-image.png`], // Must be an absolute URL for Twitter
   },
   icons: {
-    icon: '/favicon.ico', // Assuming you have this in /public
-    shortcut: '/favicon-16x16.png', // Assuming you have this
-    apple: '/apple-touch-icon.png', // Assuming you have this
+    icon: '/favicon.ico', // Relative to metadataBase
+    shortcut: '/favicon-16x16.png', // Relative to metadataBase
+    apple: '/apple-touch-icon.png', // Relative to metadataBase
   },
-  manifest: `${siteUrl}/site.webmanifest`, // Assuming you have this
-  robots: {
+  manifest: '/site.webmanifest', // Relative to metadataBase
+  robots: { // Default robots policy
     index: true,
     follow: true,
     googleBot: {
@@ -104,6 +104,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* RSS feed link in head is good practice */}
         <link rel="alternate" type="application/rss+xml" title="NewsHunt RSS Feed" href="/api/rss" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}>

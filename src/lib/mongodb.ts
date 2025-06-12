@@ -32,6 +32,8 @@ if (!MONGODB_DB_NAME) {
 
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
+let _mongoIndexesEnsured = false; // Flag to ensure indexes are checked only once per cold start
+
 
 // Helper to compare simple objects (like index key definitions)
 function areObjectsEqual(obj1: any, obj2: any): boolean {
@@ -87,7 +89,7 @@ const ensureIndex = async (
     }
 
     if (!definitionMatches) {
-      console.warn(`[MongoDB] Index '${desiredName}' on '${articlesCollection.collectionName}' exists but its definition differs. Dropping for re-creation.`);
+      console.warn(`[MongoDB] Index '${desiredName}' on '${articlesCollection.collectionName}' exists but its definition (key, unique, or expireAfterSeconds) differs. Current: ${JSON.stringify(indexWithDesiredName.key)}, Unique: ${indexWithDesiredName.unique}, TTL: ${indexWithDesiredName.expireAfterSeconds}. Desired: ${JSON.stringify(keyDefinition)}, Unique: ${fullOptions.unique}, TTL: ${fullOptions.expireAfterSeconds}. Dropping for re-creation.`);
       try {
         await articlesCollection.dropIndex(desiredName);
         console.log(`[MongoDB] Dropped index '${desiredName}' on '${articlesCollection.collectionName}'.`);
@@ -117,11 +119,13 @@ const ensureIndex = async (
     try {
       console.log(`[MongoDB] Creating index '${desiredName}' with key ${JSON.stringify(keyDefinition)} and options ${JSON.stringify(fullOptions)} on collection '${articlesCollection.collectionName}'.`);
       await articlesCollection.createIndex(keyDefinition, fullOptions); // This will create the collection if it doesn't exist.
-      console.log(`[MongoDB] Index '${desiredName}' created successfully on '${articlesCollection.collectionName}'.`);
+      console.log(`[MongoDB] Index '${desiredName}' created/verified successfully on '${articlesCollection.collectionName}'.`);
     } catch (createError) {
       console.error(`[MongoDB] Error creating index '${desiredName}' with key ${JSON.stringify(keyDefinition)} on '${articlesCollection.collectionName}':`, createError);
       throw createError;
     }
+  } else {
+      // console.log(`[MongoDB] Index '${desiredName}' on '${articlesCollection.collectionName}' is already up-to-date.`);
   }
 };
 
@@ -130,11 +134,13 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
   if (cachedClient && cachedDb) {
     try {
       await cachedClient.db('admin').command({ ping: 1 });
+      // console.log("[MongoDB] Using cached database connection.");
       return { client: cachedClient, db: cachedDb };
     } catch (e) {
       console.warn("[MongoDB] Cached connection check failed, attempting to reconnect.", e);
       cachedClient = null;
       cachedDb = null;
+      _mongoIndexesEnsured = false; // Reset flag as connection was lost
     }
   }
 
@@ -144,7 +150,7 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
     throw new Error(errMsg);
   }
 
-  console.log(`[MongoDB] No cached connection. Creating new connection to ${getMaskedMongoURI(MONGODB_URI)} using DB: ${MONGODB_DB_NAME}`);
+  console.log(`[MongoDB] No cached connection or ping failed. Creating new connection to ${getMaskedMongoURI(MONGODB_URI)} using DB: ${MONGODB_DB_NAME}`);
   const client = new MongoClient(MONGODB_URI, {});
 
   try {
@@ -155,18 +161,31 @@ async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
     cachedClient = client;
     cachedDb = db;
 
-    const articlesCollection = db.collection('articles');
-    
-    await ensureIndex(articlesCollection, { createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 2 }, 'createdAt_ttl_index');
-    await ensureIndex(articlesCollection, { id: 1 }, { name: 'article_id_unique_idx', unique: true }, 'article_id_unique_idx');
-    await ensureIndex(articlesCollection, { date: -1 }, { name: 'article_date_idx' }, 'article_date_idx');
-    await ensureIndex(articlesCollection, { category: 1 }, { name: 'article_category_idx' }, 'article_category_idx');
-    await ensureIndex(articlesCollection, { category: 1, date: -1 }, { name: 'article_category_date_idx' }, 'article_category_date_idx');
-
+    if (!_mongoIndexesEnsured) {
+      console.log("[MongoDB] First successful connection or re-connection: Ensuring all indexes...");
+      const articlesCollection = db.collection('articles');
+      
+      // TTL index for auto-deletion: 3 days
+      await ensureIndex(articlesCollection, { createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 3 }, 'createdAt_ttl_index');
+      
+      // Other indexes
+      await ensureIndex(articlesCollection, { id: 1 }, { name: 'article_id_unique_idx', unique: true }, 'article_id_unique_idx');
+      await ensureIndex(articlesCollection, { date: -1 }, { name: 'article_date_idx' }, 'article_date_idx');
+      await ensureIndex(articlesCollection, { category: 1 }, { name: 'article_category_idx' }, 'article_category_idx');
+      await ensureIndex(articlesCollection, { category: 1, date: -1 }, { name: 'article_category_date_idx' }, 'article_category_date_idx');
+      
+      _mongoIndexesEnsured = true;
+      console.log("[MongoDB] All indexes ensured.");
+    } else {
+      // console.log("[MongoDB] Indexes already ensured in this instance's lifecycle.");
+    }
 
     return { client, db };
   } catch (connectionError) {
     console.error(`[MongoDB] CRITICAL ERROR: Failed to connect to MongoDB at ${getMaskedMongoURI(MONGODB_URI)} (DB: ${MONGODB_DB_NAME}) or ensure indexes:`, connectionError);
+    cachedClient = null; // Clear cache on failed connection
+    cachedDb = null;
+    _mongoIndexesEnsured = false; // Reset flag on error
     throw connectionError;
   }
 }
@@ -186,3 +205,4 @@ export async function getArticlesCollection(): Promise<Collection<Document>> {
   const db = await getDb();
   return db.collection('articles');
 }
+
