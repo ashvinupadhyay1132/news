@@ -1,11 +1,11 @@
-#NewsHunt
+# NewsHunt
 
-#About
+## About
 NewsHunt is a news aggregation website providing fresh and curated content.
 
-#Features
-- Hourly updated news
-- Auto-curated content
+## Features
+- Hourly updated news  
+- Auto-curated content  
 
-Visit
-https://www.newshunt.blog/
+## Visit
+[NewsHunt](https://www.newshunt.blog/)
