@@ -1,0 +1,150 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    /* Strict Black & White Theme - Light Mode */
+    --background: 0 0% 100%; /* White */
+    --foreground: 0 0% 13%; /* Very Dark Gray, almost Black */
+
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 0 0% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 13%;
+
+    --primary: 0 0% 25%; /* Dark Gray */
+    --primary-foreground: 0 0% 95%; /* Light Gray */
+
+    --secondary: 0 0% 96.5%; /* Very Light Gray */
+    --secondary-foreground: 0 0% 20%; /* Dark Gray */
+
+    --muted: 0 0% 97.3%; /* Slightly off-white/light gray */
+    --muted-foreground: 0 0% 45.1%; /* Medium Gray */
+
+    --accent: 0 0% 90%; /* Light Gray for hover/subtle accents */
+    --accent-foreground: 0 0% 13%; /* Dark Gray */
+
+    --destructive: 0 75% 55%; /* Clear Red - kept for destructive actions */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%; /* Light Gray Borders */
+    --input: 0 0% 92.2%; /* Slightly darker light gray for inputs */
+    --ring: 0 0% 60%; /* Medium Gray for focus rings */
+
+    --chart-1: 0 0% 50%;
+    --chart-2: 0 0% 60%;
+    --chart-3: 0 0% 70%;
+    --chart-4: 0 0% 80%;
+    --chart-5: 0 0% 90%;
+    --radius: 0.5rem;
+
+    /* Sidebar specific colors - Grayscale */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 13%;
+    --sidebar-primary: 0 0% 25%;
+    --sidebar-primary-foreground: 0 0% 95%;
+    --sidebar-accent: 0 0% 90%;
+    --sidebar-accent-foreground: 0 0% 13%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 0 0% 60%;
+  }
+
+  .dark {
+    /* Strict Black & White Theme - Dark Mode */
+    --background: 0 0% 10%; /* Near Black */
+    --foreground: 0 0% 97%; /* Light Gray/Off-white */
+
+    --card: 0 0% 14%; /* Darker Gray for cards */
+    --card-foreground: 0 0% 97%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 97%;
+
+    --primary: 0 0% 85%; /* Light Gray */
+    --primary-foreground: 0 0% 10%; /* Near Black */
+
+    --secondary: 0 0% 18%; /* Dark Gray for secondary elements */
+    --secondary-foreground: 0 0% 88%; /* Lighter text on secondary */
+
+    --muted: 0 0% 16%; 
+    --muted-foreground: 0 0% 65%; 
+
+    --accent: 0 0% 25%; /* Dark Gray for hover/subtle accents */
+    --accent-foreground: 0 0% 95%; /* Light Gray */
+
+    --destructive: 0 70% 60%; /* Slightly brighter red - kept for destructive actions */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 22%; /* Subtle dark borders */
+    --input: 0 0% 16%; /* Dark input backgrounds */
+    --ring: 0 0% 50%; /* Medium Gray for focus rings */
+
+    --chart-1: 0 0% 75%;
+    --chart-2: 0 0% 65%;
+    --chart-3: 0 0% 55%;
+    --chart-4: 0 0% 45%;
+    --chart-5: 0 0% 35%;
+
+    /* Sidebar specific colors - Grayscale dark mode */
+    --sidebar-background: 0 0% 12%;
+    --sidebar-foreground: 0 0% 97%;
+    --sidebar-primary: 0 0% 85%;
+    --sidebar-primary-foreground: 0 0% 10%;
+    --sidebar-accent: 0 0% 25%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 0 0% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  .prose {
+    @apply text-foreground/90;
+  }
+  .dark .prose {
+    @apply text-foreground/90;
+  }
+
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    @apply text-primary; /* Will now be a shade of gray */
+  }
+  .dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose h5, .dark .prose h6 {
+    @apply text-primary; /* Will now be a shade of gray */
+  }
+  
+  .prose a {
+    @apply text-accent hover:underline; /* Will now be a shade of gray, consider adding underline always for visibility */
+  }
+  .dark .prose a {
+    @apply text-accent hover:underline; /* Will now be a shade of gray */
+  }
+
+  .prose strong {
+    @apply text-foreground font-semibold;
+  }
+  .dark .prose strong {
+    @apply text-foreground font-semibold;
+  }
+  
+  .prose blockquote {
+    @apply border-accent; /* Will now be a shade of gray */
+  }
+  .dark .prose blockquote {
+    @apply border-accent; /* Will now be a shade of gray */
+  }
+}
