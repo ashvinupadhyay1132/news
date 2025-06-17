@@ -8,6 +8,8 @@ import Footer from '@/components/layout/footer';
 import {ThemeProvider} from "@/components/theme-provider";
 import { AuthProvider } from '@/context/AuthContext';
 import { Analytics } from "@vercel/analytics/next"
+import { Suspense } from 'react';
+import { Skeleton } from "@/components/ui/skeleton";
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -84,6 +86,22 @@ export const metadata: Metadata = {
   // },
 };
 
+const HeaderFallback = () => (
+  <header className="bg-card border-b border-border/60 sticky top-0 z-50">
+    <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
+      <div className="flex items-center space-x-2.5">
+        <Skeleton className="h-7 w-7 rounded" />
+        <Skeleton className="h-7 w-24 rounded" />
+      </div>
+      <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-3 sm:gap-x-4 gap-y-2 w-full sm:w-auto">
+        <Skeleton className="h-10 w-40 xs:w-52 sm:w-64 rounded-md" /> {/* Search bar placeholder */}
+        <Skeleton className="h-10 w-10 rounded-full" /> {/* Mode toggle placeholder */}
+        <Skeleton className="h-10 w-24 rounded-md" /> {/* Login/Admin buttons placeholder */}
+      </div>
+    </div>
+  </header>
+);
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -108,7 +126,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Header />
+            <Suspense fallback={<HeaderFallback />}>
+              <Header />
+            </Suspense>
             <main className="flex-grow container mx-auto px-4 py-8">
               {children}
             </main>
