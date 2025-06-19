@@ -18,11 +18,11 @@ function NewsPageContent() {
 
   const searchTerm = searchParams.get('q') || "";
   const currentCategory = searchParams.get('category') || "All";
-  const refreshSignal = searchParams.get('refreshSignal'); 
+  const refreshSignal = searchParams.get('refreshSignal');
 
   const [isRefreshingButtonDisabled, setIsRefreshingButtonDisabled] = useState(false);
   const [pageTitle, setPageTitle] = useState("Latest Articles");
-  const [refreshKey, setRefreshKey] = useState(0); 
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let title = "Latest Articles";
@@ -39,10 +39,10 @@ function NewsPageContent() {
   }, [searchTerm, currentCategory]);
 
   useEffect(() => {
-    if (refreshSignal) { 
+    if (refreshSignal) {
       setRefreshKey(prevKey => prevKey + 1);
     }
-  }, [refreshSignal]); 
+  }, [refreshSignal]);
 
 
   const handleViewAllNews = () => {
@@ -79,7 +79,6 @@ function NewsPageContent() {
             description: `${result.newArticlesCount} new articles added. Refreshing view...`,
           });
 
-          // Clear session storage for the current view to force ArticleGrid to fetch new data
           if (typeof window !== "undefined") {
             const sessionStorageKeyBase = `articleGrid_${pathname}_${currentCategory}_${searchTerm}`;
             sessionStorage.removeItem(`${sessionStorageKeyBase}_articles`);
@@ -87,7 +86,7 @@ function NewsPageContent() {
             sessionStorage.removeItem(`${sessionStorageKeyBase}_hasMore`);
             console.log(`[Page Refresh] Cleared session storage for key base: ${sessionStorageKeyBase} due to new articles.`);
           }
-          setRefreshKey(prevKey => prevKey + 1); // Trigger ArticleGrid re-render
+          setRefreshKey(prevKey => prevKey + 1);
         } else {
           toast({
             title: 'Feed Already Updated',
@@ -112,51 +111,55 @@ function NewsPageContent() {
     }
   };
 
-
   const areFiltersActive = searchTerm || currentCategory !== "All";
 
   return (
     <div className="space-y-8">
-      <CategoryFilter />
-      <div>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
-            {pageTitle}
-          </h2>
+      <div className="mb-6">
+        <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+          {pageTitle}
+        </h2>
+      </div>
+
+      <div> {/* Wrapper for filter title and filter+button row */}
+        <h2 className="text-lg font-semibold mb-3 text-foreground">Filter by Category</h2>
+        <div className="flex flex-row items-center justify-between gap-x-4 mb-8">
+          <CategoryFilter />
           <Button
             onClick={handleRefreshView}
             variant="outline"
             disabled={isRefreshingButtonDisabled}
-            className="h-10 px-4 self-end sm:self-center" // Changed self-start to self-end
+            className="h-10 px-4 flex-shrink-0"
             title="Refresh View"
           >
             <RefreshCcw className={`mr-2 h-5 w-5 ${isRefreshingButtonDisabled ? 'animate-spin' : ''}`} />
-            <span> 
+            <span>
               {isRefreshingButtonDisabled ? 'Checking...' : 'Refresh'}
             </span>
           </Button>
         </div>
-        <ArticleGrid key={refreshKey} searchTerm={searchTerm} currentCategory={currentCategory} />
-
-        {areFiltersActive && (
-          <div className="mt-12 py-8 text-center border-t border-border">
-            <h3 className="text-xl font-semibold mb-4 text-foreground">
-              Finished with this view?
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              You're viewing a filtered set of articles.
-            </p>
-            <Button
-              onClick={handleViewAllNews}
-              size="lg"
-              variant="default"
-              className="shadow-md hover:shadow-lg transition-shadow"
-            >
-              View All Latest News
-            </Button>
-          </div>
-        )}
       </div>
+
+      <ArticleGrid key={refreshKey} searchTerm={searchTerm} currentCategory={currentCategory} />
+
+      {areFiltersActive && (
+        <div className="mt-12 py-8 text-center border-t border-border">
+          <h3 className="text-xl font-semibold mb-4 text-foreground">
+            Finished with this view?
+          </h3>
+          <p className="text-muted-foreground mb-6">
+            You're viewing a filtered set of articles.
+          </p>
+          <Button
+            onClick={handleViewAllNews}
+            size="lg"
+            variant="default"
+            className="shadow-md hover:shadow-lg transition-shadow"
+          >
+            View All Latest News
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,18 +1,19 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getIronSession } from 'iron-session';
-import { cookies } from 'next/headers';
+import { cookies as getCookiesFromHeaders } from 'next/headers'; // Renamed import
 import { sessionOptions, type AppSessionData } from '@/lib/session';
 
 export const dynamic = 'force-dynamic'; // Ensure this route is always dynamic
 
 export async function GET(request: NextRequest) {
-  const _accessedUrl = request.url; 
+  // const _accessedUrl = request.url; // Removed as it's not used
 
   try {
-    const session = await getIronSession<AppSessionData>(cookies(), sessionOptions);
+    const currentCookies = getCookiesFromHeaders(); // Use the aliased import
+    const session = await getIronSession<AppSessionData>(currentCookies, sessionOptions);
 
-    if (session.email) { // Simplified check, only for email
+    if (session && session.email) { // Added null check for session itself
       // console.log('[Auth API - User] User session found:', { email: session.email });
       return NextResponse.json({
         isLoggedIn: true,

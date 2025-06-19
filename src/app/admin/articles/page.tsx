@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Article } from '@/lib/placeholder-data';
 import ArticlesTable from '@/components/admin/articles-table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input'; // Added Input for search placeholder
 import { PlusCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -61,7 +62,6 @@ export default function ManageArticlesPage() {
         throw new Error(errorData.message || `Server error: ${response.status}`);
       }
       setArticles(prev => prev.filter(art => art.id !== articleId));
-      // Re-fetch to update total count and potentially adjust pagination
       fetchAdminArticles(articles.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage);
     } catch (error) {
       console.error("Error deleting article:", error);
@@ -88,12 +88,18 @@ export default function ManageArticlesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Manage Articles</h1>
-          <p className="text-muted-foreground">View, edit, or delete articles. Add new ones as needed.</p>
+      <div className="pb-6 border-b">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Manage Articles</h1>
+        <p className="text-muted-foreground">View, edit, or delete articles. Add new ones as needed.</p>
+      </div>
+
+      {/* Search and Actions Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4">
+        <div className="w-full sm:w-auto sm:flex-grow">
+          {/* Placeholder for potential search/filter bar - using Input component */}
+          <Input placeholder="Search articles... (Feature coming soon)" disabled className="max-w-xs" />
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 flex-shrink-0">
             <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing || isLoading}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 {isRefreshing ? 'Refreshing...' : 'Refresh'}
@@ -105,9 +111,6 @@ export default function ManageArticlesPage() {
             </Button>
         </div>
       </div>
-
-      {/* Placeholder for potential search/filter bar */}
-      {/* <div className="py-4"> <Input placeholder="Search articles..." /> </div> */}
 
       <ArticlesTable articles={articles} isLoading={isLoading} onDelete={handleDeleteArticle} />
 

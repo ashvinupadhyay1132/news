@@ -69,24 +69,22 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
     } else {
       newParams.set('category', categoryValue);
     }
-    newParams.delete('page'); 
+    newParams.delete('page');
     router.push(`/?${newParams.toString()}`);
   };
 
   if (isLoading) {
     return (
-      <div className="mb-8">
-        <Skeleton className="h-6 w-40 mb-4" />
-        <Skeleton className="h-10 w-full max-w-xs rounded-md" />
+      <div className="w-full max-w-xs">
+        <Skeleton className="h-10 w-full rounded-md" />
       </div>
     );
   }
 
   return (
-    <div className="mb-8">
-      <h2 className="text-lg font-semibold mb-3 text-foreground">Filter by Category</h2>
+    <div className="w-full max-w-xs"> {/* This div constrains the width of the Select and its error message */}
       <Select onValueChange={handleCategoryChange} value={activeCategory} disabled={categories.length <= 1 && !!fetchError}>
-        <SelectTrigger className="w-full max-w-xs text-base sm:text-sm">
+        <SelectTrigger className="w-full text-base sm:text-sm"> {/* Trigger takes full width of its parent (max-w-xs) */}
           <SelectValue placeholder="Select a category" />
         </SelectTrigger>
         <SelectContent>
@@ -98,7 +96,7 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
         </SelectContent>
       </Select>
       {fetchError && !isLoading && (
-        <div className="flex items-center text-xs text-destructive mt-2 p-2 rounded-md border border-destructive/50 bg-destructive/10 max-w-xs">
+        <div className="flex items-center text-xs text-destructive mt-2 p-2 rounded-md border border-destructive/50 bg-destructive/10">
           <AlertCircle className="h-3.5 w-3.5 mr-1.5 shrink-0" />
           <span>{fetchError} <button onClick={fetchCategories} className="ml-1 underline hover:text-destructive/80">Retry</button></span>
         </div>

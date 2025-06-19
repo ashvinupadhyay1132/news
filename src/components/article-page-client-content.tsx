@@ -1,13 +1,12 @@
 
 "use client";
 
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
-import type { Article } from '@/lib/placeholder-data'; // Ensure this type import is correct
+import { useRouter } from 'next/navigation';
+import { type Article } from '@/lib/placeholder-data';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,146 +14,38 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
 import { generateAiHintFromTitle } from '@/lib/utils';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useState, useEffect } from 'react';
 
-export default function ArticlePageClientContent() {
-  const params = useParams();
+interface ArticlePageClientContentProps {
+  article: Article;
+}
+
+export default function ArticlePageClientContent({ article }: ArticlePageClientContentProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [article, setArticle] = useState<Article | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [clientFormattedDate, setClientFormattedDate] = useState<string | null>(null);
 
-  const articleIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
-  const placeholderImageSrcForComponent = `https://placehold.co/1200x675.png`; 
-
-  const fetchArticle = useCallback(async () => {
-    if (!articleIdParam) {
-      console.warn("[ArticlePageClientContent] articleIdParam is not available for fetch.");
-      setLoading(false);
-      setFetchError("Article ID is missing in the URL.");
-      return;
-    }
-
-    setLoading(true);
-    setFetchError(null);
-
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      setFetchError("Network connection is unavailable. Please check your internet connection and try again.");
-      setLoading(false);
-      setArticle(null);
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/articles/${articleIdParam as string}`);
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => "Could not read error response body.");
-        let errorMessage = `API error! Status: ${response.status}. ID: "${articleIdParam}". Details: ${errorBody.substring(0, 300)}`;
-        if (response.status === 404) {
-            errorMessage = `Article with ID "${articleIdParam}" not found. It may have been moved or deleted.`;
-        }
-        console.error(`[ArticlePageClientContent] ${errorMessage}`);
-        setFetchError(errorMessage);
-        setArticle(null);
-      } else {
-        const fetchedArticle: Article = await response.json();
-        setArticle(fetchedArticle || null);
-        if (!fetchedArticle) {
-          const notFoundMsg = `Article with ID "${articleIdParam}" not found (API returned null/undefined).`;
-          console.warn(`[ArticlePageClientContent] ${notFoundMsg}`);
-          setFetchError(notFoundMsg);
-        }
-      }
-    } catch (error: any) {
-      let specificMessage = `Error fetching article ID "${articleIdParam}": ${error.message || 'Unknown fetch error'}`;
-      if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
-        specificMessage = `Could not connect to the server to fetch the article. Please check your internet connection or try again later.`;
-      }
-      console.error(`[ArticlePageClientContent] ${specificMessage}`, error.stack ? error.stack : error);
-      setFetchError(specificMessage);
-      setArticle(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [articleIdParam]);
-
+  const placeholderImageSrcForComponent = `https://placehold.co/1200x675.png`;
 
   useEffect(() => {
-    fetchArticle();
-  }, [fetchArticle]);
+    if (article?.date) {
+      const formatted = new Date(article.date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      setClientFormattedDate(formatted);
+    } else {
+      setClientFormattedDate('Date not available');
+    }
+  }, [article?.date]);
 
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
-        <Skeleton className="h-10 w-32 mb-8" />
-        <Skeleton className="h-6 w-24 mb-4" />
-        <Skeleton className="h-12 sm:h-16 w-full mb-4" />
-        <Skeleton className="h-5 w-3/4 mb-6" />
-        <Skeleton className="h-64 sm:h-80 md:h-96 w-full mb-8 rounded-lg aspect-video bg-muted/50" />
-        <div className="space-y-3">
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-5/6" />
-          <Skeleton className="h-5 w-full mt-4" />
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-3/4" />
-        </div>
-        <div className="mt-10 pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
-          <Skeleton className="h-10 w-full sm:w-60" /> 
-          <Skeleton className="h-10 w-full sm:w-32" /> 
-        </div>
-      </div>
-    );
-  }
-
-  if (fetchError || !article) { 
-    return (
-      <div className="text-center py-12 max-w-2xl mx-auto">
-        <NewspaperIcon className="mx-auto h-16 w-16 text-muted-foreground mb-6" />
-        <h1 className="text-3xl font-semibold mb-4">Article Not Found</h1>
-        <Alert variant="destructive" className="mb-8 text-left">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error Loading Article</AlertTitle>
-            <AlertDescription>
-                {fetchError || `The article you are looking for (ID: ${articleIdParam || "Unknown"}) does not exist or may have been moved.`}
-                <br/>
-                Please ensure your internet connection is stable or try refreshing the page.
-            </AlertDescription>
-        </Alert>
-        <div className="flex justify-center gap-4">
-            <Button 
-              onClick={() => {
-                if (typeof window !== "undefined" && window.history.length > 1) {
-                  router.back();
-                } else {
-                  router.push('/');
-                }
-              }} 
-              className="group flex items-center text-sm"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Go back
-            </Button>
-            <Button onClick={fetchArticle} variant="outline" className="text-sm">
-              Retry Loading
-            </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const formattedDate = article.date ? new Date(article.date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }) : 'Date not available';
 
   const handleShare = (platform: 'twitter' | 'facebook' | 'linkedin' | 'whatsapp' | 'copy') => {
-    const urlToShare = window.location.href; 
+    const urlToShare = window.location.href;
     const text = `Check out this article: ${article.title}`;
     let shareUrl = '';
 
@@ -187,7 +78,6 @@ export default function ArticlePageClientContent() {
 
   const imageAiHintForPage = generateAiHintFromTitle(article.title, article.category);
 
-
   return (
     <>
       <div className="max-w-3xl mx-auto bg-card p-4 sm:p-6 lg:p-8 rounded-lg shadow-lg my-8">
@@ -198,7 +88,7 @@ export default function ArticlePageClientContent() {
             if (typeof window !== "undefined" && window.history.length > 1) {
               router.back();
             } else {
-              router.push('/'); // Fallback to homepage if no history or only 1 entry
+              router.push('/');
             }
           }}
         >
@@ -212,7 +102,7 @@ export default function ArticlePageClientContent() {
             <div className="flex flex-wrap items-center text-sm text-muted-foreground space-x-4 mb-6">
               <div className="flex items-center">
                 <CalendarDays className="h-4 w-4 mr-1.5" />
-                <span>{formattedDate}</span>
+                <span>{clientFormattedDate || 'Loading date...'}</span>
               </div>
               <div className="flex items-center">
                 <NewspaperIcon className="h-4 w-4 mr-1.5" />
@@ -277,4 +167,3 @@ export default function ArticlePageClientContent() {
     </>
   );
 }
-

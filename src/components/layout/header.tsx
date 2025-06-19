@@ -2,24 +2,39 @@
 "use client";
 
 import Link from 'next/link';
-import { Newspaper, UserCog, LogOut, UserCircle, RefreshCw } from 'lucide-react';
+import { Newspaper, UserCog, LogOut, Cloudy, Menu as MenuIcon } from 'lucide-react';
 import ClientSearchBar from './ClientSearchBar';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import LoginModal from '@/components/login-modal';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose, SheetTrigger } from '@/components/ui/sheet';
+import { Skeleton } from '../ui/skeleton';
+
+const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => (
+  <Button variant="ghost" asChild className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2" onClick={onClick}>
+    <Link href={href}>{children}</Link>
+  </Button>
+);
 
 const Header = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUpdatingFeed, setIsUpdatingFeed] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, isLoading: isAuthLoading, logout } = useAuth();
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
 
   const handleLogoutClick = async () => {
     await logout();
@@ -64,7 +79,6 @@ const Header = () => {
             sessionStorage.removeItem(`${sessionStorageKeyBase}_articles`);
             sessionStorage.removeItem(`${sessionStorageKeyBase}_page`);
             sessionStorage.removeItem(`${sessionStorageKeyBase}_hasMore`);
-            console.log(`[Header UpdateFeed] Cleared session storage for key base: ${sessionStorageKeyBase}`);
           }
 
           const currentPathname = pathname;
@@ -96,50 +110,120 @@ const Header = () => {
     }
   };
 
+  const navItems = [
+    { href: '/', label: 'Home' },
+    { href: '/about', label: 'About Us' },
+    { href: '/contact', label: 'Contact Us' },
+  ];
+
   return (
     <>
       <header className="bg-card border-b border-border/60 shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
-          <Link href="/" passHref legacyBehavior>
-            <a className="flex items-center space-x-2.5 text-primary hover:text-primary/80 transition-colors">
-              <Newspaper className="h-7 w-7" />
-              <h1 className="text-3xl font-bold whitespace-nowrap">NewsHunt</h1>
-            </a>
-          </Link>
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex flex-col gap-3">
 
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-3 sm:gap-x-4 gap-y-2 w-full sm:w-auto">
-            <ClientSearchBar />
-            <ModeToggle />
+            {/* Line 1: Logo, Nav (Desktop), Theme, Auth Buttons, Mobile Menu */}
+            <div className="flex justify-between items-center w-full">
+              {/* Logo */}
+              <Link href="/" passHref legacyBehavior>
+                <a className="flex items-center space-x-2.5 text-primary hover:text-primary/80 transition-colors">
+                  <Newspaper className="h-7 w-7" />
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold whitespace-nowrap">NewsHunt</h1>
+                </a>
+              </Link>
 
-            <div className="flex items-center gap-x-2 md:gap-x-3">
-              {isAuthLoading ? (
-                 <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" disabled>
-                    <UserCircle className="h-5 w-5 animate-pulse" />
-                 </Button>
-              ) : user ? (
-                <div className="flex items-center gap-x-2 md:gap-x-3">
+              {/* Desktop Navigation (Centered for md and up) */}
+              <nav className="hidden md:flex items-center gap-1 lg:gap-2 flex-grow justify-center">
+                {navItems.map((item) => (
+                  <NavLink key={item.href} href={item.href}>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
+
+              {/* Right Aligned Group: Theme, Auth, Mobile Menu Trigger */}
+              <div className="flex items-center gap-x-1 sm:gap-x-2 md:gap-x-3">
+                <ModeToggle />
+                
+                {(!hasMounted || isAuthLoading) ? (
+                   <Skeleton className="h-10 rounded-md w-10 md:w-36" />
+                ) : user ? (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleLogoutClick} 
+                    title="Logout" 
+                    className="h-10 w-10 p-0 md:w-auto md:px-3"
+                  >
+                    <LogOut className="h-5 w-5 md:mr-2" />
+                    <span className="hidden md:inline">Logout</span>
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsLoginModalOpen(true)} 
+                    title="Admin Login" 
+                    className="h-10 w-10 p-0 md:w-auto md:px-3"
+                  >
+                    <UserCog className="h-5 w-5 md:mr-2" />
+                    <span className="hidden md:inline">Admin Login</span>
+                  </Button>
+                )}
+                
+                {/* Mobile Menu Trigger (Right side) */}
+                <div className="md:hidden">
+                  <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                    <SheetTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-10 w-10">
+                        <MenuIcon className="h-6 w-6" />
+                        <span className="sr-only">Open menu</span>
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                      <SheetHeader className="p-4 border-b">
+                        <SheetTitle className="flex items-center gap-2 text-lg">
+                          <Newspaper className="h-6 w-6 text-primary" />
+                          NewsHunt Menu
+                        </SheetTitle>
+                      </SheetHeader>
+                      <nav className="flex flex-col p-4 space-y-2">
+                        {navItems.map((item) => (
+                          <SheetClose asChild key={item.href}>
+                             <Link
+                                href={item.href}
+                                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-accent hover:text-accent-foreground ${pathname === item.href ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+                              >
+                                {item.label}
+                              </Link>
+                          </SheetClose>
+                        ))}
+                      </nav>
+                    </SheetContent>
+                  </Sheet>
+                </div>
+              </div>
+            </div>
+
+            {/* Line 2: Search Bar and Update Feed Button */}
+            <div className="flex flex-row items-center gap-3 w-full">
+              <div className="flex-grow"> 
+                <ClientSearchBar />
+              </div>
+              {hasMounted && user && (
+                <div className="flex-shrink-0"> 
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={handleUpdateFeed}
                     disabled={isUpdatingFeed}
                     title="Update News Feed"
-                    className="h-10 px-3"
+                    className="h-10 px-3" 
                   >
-                    <RefreshCw className={`h-5 w-5 ${isUpdatingFeed ? 'animate-spin' : ''} sm:mr-2`} />
-                    <span className="hidden sm:inline">{isUpdatingFeed ? 'Updating...' : 'Update Feed'}</span>
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={handleLogoutClick} title="Logout" className="h-10 w-10 rounded-full">
-                    <LogOut className="h-5 w-5" />
+                    <Cloudy className={`h-5 w-5 ${isUpdatingFeed ? 'animate-spin' : ''} mr-2`} /> 
+                    <span>{isUpdatingFeed ? 'Updating...' : 'Update Feed'}</span>
                   </Button>
                 </div>
-              ) : (
-                <Button variant="outline" onClick={() => setIsLoginModalOpen(true)} title="Admin Login" className="h-10 px-3">
-                  <UserCog className="mr-0 sm:mr-2 h-5 w-5" />
-                  <span className="hidden sm:inline">Admin Login</span>
-                </Button>
               )}
             </div>
+
           </div>
         </div>
       </header>

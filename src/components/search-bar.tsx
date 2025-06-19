@@ -24,13 +24,13 @@ const SearchBar = () => {
   };
 
   return (
-    <form onSubmit={handleSearch} className="flex w-full max-w-xs sm:max-w-sm items-center space-x-2">
+    <form onSubmit={handleSearch} className="flex w-full items-center space-x-2">
       <Input
         type="text"
         placeholder="Search articles..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="flex-grow bg-background"
+        className="flex-grow bg-background" // flex-grow allows it to take space
         aria-label="Search articles"
       />
       <Button type="submit" variant="primary" size="icon" aria-label="Search">
@@ -41,4 +41,3 @@ const SearchBar = () => {
 };
 
 export default SearchBar;
-
