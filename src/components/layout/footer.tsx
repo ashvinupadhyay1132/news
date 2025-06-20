@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
-  const email = "ashvinupadhyay1132@gmail.com";
+  const email = "codecraft390@gmail.com";
 
   return (
     <footer className="bg-card border-t border-border text-muted-foreground">
