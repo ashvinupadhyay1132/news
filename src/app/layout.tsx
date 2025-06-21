@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: '%s | NewsHunt',
   },
   description: 'Stay updated with the latest trending news from NewsHunt, covering technology, business, sports, and more from around the world.',
-  keywords: ['news', 'headlines', 'latest news', 'world news', 'tech news', 'business news', 'sports news', 'india news', 'current events', 'NewsHunt'],
+  keywords: ['news', 'headlines', 'latest news', 'world news', 'tech news', 'business news', 'sports news', 'india news', 'current events', 'NewsHunt', 'News Hunt', 'news hunt'],
   alternates: {
     canonical: '/',
     types: {
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: 'Tbzc8VnJxfh99RdXM_4sthXFogATcvdjM6a8LOv2BTc',
+    google: 'qv4COP0z8EyCeMstpGr7YH327vGzsCPrJAAhsTJm2Ww',
   },
 };
 
