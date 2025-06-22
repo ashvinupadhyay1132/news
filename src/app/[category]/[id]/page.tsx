@@ -1,6 +1,6 @@
 
 import type { Metadata, ResolvingMetadata } from 'next';
-import { getArticleById, type Article } from '@/lib/placeholder-data';
+import { getArticleById, getArticles, type Article } from '@/lib/placeholder-data';
 import ArticlePageClientContent from '@/components/article-page-client-content';
 import { NewspaperIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link'; // For the fallback "Not Found" state
 
 const SITE_BASE_URL = 'https://www.newshunt.blog';
-const DEFAULT_OG_IMAGE_URL = `${SITE_BASE_URL}/default-og-image.png`;
+const DEFAULT_OG_IMAGE_URL = 'https://placehold.co/1200x630.png'; // Updated to use a placeholder
 
 type Props = {
   params: { id: string; category: string };
@@ -102,6 +102,9 @@ export default async function ArticlePageContainer({ params }: Props) {
     );
   }
 
+  // Fetch relevant articles: 4 articles from the same category, excluding the current one.
+  const { articles: relevantArticles } = await getArticles(undefined, article.category, 1, 4, article.id);
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
@@ -118,7 +121,7 @@ export default async function ArticlePageContainer({ params }: Props) {
       name: 'NewsHunt',
       logo: {
         '@type': 'ImageObject',
-        url: `${SITE_BASE_URL}/favicon.svg`, // Assuming you have a logo
+        url: `${SITE_BASE_URL}/logo.svg`, // Assuming you have a logo
       },
     },
     description: article.summary.substring(0, 250), // Longer summary for LD-JSON
@@ -134,7 +137,7 @@ export default async function ArticlePageContainer({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ArticlePageClientContent article={article} />
+      <ArticlePageClientContent article={article} relevantArticles={relevantArticles} />
     </>
   );
 }

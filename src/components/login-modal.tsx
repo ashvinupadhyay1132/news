@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export default function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const { login } = useAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -36,6 +38,7 @@ export default function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
       onOpenChange(false); // Close modal on successful login
       setEmail('');
       setPassword('');
+      router.push('/admin/dashboard'); // Redirect to dashboard
     }
   };
 
@@ -45,7 +48,7 @@ export default function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
         <DialogHeader>
           <DialogTitle>Admin Login</DialogTitle>
           <DialogDescription>
-            Enter your credentials to access admin features.
+            Enter your credentials to access the admin dashboard. If this is the first login, an admin account will be created.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -62,6 +65,7 @@ export default function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
                 className="col-span-3"
                 required
                 disabled={isLoggingIn}
+                autoComplete="email"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -76,6 +80,7 @@ export default function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
                 className="col-span-3"
                 required
                 disabled={isLoggingIn}
+                autoComplete="current-password"
               />
             </div>
           </div>

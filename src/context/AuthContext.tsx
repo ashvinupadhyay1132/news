@@ -7,12 +7,11 @@ import { useToast } from '@/hooks/use-toast';
 
 interface User {
   email: string;
-  // Add other user properties if needed
 }
 
 interface AuthContextType {
   user: User | null;
-  // isAdmin: boolean; // Removed isAdmin
+  isAdmin: boolean;
   isLoading: boolean;
   login: (emailValue: string, passwordValue: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -23,7 +22,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  // const [isAdmin, setIsAdmin] = useState<boolean>(false); // Removed isAdmin
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
 
@@ -35,22 +34,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const data = await response.json();
         if (data.isLoggedIn && data.email) {
           setUser({ email: data.email });
-          // setIsAdmin(data.isAdmin || false); // Removed isAdmin
-          // console.log('[AuthContext] Session checked, user is logged in:', data.email);
+          setIsAdmin(data.isAdmin || false);
         } else {
           setUser(null);
-          // setIsAdmin(false); // Removed isAdmin
-          // console.log('[AuthContext] Session checked, no active user.');
+          setIsAdmin(false);
         }
       } else {
-        console.error('[AuthContext] /api/auth/user call failed, status:', response.status, await response.text().catch(()=>""));
         setUser(null);
-        // setIsAdmin(false); // Removed isAdmin
+        setIsAdmin(false);
       }
     } catch (error) {
       console.error('[AuthContext] Error checking session:', error);
       setUser(null);
-      // setIsAdmin(false); // Removed isAdmin
+      setIsAdmin(false);
     } finally {
       setIsLoading(false);
     }
@@ -69,19 +65,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({ email: emailValue, password: passwordValue }),
       });
       const data = await response.json();
+
       if (response.ok && data.success && data.user) {
         setUser({ email: data.user.email });
-        // setIsAdmin(data.user.isAdmin || false); // Removed isAdmin
-        toast({ title: 'Login Successful', description: `Welcome, ${data.user.email}!` });
-        console.log('[AuthContext] Login successful:', data.user.email);
+        setIsAdmin(data.user.isAdmin);
+        toast({ title: 'Login Successful', description: `Welcome!` });
         setIsLoading(false);
         return true;
       } else {
         const errorMessage = data.message || 'Login failed. Please check your credentials.';
         toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
-        console.error('[AuthContext] Login failed:', errorMessage);
         setUser(null);
-        // setIsAdmin(false); // Removed isAdmin
+        setIsAdmin(false);
         setIsLoading(false);
         return false;
       }
@@ -89,7 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('[AuthContext] Error during login:', error);
       toast({ title: 'Login Error', description: 'An unexpected error occurred.', variant: 'destructive' });
       setUser(null);
-      // setIsAdmin(false); // Removed isAdmin
+      setIsAdmin(false);
       setIsLoading(false);
       return false;
     }
@@ -100,9 +95,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       setUser(null);
-      // setIsAdmin(false); // Removed isAdmin
+      setIsAdmin(false);
       toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
-      console.log('[AuthContext] User logged out.');
     } catch (error) {
       console.error('[AuthContext] Error during logout:', error);
       toast({ title: 'Logout Error', description: 'Failed to logout.', variant: 'destructive' });
@@ -112,7 +106,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, /*isAdmin,*/ isLoading, login, logout, checkSession }}>
+    <AuthContext.Provider value={{ user, isAdmin, isLoading, login, logout, checkSession }}>
       {children}
     </AuthContext.Provider>
   );

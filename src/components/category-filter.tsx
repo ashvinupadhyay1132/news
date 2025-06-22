@@ -4,13 +4,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { Skeleton } from "./ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Button } from "./ui/button";
 import { AlertCircle } from "lucide-react";
 
 interface CategoryFilterProps {}
@@ -19,7 +13,7 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -70,37 +64,45 @@ const CategoryFilter = ({}: CategoryFilterProps) => {
       newParams.set('category', categoryValue);
     }
     newParams.delete('page');
+    // Preserve search query if it exists
+    const currentQuery = searchParams.get('q');
+    if (currentQuery) {
+      newParams.set('q', currentQuery);
+    }
     router.push(`/?${newParams.toString()}`);
   };
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-xs">
-        <Skeleton className="h-10 w-full rounded-md" />
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-24 rounded-md" />
+        ))}
       </div>
     );
   }
-
-  return (
-    <div className="w-full max-w-xs"> {/* This div constrains the width of the Select and its error message */}
-      <Select onValueChange={handleCategoryChange} value={activeCategory} disabled={categories.length <= 1 && !!fetchError}>
-        <SelectTrigger className="w-full text-base sm:text-sm"> {/* Trigger takes full width of its parent (max-w-xs) */}
-          <SelectValue placeholder="Select a category" />
-        </SelectTrigger>
-        <SelectContent>
-          {categories.map((category) => (
-            <SelectItem key={category} value={category} className="text-base sm:text-sm">
-              {category}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {fetchError && !isLoading && (
-        <div className="flex items-center text-xs text-destructive mt-2 p-2 rounded-md border border-destructive/50 bg-destructive/10">
-          <AlertCircle className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+  
+  if (fetchError) {
+     return (
+        <div className="flex items-center text-sm text-destructive p-2 rounded-md border border-destructive/50 bg-destructive/10">
+          <AlertCircle className="h-4 w-4 mr-2 shrink-0" />
           <span>{fetchError} <button onClick={fetchCategories} className="ml-1 underline hover:text-destructive/80">Retry</button></span>
         </div>
-      )}
+      );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {categories.map((category) => (
+        <Button
+          key={category}
+          variant={activeCategory === category ? 'default' : 'secondary'}
+          onClick={() => handleCategoryChange(category)}
+          className="rounded-full px-4"
+        >
+          {category}
+        </Button>
+      ))}
     </div>
   );
 };
