@@ -13,28 +13,22 @@ import { usePathname } from "next/navigation";
 interface ArticleGridProps {
   searchTerm: string;
   currentCategory: string;
+  excludeIds?: string;
 }
 
 const ARTICLES_PER_PAGE = 9;
 
 const ArticleCardSkeleton = () => (
-  <div className="flex flex-col space-y-3 p-4 border rounded-lg bg-card">
+  <div className="flex flex-col space-y-3">
     <Skeleton className="h-48 w-full rounded-md" />
-    {/* <Skeleton className="h-4 w-20 mt-2" />  Removed redundant skeleton for category badge */}
-    <Skeleton className="h-6 w-full pt-2" /> {/* Added pt-2 to title skeleton to mimic card layout post-badge removal */}
+    <Skeleton className="h-4 w-1/3" />
+    <Skeleton className="h-6 w-full" />
     <Skeleton className="h-4 w-full" />
     <Skeleton className="h-4 w-3/4" />
-    <div className="flex justify-between items-center pt-2 mt-auto">
-      <div className="space-y-1">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-3 w-16" />
-      </div>
-      <Skeleton className="h-9 w-24" />
-    </div>
   </div>
 );
 
-const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
+const ArticleGrid = ({ searchTerm, currentCategory, excludeIds }: ArticleGridProps) => {
   const [displayedArticles, setDisplayedArticles] = useState<Article[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -46,8 +40,8 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
   const requestCounterRef = useRef(0); 
 
   const getSessionStorageKeyBase = useCallback(() => {
-    return `articleGrid_${pathname}_${currentCategory}_${searchTerm}`;
-  }, [pathname, currentCategory, searchTerm]);
+    return `articleGrid_${pathname}_${currentCategory}_${searchTerm}_${excludeIds || 'no-exclude'}`;
+  }, [pathname, currentCategory, searchTerm, excludeIds]);
 
   const fetchArticlesPage = useCallback(async (pageToFetch: number, isInitialLoad: boolean) => {
     const currentRequestId = ++requestCounterRef.current;
@@ -62,7 +56,6 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setError("Network connection is unavailable. Please check your internet connection and try again.");
       if (isInitialLoad) setIsLoadingInitial(false); else setIsLoadingMore(false);
-      // Do not clear articles if it's a "load more" attempt and network drops
       if (isInitialLoad && currentRequestId === requestCounterRef.current) {
           setDisplayedArticles([]);
       }
@@ -72,6 +65,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('q', searchTerm);
     if (currentCategory && currentCategory !== "All") params.set('category', currentCategory);
+    if (excludeIds) params.set('excludeIds', excludeIds);
     params.set('page', pageToFetch.toString());
     params.set('limit', ARTICLES_PER_PAGE.toString());
     const apiUrl = `/api/articles?${params.toString()}`;
@@ -150,7 +144,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
         setIsLoadingMore(false);
       }
     }
-  }, [currentCategory, searchTerm, getSessionStorageKeyBase]);
+  }, [currentCategory, searchTerm, getSessionStorageKeyBase, excludeIds]);
 
   useEffect(() => {
     const storageKeyBase = getSessionStorageKeyBase();
@@ -197,7 +191,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
     setHasMore(true);       
     setError(null);         
     fetchArticlesPage(1, true); 
-  }, [currentCategory, searchTerm, pathname, fetchArticlesPage, getSessionStorageKeyBase]); 
+  }, [currentCategory, searchTerm, pathname, fetchArticlesPage, getSessionStorageKeyBase, excludeIds]); 
 
 
   const handleLoadMoreButtonClick = () => {
@@ -209,7 +203,7 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   if (isLoadingInitial && displayedArticles.length === 0 && !error) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {Array.from({ length: ARTICLES_PER_PAGE }).map((_, index) => (
           <ArticleCardSkeleton key={`initial-load-skeleton-${index}`} />
         ))}
@@ -248,23 +242,23 @@ const ArticleGrid = ({ searchTerm, currentCategory }: ArticleGridProps) => {
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
         {displayedArticles.map((article) => (
           <ArticleCard key={article.id} article={article} />
         ))}
       </div>
 
-      <div className="h-auto flex flex-col justify-center items-center mt-8 py-4 min-h-[50px]">
+      <div className="h-auto flex flex-col justify-center items-center mt-12 py-4 min-h-[50px]">
         {isLoadingMore && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
             {Array.from({ length: 3 }).map((_, index) => (
               <ArticleCardSkeleton key={`loading-more-skeleton-${index}`} />
             ))}
           </div>
         )}
         {hasMore && !isLoadingInitial && displayedArticles.length > 0 && !isLoadingMore && !error && (
-          <Button onClick={handleLoadMoreButtonClick} disabled={isLoadingMore}>
-            View More Articles
+          <Button onClick={handleLoadMoreButtonClick} variant="secondary" size="lg" disabled={isLoadingMore}>
+            Load More
           </Button>
         )}
         {!hasMore && displayedArticles.length > 0 && !isLoadingMore && !error && (

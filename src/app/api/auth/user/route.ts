@@ -1,37 +1,32 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { getIronSession } from 'iron-session';
-import { cookies as getCookiesFromHeaders } from 'next/headers'; // Renamed import
-import { sessionOptions, type AppSessionData } from '@/lib/session';
+import { getAdminAuthStatus } from '@/lib/jwt';
 
-export const dynamic = 'force-dynamic'; // Ensure this route is always dynamic
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  // const _accessedUrl = request.url; // Removed as it's not used
-
   try {
-    const currentCookies = getCookiesFromHeaders(); // Use the aliased import
-    const session = await getIronSession<AppSessionData>(currentCookies, sessionOptions);
+    const auth = getAdminAuthStatus();
 
-    if (session && session.email) { // Added null check for session itself
-      // console.log('[Auth API - User] User session found:', { email: session.email });
+    if (auth.success && auth.payload) {
       return NextResponse.json({
         isLoggedIn: true,
-        email: session.email,
-        // isAdmin: session.isAdmin, // Removed isAdmin
+        email: auth.payload.email,
+        isAdmin: auth.payload.isAdmin,
       });
     } else {
-      // console.log('[Auth API - User] No active user session found.');
+      // For security, don't reveal the reason for auth failure to the client here.
+      // The admin routes will provide specific 403s. This just says "not logged in".
       return NextResponse.json({
         isLoggedIn: false,
         email: null,
-        // isAdmin: false, // Removed isAdmin
+        isAdmin: false,
       });
     }
   } catch (error) {
     console.error('[Auth API - User] Error fetching user session:', error);
     return NextResponse.json(
-      { isLoggedIn: false, email: null, /* isAdmin: false, */ error: 'Failed to retrieve session' }, // Removed isAdmin
+      { isLoggedIn: false, email: null, isAdmin: false, error: 'Failed to retrieve session' },
       { status: 500 }
     );
   }

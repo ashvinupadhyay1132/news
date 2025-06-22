@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { getCategories } from '@/lib/placeholder-data';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const categories: string[] = await getCategories();

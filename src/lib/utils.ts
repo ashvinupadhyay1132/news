@@ -78,3 +78,13 @@ export function generateAiHintFromTitle(title: string, category?: string): strin
   return `${titleKeywords[0]} ${titleKeywords[1]}`.substring(0, 50);
 }
 
+export function clearArticleCache() {
+  if (typeof window !== "undefined") {
+    Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('articleGrid_')) {
+            sessionStorage.removeItem(key);
+        }
+    });
+    console.log('[Cache] Cleared all articleGrid caches from sessionStorage.');
+  }
+}

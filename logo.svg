@@ -1,0 +1,28 @@
+<svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="redGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f44336"/>
+      <stop offset="100%" stop-color="#c62828"/>
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="300" height="300" rx="40" fill="url(#redGloss)"/>
+
+  <!-- N and H Letters with shadow -->
+  <g transform="translate(40, 60)" filter="url(#shadow)">
+    <!-- N -->
+    <path d="M0,120 L0,0 L20,0 L80,70 L80,0 L100,0 L100,120 L80,120 L20,50 L20,120 Z" fill="white"/>
+    <!-- H -->
+    <path d="M130,0 L130,120 L150,120 L150,70 L190,70 L190,120 L210,120 L210,0 L190,0 L190,50 L150,50 L150,0 Z" fill="white"/>
+  </g>
+
+  <!-- Text: moved up and scaled slightly -->
+  <text x="50%" y="250" text-anchor="middle" font-family="Arial, sans-serif"
+        font-size="24" fill="white" font-weight="bold" filter="url(#shadow)">
+    NewsHunt.Blog
+  </text>
+</svg>
