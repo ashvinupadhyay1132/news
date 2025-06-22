@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: '%s | NewsHunt',
   },
   description: 'Stay updated with the latest trending news from NewsHunt, covering technology, business, sports, and more from around the world.',
-  keywords: ['news', 'headlines', 'latest news', 'world news', 'tech news', 'business news', 'sports news', 'india news', 'current events', 'NewsHunt'],
+  keywords: ['news', 'headlines', 'latest news', 'world news', 'tech news', 'business news', 'sports news', 'india news', 'current events', 'NewsHunt', 'News Hunt', 'news hunt'],
   alternates: {
     canonical: '/',
     types: {

@@ -4,6 +4,13 @@ import { Github, Linkedin } from 'lucide-react';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+  const email = "codecraft390@gmail.com";
+=======
+>>>>>>> Stashed changes
+>>>>>>> 5e304f0bfceb7afe1c54f56d10ec78eba9ad7dc8
 
   return (
     <footer className="bg-card border-t border-border text-muted-foreground mt-auto">
