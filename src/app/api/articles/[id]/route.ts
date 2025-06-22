@@ -2,6 +2,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getArticleById, type Article } from '@/lib/placeholder-data';
 
+export const dynamic = 'force-dynamic';
+
 // The second argument provides { params }, which we destructure.
 // The type { params: { id: string } } ensures `params` exists and `params.id` is a string.
 export async function GET(

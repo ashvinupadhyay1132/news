@@ -1,0 +1,16 @@
+{
+  "name": "NewsHunt",
+  "short_name": "NewsHunt",
+  "description": "Your daily digest of trending news from around the world. Stay informed, stay ahead.",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}

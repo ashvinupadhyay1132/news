@@ -1,5 +1,8 @@
+
 'use server';
 
+import { cache } from 'react';
+import { unstable_noStore as noStore } from 'next/cache';
 import { getArticlesCollection } from './mongodb';
 import type { Article as RssArticle } from './rss-service'; // RssArticle might be an alias for ArticleInterface now
 import { fetchArticlesFromAllSources, type FetchArticlesResult, type ArticleUpdateStats } from './rss-service';
@@ -56,8 +59,10 @@ export async function getArticles(
   searchTerm?: string,
   currentCategory?: string,
   page: number = 1,
-  limit: number = 9
+  limit: number = 9,
+  excludeIds?: string
 ): Promise<{ articles: Article[]; totalArticles: number; hasMore: boolean }> {
+  noStore(); // Explicitly opt out of data caching
   const mongoQuery: any = {};
   if (currentCategory && currentCategory !== "All") {
     mongoQuery.category = { $regex: new RegExp(`^${currentCategory}$`, 'i') };
@@ -69,6 +74,13 @@ export async function getArticles(
       { summary: { $regex: lowerSearchTerm, $options: 'i' } },
       { source: { $regex: lowerSearchTerm, $options: 'i' } },
     ];
+  }
+
+  if (excludeIds) {
+    const idsToExclude = excludeIds.split(',').filter(id => id.trim() !== '');
+    if (idsToExclude.length > 0) {
+      mongoQuery.id = { $nin: idsToExclude };
+    }
   }
 
   try {
@@ -99,7 +111,7 @@ export async function getArticles(
   }
 }
 
-export async function getArticleById(id: string): Promise<Article | undefined> {
+export const getArticleById = cache(async (id: string): Promise<Article | undefined> => {
   try {
     const articlesCollection = await getArticlesCollection();
     let articleDoc = await articlesCollection.findOne({ id: id });
@@ -117,7 +129,7 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
     console.error(`[DB PlaceholderData] Error fetching article by ID (${id}) from MongoDB:`, error);
     return undefined;
   }
-}
+});
 
 export async function getCategories(): Promise<string[]> {
   try {

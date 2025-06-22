@@ -13,6 +13,7 @@ NewsHunt is a powerful news aggregation platform that delivers fresh, curated co
 - React
 - Node.js
 - Tailwind CSS
+- ShadCn UI
 - AI-based content curation (placeholder for potential future feature)
 
 ## Visit

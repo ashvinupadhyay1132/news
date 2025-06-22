@@ -2,6 +2,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getArticles } from '@/lib/placeholder-data';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   console.log("API: /api/articles - Request received.");
   try {
@@ -10,10 +12,11 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') || undefined;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '9', 10); // Default limit to 9
+    const excludeIds = searchParams.get('excludeIds') || undefined;
 
-    console.log(`API: /api/articles - Parsed params: searchTerm: '${searchTerm}', category: '${category}', page: ${page}, limit: ${limit}`);
+    console.log(`API: /api/articles - Parsed params: searchTerm: '${searchTerm}', category: '${category}', page: ${page}, limit: ${limit}, excludeIds: '${excludeIds}'`);
 
-    const result = await getArticles(searchTerm, category, page, limit);
+    const result = await getArticles(searchTerm, category, page, limit, excludeIds);
 
     console.log(`API: /api/articles - getArticles returned: ${result.articles.length} articles. Total in query: ${result.totalArticles}, HasMore: ${result.hasMore}. First title: ${result.articles[0]?.title.substring(0,50)}`);
 

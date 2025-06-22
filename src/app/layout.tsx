@@ -22,7 +22,8 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_BASE_URL = 'https://www.newshunt.blog';
-const DEFAULT_OG_IMAGE_URL = `${SITE_BASE_URL}/default-og-image.png`; // Create a default OG image for your site
+// Using a placeholder for the default OG image to prevent 404 errors.
+const DEFAULT_OG_IMAGE_URL = 'https://placehold.co/1200x630.png'; 
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_BASE_URL),
@@ -78,7 +79,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: 'Tbzc8VnJxfh99RdXM_4sthXFogATcvdjM6a8LOv2BTc',
+    google: 'qv4COP0z8EyCeMstpGr7YH327vGzsCPrJAAhsTJm2Ww',
   },
 };
 
@@ -109,12 +110,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   console.log('[RootLayout] Server-side rendering started for RootLayout.');
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'NewsHunt',
+    url: SITE_BASE_URL,
+    logo: `${SITE_BASE_URL}/logo.svg`,
+  };
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
