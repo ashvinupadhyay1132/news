@@ -39,39 +39,29 @@ let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
 // This is the recommended approach for handling DB connections in serverless environments.
-// It caches the connection promise globally, preventing multiple connections from being created
-// during "cold starts" or concurrent function invocations.
-if (process.env.NODE_ENV === "development") {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  let globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
-  };
+// We cache the connection promise in a global variable. This prevents us from creating
+// a new connection on every serverless function invocation.
+let globalWithMongo = global as typeof globalThis & {
+  _mongoClientPromise?: Promise<MongoClient>
+}
 
-  if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(MONGODB_URI, options);
-    globalWithMongo._mongoClientPromise = client.connect().then(async (client) => {
-        console.log('[MongoDB Dev] New connection established. Ensuring indexes...');
-        await ensureAllIndexes(client.db(MONGODB_DB_NAME));
-        return client;
-    }).catch(err => {
-        console.error('[MongoDB Dev] Connection failed!', err);
-        throw err;
-    });
-  }
-  clientPromise = globalWithMongo._mongoClientPromise;
-} else {
-  // In production mode, it's best to not use a global variable.
+if (!globalWithMongo._mongoClientPromise) {
   client = new MongoClient(MONGODB_URI, options);
-  clientPromise = client.connect().then(async (client) => {
-      console.log('[MongoDB Prod] New connection established. Ensuring indexes...');
+  console.log('[MongoDB] Creating new connection promise.');
+  globalWithMongo._mongoClientPromise = client.connect().then(async (client) => {
+      console.log('[MongoDB] New connection established. Ensuring indexes...');
       await ensureAllIndexes(client.db(MONGODB_DB_NAME));
       return client;
   }).catch(err => {
-      console.error('[MongoDB Prod] Connection failed!', err);
+      console.error('[MongoDB] Critical connection failure:', err);
+      // If connection fails, unset the promise to allow for a retry on the next request.
+      globalWithMongo._mongoClientPromise = undefined;
       throw err;
   });
 }
+
+clientPromise = globalWithMongo._mongoClientPromise;
+
 
 // Helper to compare simple objects (like index key definitions)
 function areObjectsEqual(obj1: any, obj2: any): boolean {
