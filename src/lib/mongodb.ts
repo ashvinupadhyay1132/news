@@ -1,4 +1,3 @@
-
 import { MongoClient, type Db, type Collection, type Document } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
