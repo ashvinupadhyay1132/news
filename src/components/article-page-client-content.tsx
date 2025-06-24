@@ -6,7 +6,7 @@ import { type Article } from '@/lib/placeholder-data';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink, Plane } from 'lucide-react';
+import { ArrowLeft, CalendarDays, NewspaperIcon, Share2, ExternalLink, Plane, Twitter, Facebook, Linkedin, ClipboardCopy } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,23 @@ interface ArticlePageClientContentProps {
   article: Article;
   relevantArticles: Article[];
 }
+
+const WhatsAppIcon = () => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+    >
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+    </svg>
+  );
 
 export default function ArticlePageClientContent({ article, relevantArticles }: ArticlePageClientContentProps) {
   const router = useRouter();
@@ -194,11 +211,26 @@ export default function ArticlePageClientContent({ article, relevantArticles }: 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleShare('twitter')}>Twitter</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('facebook')}>Facebook</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('linkedin')}>LinkedIn</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('whatsapp')}>WhatsApp</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('copy')}>Copy Page Link</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleShare('twitter')}>
+                    <Twitter className="mr-2 h-4 w-4" />
+                    <span>Twitter</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleShare('facebook')}>
+                    <Facebook className="mr-2 h-4 w-4" />
+                    <span>Facebook</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleShare('linkedin')}>
+                    <Linkedin className="mr-2 h-4 w-4" />
+                    <span>LinkedIn</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleShare('whatsapp')}>
+                    <WhatsAppIcon />
+                    <span className="ml-2">WhatsApp</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleShare('copy')}>
+                    <ClipboardCopy className="mr-2 h-4 w-4" />
+                    <span>Copy Page Link</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

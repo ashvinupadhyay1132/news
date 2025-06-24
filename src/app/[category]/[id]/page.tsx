@@ -2,10 +2,10 @@
 import type { Metadata, ResolvingMetadata } from 'next';
 import { getArticleById, getArticles, type Article } from '@/lib/placeholder-data';
 import ArticlePageClientContent from '@/components/article-page-client-content';
-import { NewspaperIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link'; // For the fallback "Not Found" state
+import Image from 'next/image';
 
 const SITE_BASE_URL = 'https://www.newshunt.blog';
 const DEFAULT_OG_IMAGE_URL = 'https://placehold.co/1200x630.png'; // Updated to use a placeholder
@@ -88,7 +88,7 @@ export default async function ArticlePageContainer({ params }: Props) {
     // Fallback UI if article not found, consistent with generateMetadata
     return (
       <div className="text-center py-12 max-w-2xl mx-auto">
-        <NewspaperIcon className="mx-auto h-16 w-16 text-muted-foreground mb-6" />
+        <Image src="/logo.svg" alt="NewsHunt Logo" width={64} height={64} className="mx-auto h-16 w-16 text-muted-foreground mb-6" />
         <h1 className="text-3xl font-semibold mb-4">Article Not Found</h1>
         <p className="text-muted-foreground mb-8">
           The article you were looking for (ID: {params.id}) does not exist or may have been moved.

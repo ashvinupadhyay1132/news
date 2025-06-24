@@ -7,14 +7,36 @@ import Image from "next/image";
 import Link from "next/link";
 import { generateAiHintFromTitle } from "@/lib/utils";
 import { Button } from "./ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
-import { Share2 } from "lucide-react";
+import { Share2, Twitter, Facebook, Linkedin, ClipboardCopy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ArticleCardProps {
   article: Article;
 }
+
+const WhatsAppIcon = () => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+    >
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+    </svg>
+  );
 
 const ArticleCard = ({ article }: ArticleCardProps) => {
   const { toast } = useToast();
@@ -60,7 +82,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
         break;
       case 'copy':
         navigator.clipboard.writeText(pageUrl).then(() => {
-          toast({ title: "Page Link Copied!", description: "Link to this article page copied to clipboard." });
+          toast({ title: "Link Copied!", description: "Link to this article page copied to clipboard." });
         }).catch(err => {
           toast({ title: "Error", description: "Could not copy link.", variant: "destructive" });
         });
@@ -70,6 +92,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
       window.open(shareUrl, '_blank', 'noopener,noreferrer');
     }
   };
+
 
   return (
     <Card className="flex flex-col h-full overflow-hidden rounded-lg bg-card transition-shadow duration-300 hover:shadow-lg">
@@ -114,17 +137,32 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!pageUrl}>
-                <Share2 className="h-4 w-4" />
-                <span className="sr-only">Share</span>
-              </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!pageUrl}>
+                  <Share2 className="h-4 w-4" />
+                  <span className="sr-only">Share</span>
+                </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleShare('twitter')}>Twitter</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('facebook')}>Facebook</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('linkedin')}>LinkedIn</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('whatsapp')}>WhatsApp</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare('copy')}>Copy Link</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('twitter')}>
+                <Twitter className="mr-2 h-4 w-4" />
+                <span>Twitter</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('facebook')}>
+                <Facebook className="mr-2 h-4 w-4" />
+                <span>Facebook</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('linkedin')}>
+                <Linkedin className="mr-2 h-4 w-4" />
+                <span>LinkedIn</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('whatsapp')}>
+                <WhatsAppIcon />
+                <span className="ml-2">WhatsApp</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleShare('copy')}>
+                <ClipboardCopy className="mr-2 h-4 w-4" />
+                <span>Copy Link</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

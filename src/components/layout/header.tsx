@@ -1,10 +1,8 @@
-
 "use client";
 
 import Link from 'next/link';
 import Image from 'next/image';
 import { Menu as MenuIcon, UserCog, LogOut, LayoutDashboard, Home, RefreshCw } from 'lucide-react';
-import ClientSearchBar from './ClientSearchBar';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/ui/button';
 import { useState, useCallback, useEffect } from 'react';
@@ -16,6 +14,7 @@ import { cn, clearArticleCache } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import dynamic from 'next/dynamic';
+import ClientSearchBar from './ClientSearchBar';
 
 const LoginModal = dynamic(() => import('@/components/login-modal'), {
   ssr: false, // The modal is a client-only interactive component
@@ -57,7 +56,7 @@ const Header = () => {
         <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-50 border-b">
           <div className="container mx-auto px-4 py-3">
             <div className="flex justify-between items-center w-full gap-4">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
                 <Link href="/" className="flex items-center gap-2 text-foreground">
                   <Image
                     src="/logo.svg"
@@ -66,15 +65,12 @@ const Header = () => {
                     height={20}
                     className="h-5 w-5"
                   />
-                  <div className="text-base font-bold whitespace-nowrap font-mono">NewsHunt</div>
+                  <div className="text-sm font-bold whitespace-nowrap font-mono leading-none">NewsHunt</div>
                 </Link>
-                {/* Nav items are now in the sheet menu for all screen sizes */}
               </div>
 
               <div className="flex items-center gap-x-1 sm:gap-x-2">
-                <div className="hidden sm:block w-full max-w-xs">
-                  <ClientSearchBar />
-                </div>
+                <ClientSearchBar />
 
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -90,7 +86,6 @@ const Header = () => {
 
                 <ModeToggle />
                 
-                {/* Sheet Menu Trigger for all screen sizes */}
                 <div>
                   <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                     <SheetTrigger asChild>
@@ -156,9 +151,7 @@ const Header = () => {
                 </div>
               </div>
             </div>
-            <div className="sm:hidden mt-3">
-              <ClientSearchBar />
-            </div>
+            
           </div>
         </header>
       </TooltipProvider>

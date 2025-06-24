@@ -1,22 +1,39 @@
-
 "use client";
 
 import dynamic from 'next/dynamic';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { Search } from 'lucide-react';
+import { useState } from 'react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
-const SearchBarFallback = () => (
-  <div className="flex w-full max-w-sm items-center space-x-2" aria-label="Loading search bar">
-    <Skeleton className="h-10 flex-grow rounded-md" />
-    <Skeleton className="h-10 w-10 rounded-md" />
-  </div>
-);
-
-// Dynamically import SearchBar only on the client-side
 const SearchBar = dynamic(() => import('@/components/search-bar'), {
-  ssr: false, // Disable server-side rendering for this component
-  loading: () => <SearchBarFallback />, // Show a skeleton while loading
+  ssr: false, 
+  loading: () => <Skeleton className="h-10 w-[250px]" />,
 });
 
 export default function ClientSearchBar() {
-  return <SearchBar />;
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
+              <Search className="h-5 w-5" />
+              <span className="sr-only">Search</span>
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Search</p>
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent className="w-80 p-2" align="end">
+          <SearchBar onSearch={() => setOpen(false)} />
+      </PopoverContent>
+    </Popover>
+  );
 }

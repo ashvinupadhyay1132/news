@@ -18,11 +18,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Fetch all categories to generate category pages.
   const categories = await getCategories();
+
+  // Create a map to store the last modified date for each category
+  const categoryLastModifiedMap = new Map<string, Date>();
+  articles.forEach(article => {
+      const currentLatest = categoryLastModifiedMap.get(article.category);
+      const articleDate = new Date(article.fetchedAt || article.date);
+      if (!currentLatest || articleDate > currentLatest) {
+          categoryLastModifiedMap.set(article.category, articleDate);
+      }
+  });
+
   const categoryEntries: MetadataRoute.Sitemap = categories
     .filter(category => category !== 'All') // Exclude the "All" virtual category.
     .map(category => ({
       url: `${SITE_BASE_URL}/?category=${encodeURIComponent(category)}`,
-      lastModified: new Date(),
+      lastModified: categoryLastModifiedMap.get(category) || new Date(),
       changeFrequency: 'daily',
       priority: 0.7,
     }));

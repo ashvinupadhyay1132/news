@@ -30,16 +30,15 @@ export async function GET() {
 
   const feedItems = articlesToInclude
     .map((article: Article) => {
-      const articleSourceUrl = article.sourceLink && article.sourceLink !== '#' ? article.sourceLink : `${siteUrl}${article.link}`;
       const internalArticleUrl = `${siteUrl}${article.link}`; 
 
       return `
         <item>
           <title>${escapeXml(article.title)}</title>
-          <link>${escapeXml(articleSourceUrl)}</link> 
+          <link>${escapeXml(internalArticleUrl)}</link> 
           <description>${escapeXml(article.summary)}</description>
           <pubDate>${new Date(article.date).toUTCString()}</pubDate>
-          <guid isPermaLink="false">${escapeXml(internalArticleUrl)}</guid> 
+          <guid isPermaLink="true">${escapeXml(internalArticleUrl)}</guid> 
           <category>${escapeXml(article.category)}</category>
           ${article.imageUrl && article.imageUrl !== 'https://placehold.co/600x400.png' ? `<enclosure url="${escapeXml(article.imageUrl)}" type="${article.imageUrl.endsWith('.png') ? 'image/png' : article.imageUrl.endsWith('.jpg') || article.imageUrl.endsWith('.jpeg') ? 'image/jpeg' : 'image/gif'}" />` : ''}
         </item>

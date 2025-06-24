@@ -6,6 +6,7 @@ import { getArticlesCollection } from '@/lib/mongodb';
 import { z } from 'zod';
 import { slugify } from '@/lib/utils';
 import { randomUUID } from 'crypto';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,9 +71,9 @@ export async function POST(request: NextRequest) {
         title: z.string().min(10).max(200),
         summary: z.string().min(20).max(500),
         content: z.string().optional(),
-        category: z.string().min(2),
-        source: z.string().min(2),
-        sourceLink: z.string().url(),
+        category: z.string().optional(),
+        source: z.string().optional(),
+        sourceLink: z.string().url().optional().or(z.literal('')),
         imageUrl: z.string().url().optional().or(z.literal('')),
     });
     
@@ -90,16 +91,20 @@ export async function POST(request: NextRequest) {
     const uniqueIdPart = randomUUID();
     const slugTitle = slugify(title);
     const finalId = `${slugTitle.substring(0, 80)}-${uniqueIdPart}`;
-    const finalLink = `/${slugify(category)}/${finalId}`;
+
+    const finalCategory = category || 'General';
+    const finalSource = source || 'Unknown Source';
+    const finalSourceLink = sourceLink || '#';
+    const finalLink = `/${slugify(finalCategory)}/${finalId}`;
     
     const newArticle = {
         id: finalId,
         title: title.trim(),
         summary,
         content: content || summary,
-        category,
-        source,
-        sourceLink,
+        category: finalCategory,
+        source: finalSource,
+        sourceLink: finalSourceLink,
         imageUrl: imageUrl || null,
         link: finalLink,
         date: new Date(),
@@ -114,6 +119,12 @@ export async function POST(request: NextRequest) {
     }
     
     const createdArticle = await articlesCollection.findOne({ _id: insertResult.insertedId });
+
+    // Revalidate relevant paths
+    revalidatePath('/');
+    revalidatePath('/[category]/[id]', 'layout');
+    revalidatePath('/sitemap.xml');
+    revalidatePath('/api/rss');
 
     return NextResponse.json({ success: true, message: 'Article created successfully.', article: createdArticle }, { status: 201 });
 

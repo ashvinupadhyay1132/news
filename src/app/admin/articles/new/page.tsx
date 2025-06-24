@@ -21,9 +21,9 @@ const articleFormSchema = z.object({
   title: z.string().min(10, { message: "Title must be at least 10 characters long." }).max(200, { message: "Title cannot be longer than 200 characters." }),
   summary: z.string().min(20, { message: "Summary must be at least 20 characters long." }).max(500, { message: "Summary cannot be longer than 500 characters." }),
   content: z.string().optional(),
-  category: z.string().min(2, { message: "Category is required." }),
-  source: z.string().min(2, { message: "Source is required." }),
-  sourceLink: z.string().url({ message: "Please enter a valid URL for the source link." }),
+  category: z.string().optional(),
+  source: z.string().optional(),
+  sourceLink: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
   imageUrl: z.string().url({ message: "Please enter a valid URL for the image." }).optional().or(z.literal('')),
 });
 
@@ -157,7 +157,7 @@ export default function AddNewArticlePage() {
                   name="category"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category</FormLabel>
+                      <FormLabel>Category (Optional)</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., Technology" {...field} />
                       </FormControl>
@@ -170,7 +170,7 @@ export default function AddNewArticlePage() {
                   name="source"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Source Name</FormLabel>
+                      <FormLabel>Source Name (Optional)</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., TechCrunch" {...field} />
                       </FormControl>
@@ -185,7 +185,7 @@ export default function AddNewArticlePage() {
                   name="sourceLink"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Source Link</FormLabel>
+                      <FormLabel>Source Link (Optional)</FormLabel>
                       <FormControl>
                         <Input placeholder="https://example.com/original-article" {...field} />
                       </FormControl>

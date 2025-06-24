@@ -5,6 +5,7 @@ import { getArticlesCollection } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { slugify } from '@/lib/utils';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +55,12 @@ export async function DELETE(
       return NextResponse.json({ success: false, message: 'Article not found.' }, { status: 404 });
     }
 
+    // Revalidate relevant paths
+    revalidatePath('/');
+    revalidatePath('/[category]/[id]', 'layout');
+    revalidatePath('/sitemap.xml');
+    revalidatePath('/api/rss');
+
     return NextResponse.json({ success: true, message: 'Article deleted successfully.' });
 
   } catch (error: any) {
@@ -67,9 +74,9 @@ const articleUpdateSchema = z.object({
   title: z.string().min(10).max(200),
   summary: z.string().min(20).max(500),
   content: z.string().optional(),
-  category: z.string().min(2),
-  source: z.string().min(2),
-  sourceLink: z.string().url(),
+  category: z.string().optional(),
+  source: z.string().optional(),
+  sourceLink: z.string().url().optional().or(z.literal('')),
   imageUrl: z.string().url().optional().or(z.literal('')),
 });
 
@@ -97,19 +104,22 @@ export async function PUT(
 
     const { title, summary, content, category, source, sourceLink, imageUrl } = parsedData.data;
 
-    // The internal link depends on the category and ID. The ID itself shouldn't change, but if the category changes, the link should be updated.
-    const finalLink = `/${slugify(category)}/${articleId}`;
-
-    const updateData = {
+    const updateData: { [key: string]: any } = {
         title: title.trim(),
         summary,
         content: content || summary,
-        category,
-        source,
-        sourceLink,
-        imageUrl: imageUrl || null,
-        link: finalLink, // Update the link in case category changed
     };
+    
+    // Only add optional fields to the update object if they were provided
+    if (category) {
+      updateData.category = category;
+      // If category changes, the internal link must be updated as well
+      updateData.link = `/${slugify(category)}/${articleId}`;
+    }
+    if (source) updateData.source = source;
+    if (sourceLink) updateData.sourceLink = sourceLink;
+    if (imageUrl !== undefined) updateData.imageUrl = imageUrl || null;
+
 
     const articlesCollection = await getArticlesCollection();
     
@@ -127,6 +137,15 @@ export async function PUT(
     }
 
     const updatedArticle = await articlesCollection.findOne(query);
+
+    // Revalidate relevant paths
+    if (updatedArticle) {
+        revalidatePath('/');
+        revalidatePath(`/${updatedArticle.category}/${updatedArticle.id}`);
+        revalidatePath('/sitemap.xml');
+        revalidatePath('/api/rss');
+    }
+
     if (updateResult.modifiedCount === 0) {
         return NextResponse.json({ success: true, message: 'No changes detected, but request was successful.', article: updatedArticle });
     }
