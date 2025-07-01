@@ -156,7 +156,7 @@ const ensureIndex = async (
 async function ensureAllIndexes(db: Db) {
     try {
         const articlesCollection = db.collection('articles');
-        await ensureIndex(articlesCollection, { createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 7 }, 'createdAt_ttl_index');
+        await ensureIndex(articlesCollection, { createdAt: 1 }, { name: 'createdAt_ttl_index', expireAfterSeconds: 60 * 60 * 24 * 5 }, 'createdAt_ttl_index');
         await ensureIndex(articlesCollection, { id: 1 }, { name: 'article_id_unique_idx', unique: true }, 'article_id_unique_idx');
         await ensureIndex(articlesCollection, { date: -1 }, { name: 'article_date_idx' }, 'article_date_idx');
         await ensureIndex(articlesCollection, { category: 1 }, { name: 'article_category_idx' }, 'article_category_idx');
