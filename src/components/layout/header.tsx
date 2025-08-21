@@ -65,7 +65,7 @@ const Header = () => {
                     height={20}
                     className="h-5 w-5"
                   />
-                  <div className="text-sm font-bold whitespace-nowrap font-mono leading-none">NewsHunt</div>
+                  <div className="text-base font-bold whitespace-nowrap font-mono leading-none">NewsHunt</div>
                 </Link>
               </div>
 
