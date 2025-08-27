@@ -32,7 +32,7 @@ export default function TopStory({ articles }: TopStoryProps) {
       clearInterval(timerRef.current);
     }
     if (articles.length > 1 && !isHovered) {
-      timerRef.current = setInterval(handleNext, 4000); // Increased to 4s for better UX
+      timerRef.current = setInterval(handleNext, 5000); // Increased to 5s for better mobile UX
     }
   }, [handleNext, articles.length, isHovered]);
 
@@ -71,25 +71,37 @@ export default function TopStory({ articles }: TopStoryProps) {
     resetTimer();
   };
 
+  // Handle touch events for mobile
+  const handleTouchStart = useCallback(() => {
+    setIsHovered(true);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsHovered(false);
+    resetTimer();
+  }, [resetTimer]);
+
   if (!articles || articles.length === 0) {
     return (
-      <div className="relative w-full aspect-[3/4] md:aspect-[16/9] overflow-hidden md:rounded-lg bg-neutral-900 flex items-center justify-center">
-        <div className="text-neutral-500 text-lg">No stories available</div>
+      <div className="relative w-full h-[280px] sm:h-[350px] md:h-[450px] lg:h-[500px] xl:h-[550px] overflow-hidden md:rounded-xl bg-neutral-900 flex items-center justify-center">
+        <div className="text-neutral-500 text-base md:text-lg">No stories available</div>
       </div>
     );
   }
 
   return (
     <div 
-      className="relative w-full aspect-[3/4] md:aspect-[16/9] overflow-hidden md:rounded-lg group text-white bg-neutral-900 shadow-2xl"
+      className="relative w-full h-[280px] sm:h-[350px] md:h-[450px] lg:h-[500px] xl:h-[550px] overflow-hidden rounded-lg md:rounded-xl group text-white bg-neutral-900 shadow-2xl"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Progress bar */}
       {articles.length > 1 && !isHovered && (
         <div className="absolute top-0 left-0 w-full h-1 bg-white/20 z-30">
           <div 
-            className="h-full bg-white transition-all duration-75 ease-linear"
+            className="h-full bg-[#F96915] transition-all duration-75 ease-linear shadow-sm"
             style={{
               width: `${((currentIndex + 1) / articles.length) * 100}%`
             }}
@@ -102,6 +114,12 @@ export default function TopStory({ articles }: TopStoryProps) {
         const formattedDate = new Date(article.date).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
+          day: 'numeric',
+        });
+        
+        // Responsive date format
+        const shortFormattedDate = new Date(article.date).toLocaleDateString('en-US', {
+          month: 'short',
           day: 'numeric',
         });
         
@@ -133,52 +151,58 @@ export default function TopStory({ articles }: TopStoryProps) {
                   className="object-cover transition-transform duration-700 ease-out group-hover/link:scale-110"
                   data-ai-hint={article.imageUrl && !hasImageError ? 'news story' : imageAiHint}
                   priority={index === 0}
-                  sizes="100vw"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
                   onError={() => handleImageError(article.id)}
                 />
                 
-                {/* Enhanced gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/10" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent" />
+                {/* Enhanced gradient overlay - mobile optimized */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20 md:from-black/90 md:via-black/50 md:to-black/10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent md:from-black/40" />
                 
-                {/* Content */}
-                <div className="absolute bottom-0 left-0 p-6 md:p-8 lg:p-10 w-full">
+                {/* Content - Responsive positioning */}
+                <div className="absolute bottom-0 left-0 p-4 sm:p-6 md:p-8 lg:p-10 w-full">
                   <div className="max-w-4xl">
                     {/* Category Badge */}
                     <Badge 
                       variant="secondary" 
-                      className="mb-3 text-xs md:text-sm rounded-full py-1.5 px-4 bg-white/15 text-white border-white/20 backdrop-blur-sm hover:bg-white/25 transition-colors"
+                      className="mb-2 sm:mb-3 text-xs sm:text-sm rounded-full py-1 sm:py-1.5 px-2 sm:px-4 bg-[#F96915]/90 text-white border-[#F96915]/50 backdrop-blur-sm hover:bg-[#F96915] transition-all duration-300 shadow-lg"
                     >
-                      <Plane className="mr-2 h-3 w-3 md:h-4 md:w-4" />
-                      {article.category}
+                      <Plane className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="font-medium">{article.category}</span>
                     </Badge>
                     
-                    {/* Date and Time */}
-                    <div className="flex items-center gap-4 mb-3">
-                      <div className="flex items-center text-xs md:text-sm text-gray-200/90">
-                        <Calendar className="mr-1.5 h-3 w-3 md:h-4 md:w-4" />
-                        {formattedDate}
+                    {/* Date and Time - Responsive layout */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-2 sm:mb-3">
+                      <div className="flex items-center text-xs sm:text-sm text-gray-200/90">
+                        <Calendar className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">{formattedDate}</span>
+                        <span className="sm:hidden">{shortFormattedDate}</span>
                       </div>
-                      <div className="flex items-center text-xs md:text-sm text-gray-200/90">
-                        <Clock className="mr-1.5 h-3 w-3 md:h-4 md:w-4" />
+                      <div className="flex items-center text-xs sm:text-sm text-gray-200/90">
+                        <Clock className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
                         {timeAgo}
                       </div>
                     </div>
                     
-                    {/* Title */}
-                    <h1 className="text-xl md:text-3xl lg:text-4xl font-bold leading-tight line-clamp-2 md:line-clamp-3 mb-3 text-white group-hover/link:text-blue-100 transition-colors">
+                    {/* Title - Responsive text sizing */}
+                    <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold leading-tight line-clamp-2 sm:line-clamp-3 mb-2 sm:mb-3 text-white group-hover/link:text-[#F96915]/90 transition-colors duration-300">
                       {article.title}
                     </h1>
                     
-                    {/* Summary */}
-                    <p className="text-sm md:text-base lg:text-lg text-gray-200/90 line-clamp-2 md:line-clamp-3 mb-6 leading-relaxed">
+                    {/* Summary - Responsive visibility */}
+                    <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-200/90 line-clamp-2 md:line-clamp-3 mb-4 sm:mb-6 leading-relaxed hidden sm:block">
                       {article.summary}
                     </p>
                     
-                    {/* Read More Button */}
-                    <div className="inline-flex items-center gap-2 font-semibold text-sm md:text-base text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full backdrop-blur-sm border border-white/20 transition-all duration-300 group-hover/link:scale-105">
+                    {/* Mobile summary - shorter version */}
+                    <p className="text-xs text-gray-200/90 line-clamp-1 mb-3 leading-relaxed sm:hidden">
+                      {article.summary}
+                    </p>
+                    
+                    {/* Read More Button - Responsive sizing */}
+                    <div className="inline-flex items-center gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm md:text-base text-white bg-[#F96915]/80 hover:bg-[#F96915] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full backdrop-blur-sm border border-[#F96915]/30 transition-all duration-300 group-hover/link:scale-105 shadow-lg hover:shadow-xl">
                       <span>Read Full Story</span>
-                      <ChevronRight className="h-4 w-4 transition-transform group-hover/link:translate-x-1" />
+                      <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 transition-transform group-hover/link:translate-x-1" />
                     </div>
                   </div>
                 </div>
@@ -191,38 +215,38 @@ export default function TopStory({ articles }: TopStoryProps) {
       {/* Navigation Controls */}
       {articles.length > 1 && (
         <>
-          {/* Navigation Buttons */}
+          {/* Navigation Buttons - Responsive positioning */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-11 w-11 md:h-12 md:w-12 rounded-full bg-black/40 text-white transition-all duration-300 hover:bg-black/60 hover:scale-110 backdrop-blur-sm border border-white/10"
+            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg"
             onClick={onPrevClick}
             aria-label="Previous story"
           >
-            <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" />
+            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </Button>
           
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-11 w-11 md:h-12 md:w-12 rounded-full bg-black/40 text-white transition-all duration-300 hover:bg-black/60 hover:scale-110 backdrop-blur-sm border border-white/10"
+            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg"
             onClick={onNextClick}
             aria-label="Next story"
           >
-            <ChevronRight className="h-5 w-5 md:h-6 md:w-6" />
+            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </Button>
           
-          {/* Pagination Dots */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
+          {/* Pagination Dots - Responsive sizing and positioning */}
+          <div className="absolute bottom-3 sm:bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2 z-20 bg-black/40 backdrop-blur-sm px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-full border border-white/20">
             {articles.map((_, index) => (
               <button
                 key={index}
                 onClick={() => handleDotClick(index)}
                 className={cn(
-                  "transition-all duration-300 rounded-full border border-white/20",
+                  "transition-all duration-300 rounded-full border border-white/30",
                   currentIndex === index 
-                    ? "h-2.5 w-8 bg-white shadow-lg" 
-                    : "h-2.5 w-2.5 bg-white/50 hover:bg-white/75 hover:scale-125"
+                    ? "h-2 w-6 sm:h-2.5 sm:w-8 bg-[#F96915] shadow-lg border-[#F96915]/50" 
+                    : "h-2 w-2 sm:h-2.5 sm:w-2.5 bg-white/60 hover:bg-white/80 hover:scale-125"
                 )}
                 aria-label={`Go to slide ${index + 1}`}
               />
@@ -230,6 +254,13 @@ export default function TopStory({ articles }: TopStoryProps) {
           </div>
         </>
       )}
+
+      {/* Mobile swipe indicator */}
+      <div className="absolute top-4 right-4 z-20 sm:hidden">
+        <div className="bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full border border-white/20 text-xs text-white/80">
+          Swipe for more
+        </div>
+      </div>
     </div>
   );
 }
@@ -242,7 +273,9 @@ function getTimeAgo(date: Date): string {
   const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-  if (diffInMinutes < 60) {
+  if (diffInMinutes < 1) {
+    return 'Just now';
+  } else if (diffInMinutes < 60) {
     return `${diffInMinutes}m ago`;
   } else if (diffInHours < 24) {
     return `${diffInHours}h ago`;
