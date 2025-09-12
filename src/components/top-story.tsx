@@ -83,7 +83,7 @@ export default function TopStory({ articles }: TopStoryProps) {
 
   if (!articles || articles.length === 0) {
     return (
-      <div className="relative w-full h-[280px] sm:h-[350px] md:h-[450px] lg:h-[500px] xl:h-[550px] overflow-hidden md:rounded-xl bg-neutral-900 flex items-center justify-center">
+      <div className="relative w-full h-screen lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-xl bg-neutral-900 flex items-center justify-center">
         <div className="text-neutral-500 text-base md:text-lg">No stories available</div>
       </div>
     );
@@ -91,7 +91,7 @@ export default function TopStory({ articles }: TopStoryProps) {
 
   return (
     <div 
-      className="relative w-full h-[280px] sm:h-[350px] md:h-[450px] lg:h-[500px] xl:h-[550px] overflow-hidden rounded-lg md:rounded-xl group text-white bg-neutral-900 shadow-2xl"
+      className="relative w-full h-screen lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-xl group text-white bg-neutral-900 shadow-2xl"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onTouchStart={handleTouchStart}
@@ -156,11 +156,11 @@ export default function TopStory({ articles }: TopStoryProps) {
                 />
                 
                 {/* Enhanced gradient overlay - mobile optimized */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20 md:from-black/90 md:via-black/50 md:to-black/10" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent md:from-black/40" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20 lg:from-black/90 lg:via-black/50 lg:to-black/10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent lg:from-black/40" />
                 
                 {/* Content - Responsive positioning */}
-                <div className="absolute bottom-0 left-0 p-4 sm:p-6 md:p-8 lg:p-10 w-full">
+                <div className="absolute bottom-0 left-0 p-4 sm:p-6 lg:p-8 xl:p-10 w-full">
                   <div className="max-w-4xl">
                     {/* Category Badge */}
                     <Badge 
@@ -190,7 +190,7 @@ export default function TopStory({ articles }: TopStoryProps) {
                     </h1>
                     
                     {/* Summary - Responsive visibility */}
-                    <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-200/90 line-clamp-2 md:line-clamp-3 mb-4 sm:mb-6 leading-relaxed hidden sm:block">
+                    <p className="text-xs sm:text-sm lg:text-base xl:text-lg text-gray-200/90 line-clamp-2 lg:line-clamp-3 mb-4 sm:mb-6 leading-relaxed hidden sm:block">
                       {article.summary}
                     </p>
                     
@@ -200,7 +200,7 @@ export default function TopStory({ articles }: TopStoryProps) {
                     </p>
                     
                     {/* Read More Button - Responsive sizing */}
-                    <div className="inline-flex items-center gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm md:text-base text-white bg-[#F96915]/80 hover:bg-[#F96915] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full backdrop-blur-sm border border-[#F96915]/30 transition-all duration-300 group-hover/link:scale-105 shadow-lg hover:shadow-xl">
+                    <div className="inline-flex items-center gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm lg:text-base text-white bg-[#F96915]/80 hover:bg-[#F96915] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full backdrop-blur-sm border border-[#F96915]/30 transition-all duration-300 group-hover/link:scale-105 shadow-lg hover:shadow-xl">
                       <span>Read Full Story</span>
                       <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 transition-transform group-hover/link:translate-x-1" />
                     </div>
@@ -212,32 +212,32 @@ export default function TopStory({ articles }: TopStoryProps) {
         );
       })}
       
-      {/* Navigation Controls */}
+      {/* Navigation Controls - Hidden on mobile/tablet, visible on large screens */}
       {articles.length > 1 && (
         <>
-          {/* Navigation Buttons - Responsive positioning */}
+          {/* Navigation Buttons - Hidden below lg breakpoint */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg"
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg hidden lg:flex"
             onClick={onPrevClick}
             aria-label="Previous story"
           >
-            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+            <ChevronLeft className="h-6 w-6" />
           </Button>
           
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg"
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg hidden lg:flex"
             onClick={onNextClick}
             aria-label="Next story"
           >
-            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+            <ChevronRight className="h-6 w-6" />
           </Button>
           
           {/* Pagination Dots - Responsive sizing and positioning */}
-          <div className="absolute bottom-3 sm:bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2 z-20 bg-black/40 backdrop-blur-sm px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-full border border-white/20">
+          <div className="absolute bottom-3 sm:bottom-4 lg:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2 z-20 bg-black/40 backdrop-blur-sm px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 rounded-full border border-white/20">
             {articles.map((_, index) => (
               <button
                 key={index}
@@ -255,8 +255,8 @@ export default function TopStory({ articles }: TopStoryProps) {
         </>
       )}
 
-      {/* Mobile swipe indicator */}
-      <div className="absolute top-4 right-4 z-20 sm:hidden">
+      {/* Mobile swipe indicator - Only show on mobile/tablet */}
+      <div className="absolute top-4 right-4 z-20 lg:hidden">
         <div className="bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full border border-white/20 text-xs text-white/80">
           Swipe for more
         </div>
