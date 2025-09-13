@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Plane, Clock, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plane, Clock, Calendar, Play } from 'lucide-react';
 import { generateAiHintFromTitle, cn } from '@/lib/utils';
 
 interface TopStoryProps {
@@ -34,7 +34,7 @@ export default function TopStory({ articles }: TopStoryProps) {
     if (articles.length > 1 && !isHovered) {
       timerRef.current = setTimeout(() => {
         handleNext();
-      }, 5000);
+      }, 6000);
     }
   }, [articles.length, isHovered, handleNext]);
 
@@ -53,10 +53,10 @@ export default function TopStory({ articles }: TopStoryProps) {
     setImageLoadErrors((prev) => new Set(prev).add(articleId));
   };
 
-  // Touch swipe
+  // Touch swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
-    setIsHovered(true); // pause auto
+    setIsHovered(true);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -74,26 +74,26 @@ export default function TopStory({ articles }: TopStoryProps) {
 
   if (!articles || articles.length === 0) {
     return (
-      <div className="relative w-full h-screen lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-xl bg-neutral-900 flex items-center justify-center">
-        <div className="text-neutral-500 text-base md:text-lg">No stories available</div>
+      <div className="relative w-full h-[60vh] sm:h-[70vh] lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-slate-400 text-base md:text-lg">No stories available</div>
       </div>
     );
   }
 
   return (
     <div
-      className="relative w-full h-screen lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-xl group text-white bg-neutral-900 shadow-2xl"
+      className="relative w-full h-[60vh] sm:h-[70vh] lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-2xl group text-white bg-slate-900 shadow-2xl border border-slate-800/50"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Progress bar */}
+      {/* Modern progress bar */}
       {articles.length > 1 && !isHovered && (
-        <div className="absolute top-0 left-0 w-full h-1 bg-white/20 z-30">
+        <div className="absolute top-0 left-0 w-full h-0.5 bg-white/10 z-30">
           <div
-            key={currentIndex} // restart animation
-            className="h-full bg-[#F96915] animate-[grow_5s_linear]"
+            key={currentIndex}
+            className="h-full bg-gradient-to-r from-orange-500 to-red-500 animate-[grow_6s_linear]"
           />
         </div>
       )}
@@ -112,7 +112,7 @@ export default function TopStory({ articles }: TopStoryProps) {
         });
 
         const timeAgo = getTimeAgo(new Date(article.date));
-        const placeholderImageSrc = `https://placehold.co/1200x675/1f2937/9ca3af?text=News+Story`;
+        const placeholderImageSrc = `https://placehold.co/1200x675/1e293b/64748b?text=Breaking+News`;
         const imageAiHint = generateAiHintFromTitle(article.title, article.category);
         const hasImageError = imageLoadErrors.has(article.id);
 
@@ -120,8 +120,10 @@ export default function TopStory({ articles }: TopStoryProps) {
           <div
             key={article.id}
             className={cn(
-              'absolute inset-0 transition-all duration-700 ease-in-out',
-              isActive ? 'opacity-100 z-10 scale-100' : 'opacity-0 z-0 scale-105'
+              'absolute inset-0 transition-all duration-1000 ease-out',
+              isActive 
+                ? 'opacity-100 z-10 scale-100 translate-x-0' 
+                : 'opacity-0 z-0 scale-105 translate-x-8'
             )}
             aria-hidden={!isActive}
           >
@@ -136,55 +138,76 @@ export default function TopStory({ articles }: TopStoryProps) {
                   src={hasImageError || !article.imageUrl ? placeholderImageSrc : article.imageUrl}
                   alt={article.title}
                   fill
-                  className="object-cover transition-transform duration-700 ease-out group-hover/link:scale-110"
+                  className="object-cover object-center transition-transform duration-1000 ease-out group-hover/link:scale-105"
                   data-ai-hint={article.imageUrl && !hasImageError ? 'news story' : imageAiHint}
                   priority={index === 0}
                   sizes="100vw"
                   onError={() => handleImageError(article.id)}
                 />
 
-                {/* Gradient overlays */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20 lg:from-black/90 lg:via-black/50 lg:to-black/10" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent lg:from-black/40" />
+                {/* Modern gradient overlays */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+                
+                {/* Subtle noise texture overlay for modern look */}
+                <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.02"%3E%3Ccircle cx="7" cy="7" r="1"/%3E%3Ccircle cx="27" cy="7" r="1"/%3E%3Ccircle cx="47" cy="7" r="1"/%3E%3Ccircle cx="7" cy="27" r="1"/%3E%3Ccircle cx="27" cy="27" r="1"/%3E%3Ccircle cx="47" cy="27" r="1"/%3E%3Ccircle cx="7" cy="47" r="1"/%3E%3Ccircle cx="27" cy="47" r="1"/%3E%3Ccircle cx="47" cy="47" r="1"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]" />
 
-                {/* Content */}
-                <div className="absolute bottom-0 left-0 p-4 sm:p-6 lg:p-8 xl:p-10 w-full">
-                  <div className="max-w-4xl">
-                    <Badge
-                      variant="secondary"
-                      className="mb-2 sm:mb-3 text-xs sm:text-sm rounded-full py-1 sm:py-1.5 px-2 sm:px-4 bg-[#F96915]/90 text-white border-[#F96915]/50 backdrop-blur-sm"
-                    >
-                      <Plane className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                      {article.category}
-                    </Badge>
+                {/* Content container with better positioning */}
+                <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6 lg:p-8 xl:p-10">
+                  <div className="max-w-4xl space-y-3 sm:space-y-4">
+                    {/* Modern category badge */}
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        variant="secondary"
+                        className="text-xs sm:text-sm rounded-full py-1.5 sm:py-2 px-3 sm:px-4 bg-gradient-to-r from-orange-500/90 to-red-500/90 text-white border-0 backdrop-blur-md shadow-lg"
+                      >
+                        <Plane className="mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                        {article.category}
+                      </Badge>
+                      
+                      {/* Live indicator for fresh news */}
+                      {timeAgo.includes('m ago') && (
+                        <div className="flex items-center gap-1.5 text-xs bg-red-500/80 text-white px-2 py-1 rounded-full backdrop-blur-sm">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                          LIVE
+                        </div>
+                      )}
+                    </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-2 sm:mb-3 text-gray-200/90">
+                    {/* Date and time info */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-gray-200/80">
                       <div className="flex items-center text-xs sm:text-sm">
-                        <Calendar className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        <Calendar className="mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
                         <span className="hidden sm:inline">{formattedDate}</span>
                         <span className="sm:hidden">{shortFormattedDate}</span>
                       </div>
                       <div className="flex items-center text-xs sm:text-sm">
-                        <Clock className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        <Clock className="mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
                         {timeAgo}
                       </div>
                     </div>
 
-                    <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold line-clamp-2 sm:line-clamp-3 mb-2 sm:mb-3">
+                    {/* Modern headline */}
+                    <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold leading-tight line-clamp-2 sm:line-clamp-3 bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
                       {article.title}
                     </h1>
 
-                    <p className="hidden sm:block text-sm lg:text-base xl:text-lg text-gray-200/90 line-clamp-3 mb-4 sm:mb-6">
+                    {/* Summary text with better typography */}
+                    <p className="hidden sm:block text-sm lg:text-base xl:text-lg text-gray-200/80 line-clamp-3 leading-relaxed">
                       {article.summary}
                     </p>
 
-                    <p className="sm:hidden text-xs text-gray-200/90 line-clamp-1 mb-3">
+                    <p className="sm:hidden text-xs text-gray-300/70 line-clamp-1">
                       {article.summary}
                     </p>
 
-                    <div className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base font-semibold bg-[#F96915]/80 hover:bg-[#F96915] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full">
-                      <span>Read Full Story</span>
-                      <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                    {/* Modern CTA button */}
+                    <div className="pt-2">
+                      <div className="inline-flex items-center gap-2 text-xs sm:text-sm lg:text-base font-semibold bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 px-4 sm:px-6 py-2 sm:py-3 rounded-full transition-all duration-300 transform hover:scale-105 hover:shadow-lg backdrop-blur-sm">
+                        <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span>Read Story</span>
+                        <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -194,13 +217,13 @@ export default function TopStory({ articles }: TopStoryProps) {
         );
       })}
 
-      {/* Navigation Controls */}
+      {/* Modern Navigation Controls */}
       {articles.length > 1 && (
         <>
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 hidden lg:flex bg-black/50 hover:bg-[#F96915]/80"
+            className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-20 hidden lg:flex h-12 w-12 bg-black/40 hover:bg-gradient-to-r hover:from-orange-500/80 hover:to-red-500/80 backdrop-blur-md border border-white/20 rounded-full transition-all duration-300"
             onClick={handlePrev}
           >
             <ChevronLeft className="h-6 w-6 text-white" />
@@ -209,38 +232,47 @@ export default function TopStory({ articles }: TopStoryProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 hidden lg:flex bg-black/50 hover:bg-[#F96915]/80"
+            className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-20 hidden lg:flex h-12 w-12 bg-black/40 hover:bg-gradient-to-r hover:from-orange-500/80 hover:to-red-500/80 backdrop-blur-md border border-white/20 rounded-full transition-all duration-300"
             onClick={handleNext}
           >
             <ChevronRight className="h-6 w-6 text-white" />
           </Button>
 
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/40 px-3 py-1.5 rounded-full">
+          {/* Modern dot indicators */}
+          <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
             {articles.map((_, index) => (
               <button
                 key={index}
                 onClick={() => handleDotClick(index)}
                 className={cn(
-                  'transition-all rounded-full',
+                  'transition-all duration-300 rounded-full',
                   currentIndex === index
-                    ? 'h-2 w-6 bg-[#F96915]'
-                    : 'h-2 w-2 bg-white/60 hover:bg-white/80'
+                    ? 'h-2 w-8 bg-gradient-to-r from-orange-500 to-red-500 shadow-lg'
+                    : 'h-2 w-2 bg-white/50 hover:bg-white/70 hover:scale-110'
                 )}
+                aria-label={`Go to slide ${index + 1}`}
               />
             ))}
           </div>
         </>
       )}
 
-      {/* Swipe hint */}
-      <div className="absolute top-4 right-4 z-20 lg:hidden text-xs bg-black/40 px-2 py-1 rounded-full">
-        Swipe for more
+      {/* Modern swipe hint */}
+      <div className="absolute top-4 right-4 z-20 lg:hidden">
+        <div className="flex items-center gap-1.5 text-xs bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full border border-white/20">
+          <div className="flex gap-0.5">
+            <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse" />
+            <div className="w-1 h-1 bg-white/40 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+            <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+          </div>
+          Swipe
+        </div>
       </div>
     </div>
   );
 }
 
-// Helper
+// Helper function with better time formatting
 function getTimeAgo(date: Date): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
