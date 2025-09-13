@@ -262,8 +262,8 @@ export default function TopStory({ articles }: TopStoryProps) {
         <div className="flex items-center gap-1.5 text-xs bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full border border-white/20">
           <div className="flex gap-0.5">
             <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse" />
-            <div className="w-1 h-1 bg-white/40 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-            <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+            <div className="w-1 h-1 bg-white/40 rounded-full animate-pulse [animation-delay:200ms]" />
+            <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse [animation-delay:400ms]" />
           </div>
           Swipe
         </div>
