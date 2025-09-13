@@ -53,7 +53,6 @@ export default function TopStory({ articles }: TopStoryProps) {
     setImageLoadErrors((prev) => new Set(prev).add(articleId));
   };
 
-  // Touch swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     setIsHovered(true);
@@ -88,7 +87,6 @@ export default function TopStory({ articles }: TopStoryProps) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Modern progress bar */}
       {articles.length > 1 && !isHovered && (
         <div className="absolute top-0 left-0 w-full h-0.5 bg-white/10 z-30">
           <div
@@ -145,17 +143,11 @@ export default function TopStory({ articles }: TopStoryProps) {
                   onError={() => handleImageError(article.id)}
                 />
 
-                {/* Modern gradient overlays */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
-                
-                {/* Subtle noise texture overlay for modern look */}
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.02"%3E%3Ccircle cx="7" cy="7" r="1"/%3E%3Ccircle cx="27" cy="7" r="1"/%3E%3Ccircle cx="47" cy="7" r="1"/%3E%3Ccircle cx="7" cy="27" r="1"/%3E%3Ccircle cx="27" cy="27" r="1"/%3E%3Ccircle cx="47" cy="27" r="1"/%3E%3Ccircle cx="7" cy="47" r="1"/%3E%3Ccircle cx="27" cy="47" r="1"/%3E%3Ccircle cx="47" cy="47" r="1"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]" />
 
-                {/* Content container with better positioning */}
                 <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6 lg:p-8 xl:p-10">
                   <div className="max-w-4xl space-y-3 sm:space-y-4">
-                    {/* Modern category badge */}
                     <div className="flex items-center gap-3">
                       <Badge
                         variant="secondary"
@@ -165,7 +157,6 @@ export default function TopStory({ articles }: TopStoryProps) {
                         {article.category}
                       </Badge>
                       
-                      {/* Live indicator for fresh news */}
                       {timeAgo.includes('m ago') && (
                         <div className="flex items-center gap-1.5 text-xs bg-red-500/80 text-white px-2 py-1 rounded-full backdrop-blur-sm">
                           <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
@@ -174,7 +165,6 @@ export default function TopStory({ articles }: TopStoryProps) {
                       )}
                     </div>
 
-                    {/* Date and time info */}
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-gray-200/80">
                       <div className="flex items-center text-xs sm:text-sm">
                         <Calendar className="mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
@@ -187,12 +177,10 @@ export default function TopStory({ articles }: TopStoryProps) {
                       </div>
                     </div>
 
-                    {/* Modern headline */}
                     <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold leading-tight line-clamp-2 sm:line-clamp-3 bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
                       {article.title}
                     </h1>
 
-                    {/* Summary text with better typography */}
                     <p className="hidden sm:block text-sm lg:text-base xl:text-lg text-gray-200/80 line-clamp-3 leading-relaxed">
                       {article.summary}
                     </p>
@@ -201,7 +189,6 @@ export default function TopStory({ articles }: TopStoryProps) {
                       {article.summary}
                     </p>
 
-                    {/* Modern CTA button */}
                     <div className="pt-2">
                       <div className="inline-flex items-center gap-2 text-xs sm:text-sm lg:text-base font-semibold bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 px-4 sm:px-6 py-2 sm:py-3 rounded-full transition-all duration-300 transform hover:scale-105 hover:shadow-lg backdrop-blur-sm">
                         <Play className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -217,7 +204,6 @@ export default function TopStory({ articles }: TopStoryProps) {
         );
       })}
 
-      {/* Modern Navigation Controls */}
       {articles.length > 1 && (
         <>
           <Button
@@ -238,7 +224,6 @@ export default function TopStory({ articles }: TopStoryProps) {
             <ChevronRight className="h-6 w-6 text-white" />
           </Button>
 
-          {/* Modern dot indicators */}
           <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
             {articles.map((_, index) => (
               <button
@@ -257,13 +242,12 @@ export default function TopStory({ articles }: TopStoryProps) {
         </>
       )}
 
-      {/* Modern swipe hint */}
       <div className="absolute top-4 right-4 z-20 lg:hidden">
         <div className="flex items-center gap-1.5 text-xs bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full border border-white/20">
           <div className="flex gap-0.5">
             <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse" />
-            <div className="w-1 h-1 bg-white/40 rounded-full animate-pulse [animation-delay:200ms]" />
-            <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse [animation-delay:400ms]" />
+            <div className="w-1 h-1 bg-white/40 rounded-full animate-pulse" />
+            <div className="w-1 h-1 bg-white/60 rounded-full animate-pulse" />
           </div>
           Swipe
         </div>
@@ -272,7 +256,6 @@ export default function TopStory({ articles }: TopStoryProps) {
   );
 }
 
-// Helper function with better time formatting
 function getTimeAgo(date: Date): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
