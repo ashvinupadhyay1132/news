@@ -55,7 +55,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
   });
 
   const imageAiHintForPlaceholder = generateAiHintFromTitle(article.title, article.category);
-  const placeholderImageSrc = `https://placehold.co/600x400.png`;
+  const placeholderImageSrc = `https://thumbs.dreamstime.com/b/bright-blue-orange-text-displays-breaking-news-digital-screen-surrounded-abstract-data-visualization-elements-386391298.jpg?w=768`;
   
   const pageUrl = siteOrigin && article.link ? `${siteOrigin}${article.link}` : '';
 
