@@ -18,6 +18,7 @@ export default function TopStory({ articles }: TopStoryProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoadErrors, setImageLoadErrors] = useState<Set<string>>(new Set());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const handleNext = useCallback(() => {
     setCurrentIndex((prevIndex) => (prevIndex + 1) % articles.length);
@@ -28,58 +29,48 @@ export default function TopStory({ articles }: TopStoryProps) {
   }, [articles.length]);
 
   const resetTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (timerRef.current) clearTimeout(timerRef.current);
+
     if (articles.length > 1 && !isHovered) {
-      timerRef.current = setInterval(handleNext, 5000); // Increased to 5s for better mobile UX
+      timerRef.current = setTimeout(() => {
+        handleNext();
+      }, 5000);
     }
-  }, [handleNext, articles.length, isHovered]);
+  }, [articles.length, isHovered, handleNext]);
 
   useEffect(() => {
     resetTimer();
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [resetTimer]);
+  }, [resetTimer, currentIndex]);
 
-  const handleDotClick = useCallback((index: number) => {
-    if (index === currentIndex) return;
+  const handleDotClick = (index: number) => {
     setCurrentIndex(index);
-    resetTimer();
-  }, [currentIndex, resetTimer]);
-
-  const onPrevClick = useCallback(() => {
-    handlePrev();
-    resetTimer();
-  }, [handlePrev, resetTimer]);
-
-  const onNextClick = useCallback(() => {
-    handleNext();
-    resetTimer();
-  }, [handleNext, resetTimer]);
-
-  const handleImageError = useCallback((articleId: string) => {
-    setImageLoadErrors(prev => new Set(prev).add(articleId));
-  }, []);
-
-  const handleMouseEnter = () => setIsHovered(true);
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-    resetTimer();
   };
 
-  // Handle touch events for mobile
-  const handleTouchStart = useCallback(() => {
-    setIsHovered(true);
-  }, []);
+  const handleImageError = (articleId: string) => {
+    setImageLoadErrors((prev) => new Set(prev).add(articleId));
+  };
 
-  const handleTouchEnd = useCallback(() => {
+  // Touch swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    setIsHovered(true); // pause auto
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current !== null) {
+      const diff = e.changedTouches[0].clientX - touchStartX.current;
+      if (diff > 50) {
+        handlePrev();
+      } else if (diff < -50) {
+        handleNext();
+      }
+    }
+    touchStartX.current = null;
     setIsHovered(false);
-    resetTimer();
-  }, [resetTimer]);
+  };
 
   if (!articles || articles.length === 0) {
     return (
@@ -90,21 +81,19 @@ export default function TopStory({ articles }: TopStoryProps) {
   }
 
   return (
-    <div 
+    <div
       className="relative w-full h-screen lg:h-[500px] xl:h-[550px] overflow-hidden lg:rounded-xl group text-white bg-neutral-900 shadow-2xl"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
       {/* Progress bar */}
       {articles.length > 1 && !isHovered && (
         <div className="absolute top-0 left-0 w-full h-1 bg-white/20 z-30">
-          <div 
-            className="h-full bg-[#F96915] transition-all duration-75 ease-linear shadow-sm"
-            style={{
-              width: `${((currentIndex + 1) / articles.length) * 100}%`
-            }}
+          <div
+            key={currentIndex} // restart animation
+            className="h-full bg-[#F96915] animate-[grow_5s_linear]"
           />
         </div>
       )}
@@ -116,13 +105,12 @@ export default function TopStory({ articles }: TopStoryProps) {
           month: 'long',
           day: 'numeric',
         });
-        
-        // Responsive date format
+
         const shortFormattedDate = new Date(article.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
         });
-        
+
         const timeAgo = getTimeAgo(new Date(article.date));
         const placeholderImageSrc = `https://placehold.co/1200x675/1f2937/9ca3af?text=News+Story`;
         const imageAiHint = generateAiHintFromTitle(article.title, article.category);
@@ -132,14 +120,14 @@ export default function TopStory({ articles }: TopStoryProps) {
           <div
             key={article.id}
             className={cn(
-              "absolute inset-0 transition-all duration-700 ease-in-out",
-              isActive ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
+              'absolute inset-0 transition-all duration-700 ease-in-out',
+              isActive ? 'opacity-100 z-10 scale-100' : 'opacity-0 z-0 scale-105'
             )}
             aria-hidden={!isActive}
           >
-            <Link 
-              href={article.link} 
-              className="block h-full w-full group/link" 
+            <Link
+              href={article.link}
+              className="block h-full w-full group/link"
               tabIndex={isActive ? 0 : -1}
               aria-label={`Read article: ${article.title}`}
             >
@@ -151,58 +139,52 @@ export default function TopStory({ articles }: TopStoryProps) {
                   className="object-cover transition-transform duration-700 ease-out group-hover/link:scale-110"
                   data-ai-hint={article.imageUrl && !hasImageError ? 'news story' : imageAiHint}
                   priority={index === 0}
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
+                  sizes="100vw"
                   onError={() => handleImageError(article.id)}
                 />
-                
-                {/* Enhanced gradient overlay - mobile optimized */}
+
+                {/* Gradient overlays */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20 lg:from-black/90 lg:via-black/50 lg:to-black/10" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent lg:from-black/40" />
-                
-                {/* Content - Responsive positioning */}
+
+                {/* Content */}
                 <div className="absolute bottom-0 left-0 p-4 sm:p-6 lg:p-8 xl:p-10 w-full">
                   <div className="max-w-4xl">
-                    {/* Category Badge */}
-                    <Badge 
-                      variant="secondary" 
-                      className="mb-2 sm:mb-3 text-xs sm:text-sm rounded-full py-1 sm:py-1.5 px-2 sm:px-4 bg-[#F96915]/90 text-white border-[#F96915]/50 backdrop-blur-sm hover:bg-[#F96915] transition-all duration-300 shadow-lg"
+                    <Badge
+                      variant="secondary"
+                      className="mb-2 sm:mb-3 text-xs sm:text-sm rounded-full py-1 sm:py-1.5 px-2 sm:px-4 bg-[#F96915]/90 text-white border-[#F96915]/50 backdrop-blur-sm"
                     >
                       <Plane className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="font-medium">{article.category}</span>
+                      {article.category}
                     </Badge>
-                    
-                    {/* Date and Time - Responsive layout */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-2 sm:mb-3">
-                      <div className="flex items-center text-xs sm:text-sm text-gray-200/90">
-                        <Calendar className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-2 sm:mb-3 text-gray-200/90">
+                      <div className="flex items-center text-xs sm:text-sm">
+                        <Calendar className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
                         <span className="hidden sm:inline">{formattedDate}</span>
                         <span className="sm:hidden">{shortFormattedDate}</span>
                       </div>
-                      <div className="flex items-center text-xs sm:text-sm text-gray-200/90">
-                        <Clock className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                      <div className="flex items-center text-xs sm:text-sm">
+                        <Clock className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
                         {timeAgo}
                       </div>
                     </div>
-                    
-                    {/* Title - Responsive text sizing */}
-                    <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold leading-tight line-clamp-2 sm:line-clamp-3 mb-2 sm:mb-3 text-white group-hover/link:text-[#F96915]/90 transition-colors duration-300">
+
+                    <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold line-clamp-2 sm:line-clamp-3 mb-2 sm:mb-3">
                       {article.title}
                     </h1>
-                    
-                    {/* Summary - Responsive visibility */}
-                    <p className="text-xs sm:text-sm lg:text-base xl:text-lg text-gray-200/90 line-clamp-2 lg:line-clamp-3 mb-4 sm:mb-6 leading-relaxed hidden sm:block">
+
+                    <p className="hidden sm:block text-sm lg:text-base xl:text-lg text-gray-200/90 line-clamp-3 mb-4 sm:mb-6">
                       {article.summary}
                     </p>
-                    
-                    {/* Mobile summary - shorter version */}
-                    <p className="text-xs text-gray-200/90 line-clamp-1 mb-3 leading-relaxed sm:hidden">
+
+                    <p className="sm:hidden text-xs text-gray-200/90 line-clamp-1 mb-3">
                       {article.summary}
                     </p>
-                    
-                    {/* Read More Button - Responsive sizing */}
-                    <div className="inline-flex items-center gap-1.5 sm:gap-2 font-semibold text-xs sm:text-sm lg:text-base text-white bg-[#F96915]/80 hover:bg-[#F96915] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full backdrop-blur-sm border border-[#F96915]/30 transition-all duration-300 group-hover/link:scale-105 shadow-lg hover:shadow-xl">
+
+                    <div className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base font-semibold bg-[#F96915]/80 hover:bg-[#F96915] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full">
                       <span>Read Full Story</span>
-                      <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 transition-transform group-hover/link:translate-x-1" />
+                      <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                 </div>
@@ -211,61 +193,54 @@ export default function TopStory({ articles }: TopStoryProps) {
           </div>
         );
       })}
-      
-      {/* Navigation Controls - Hidden on mobile/tablet, visible on large screens */}
+
+      {/* Navigation Controls */}
       {articles.length > 1 && (
         <>
-          {/* Navigation Buttons - Hidden below lg breakpoint */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg hidden lg:flex"
-            onClick={onPrevClick}
-            aria-label="Previous story"
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 hidden lg:flex bg-black/50 hover:bg-[#F96915]/80"
+            onClick={handlePrev}
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-6 w-6 text-white" />
           </Button>
-          
+
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 text-white transition-all duration-300 hover:bg-[#F96915]/80 hover:scale-110 backdrop-blur-sm border border-white/20 shadow-lg hidden lg:flex"
-            onClick={onNextClick}
-            aria-label="Next story"
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 hidden lg:flex bg-black/50 hover:bg-[#F96915]/80"
+            onClick={handleNext}
           >
-            <ChevronRight className="h-6 w-6" />
+            <ChevronRight className="h-6 w-6 text-white" />
           </Button>
-          
-          {/* Pagination Dots - Responsive sizing and positioning */}
-          <div className="absolute bottom-3 sm:bottom-4 lg:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2 z-20 bg-black/40 backdrop-blur-sm px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 rounded-full border border-white/20">
+
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/40 px-3 py-1.5 rounded-full">
             {articles.map((_, index) => (
               <button
                 key={index}
                 onClick={() => handleDotClick(index)}
                 className={cn(
-                  "transition-all duration-300 rounded-full border border-white/30",
-                  currentIndex === index 
-                    ? "h-2 w-6 sm:h-2.5 sm:w-8 bg-[#F96915] shadow-lg border-[#F96915]/50" 
-                    : "h-2 w-2 sm:h-2.5 sm:w-2.5 bg-white/60 hover:bg-white/80 hover:scale-125"
+                  'transition-all rounded-full',
+                  currentIndex === index
+                    ? 'h-2 w-6 bg-[#F96915]'
+                    : 'h-2 w-2 bg-white/60 hover:bg-white/80'
                 )}
-                aria-label={`Go to slide ${index + 1}`}
               />
             ))}
           </div>
         </>
       )}
 
-      {/* Mobile swipe indicator - Only show on mobile/tablet */}
-      <div className="absolute top-4 right-4 z-20 lg:hidden">
-        <div className="bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full border border-white/20 text-xs text-white/80">
-          Swipe for more
-        </div>
+      {/* Swipe hint */}
+      <div className="absolute top-4 right-4 z-20 lg:hidden text-xs bg-black/40 px-2 py-1 rounded-full">
+        Swipe for more
       </div>
     </div>
   );
 }
 
-// Helper function to calculate time ago
+// Helper
 function getTimeAgo(date: Date): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
@@ -273,15 +248,9 @@ function getTimeAgo(date: Date): string {
   const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-  if (diffInMinutes < 1) {
-    return 'Just now';
-  } else if (diffInMinutes < 60) {
-    return `${diffInMinutes}m ago`;
-  } else if (diffInHours < 24) {
-    return `${diffInHours}h ago`;
-  } else if (diffInDays < 7) {
-    return `${diffInDays}d ago`;
-  } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
+  if (diffInMinutes < 1) return 'Just now';
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  if (diffInDays < 7) return `${diffInDays}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
